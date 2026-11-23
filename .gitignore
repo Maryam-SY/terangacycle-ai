@@ -27,3 +27,20 @@ ml/data/
 Thumbs.db
 .idea/
 .vscode/
+
+# Documents internes de l'équipe (noms, clé Figma) : ne jamais publier
+TerangaCycle AI/
+
+# Clés et certificats
+*.pem
+*.key
+*.p12
+.env*.local
+
+# Modèles et bases locales
+models/
+*.sqlite
+
+# Réglages personnels
+.claude/settings.local.json
+_bmad/config.user.toml
