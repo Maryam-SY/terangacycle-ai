@@ -2,7 +2,7 @@
 title: 'Story 1.4 — CI de qualité'
 type: 'chore'
 created: '2026-11-24'
-status: 'in-review'
+status: 'done'
 baseline_commit: '7e02ebc0a3a3675c422701f4200c76854e76234b'
 route: 'dispatch'
 review_loop_iteration: 0
