@@ -1,0 +1,15 @@
+# Fins de ligne LF pour tout ce qui s'exécute dans un conteneur Linux, même avec
+# core.autocrlf=true sous Windows (un script shell en CRLF casse l'initialisation de la base).
+*.sh text eol=lf
+Caddyfile text eol=lf
+Dockerfile text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.py text eol=lf
+uv.lock text eol=lf
+*.ini text eol=lf
+*.mako text eol=lf
+.python-version text eol=lf
+# Copié octet pour octet en .env : un \r finirait dans les valeurs.
+.env.example text eol=lf

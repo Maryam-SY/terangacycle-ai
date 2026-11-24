@@ -46,6 +46,67 @@ Le cœur du projet n'est pas le signalement mais **la valorisation** : le matchi
 | Infra | Docker Compose, Caddy ; pilote AWS (Terraform) ; cible : hébergeur local |
 | Qualité | pytest, Vitest, Playwright, k6, GitHub Actions, Gitleaks, Bandit, Trivy |
 
+## Démarrer en local
+
+Prérequis : Docker avec Compose v2.24 ou plus récent, sur une machine x86_64 (l'image `postgis/postgis` n'existe qu'en amd64), et Python 3 pour le script de secrets.
+
+```bash
+# 1. Secrets factices dans .env.secrets/ (hors Git) et .env copié de .env.example
+python infra/gen-dev-secrets.py
+
+# 2. Démarrer la pile de démonstration depuis la racine du dépôt
+docker compose --profile demo up -d --wait
+
+# 3. Vérifier : db, valkey et garage « healthy », migrate « Exited (0) »,
+#    api, worker et caddy « running »
+docker compose --profile demo ps -a
+```
+
+L'API répond derrière Caddy sur `http://localhost` (port `HTTP_PORT` du `.env`). Si les ports 80 ou 5432 sont déjà pris sur la machine, changer `HTTP_PORT` et `DB_LOCAL_PORT` dans `.env`.
+
+| Service | Rôle |
+|---|---|
+| `caddy` | Bord HTTP, relaie vers l'API |
+| `api` | API FastAPI (rôle de base `teranga_app`, DML seulement) |
+| `worker` | Worker arq, même image que l'API |
+| `migrate` | `alembic upgrade head` avec le rôle `teranga_migrator`, puis s'arrête ; `api` et `worker` attendent sa réussite |
+| `db` | PostgreSQL 16 + PostGIS, port publié sur `127.0.0.1` seulement |
+| `valkey` | Valkey en AOF (file arq, limites de débit) |
+| `garage` | Stockage objet S3, un nœud, bucket privé par défaut |
+
+Les rôles `teranga_migrator` et `teranga_app` sont créés par `infra/db/initdb/20-roles.sh` à la création du volume de la base. Après un changement de secret de base, recréer les volumes : `docker compose --profile demo down -v`.
+
+**Backend sans Docker** (dans `backend/`, avec [uv](https://docs.astral.sh/uv/)) :
+
+```bash
+uv sync --frozen
+uv run ruff check .
+uv run pytest tests/unit
+```
+
+Tests d'intégration, pile démarrée : mots de passe dans `.env.secrets/`, port `DB_LOCAL_PORT` du `.env` (5432 par défaut).
+
+```bash
+# bash
+DB_LOCAL_PORT="$(sed -n 's/^DB_LOCAL_PORT=//p' ../.env)"; DB_LOCAL_PORT="${DB_LOCAL_PORT:-5432}"
+export TEST_APP_DATABASE_URL="postgresql://teranga_app:$(cat ../.env.secrets/db_app_password)@localhost:${DB_LOCAL_PORT}/terangacycle"
+export TEST_MIGRATOR_DATABASE_URL="postgresql://teranga_migrator:$(cat ../.env.secrets/db_migrator_password)@localhost:${DB_LOCAL_PORT}/terangacycle"
+uv run pytest tests/integration
+```
+
+```powershell
+# PowerShell
+$port = (Select-String -Path ..\.env -Pattern '^DB_LOCAL_PORT=(.+)$').Matches.Groups[1].Value
+if (-not $port) { $port = '5432' }
+$appPw = (Get-Content ..\.env.secrets\db_app_password -Raw).Trim()
+$migratorPw = (Get-Content ..\.env.secrets\db_migrator_password -Raw).Trim()
+$env:TEST_APP_DATABASE_URL = "postgresql://teranga_app:${appPw}@localhost:${port}/terangacycle"
+$env:TEST_MIGRATOR_DATABASE_URL = "postgresql://teranga_migrator:${migratorPw}@localhost:${port}/terangacycle"
+uv run pytest tests/integration
+```
+
+**Arrêter et tout effacer** (conteneurs et volumes) : `docker compose --profile demo down -v`.
+
 ## Documentation
 
 | Document | Contenu |

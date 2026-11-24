@@ -1,0 +1,155 @@
+# Pile TerangaCycle AI : un seul fichier, profils `demo` et `prod` (AD-28).
+#
+# Depuis la racine du dépôt (via compose.yaml) :
+#   python infra/gen-dev-secrets.py
+#   docker compose --profile demo up -d
+#
+# Règles :
+#   - toute image est référencée par `tag@sha256:` ; api, worker et migrate sont
+#     construits depuis backend/Dockerfile (images de base épinglées dans ce fichier) ;
+#   - healthchecks sans curl ;
+#   - secrets lus dans .env.secrets/ (hors Git) et montés dans /run/secrets/.
+# Les chemins relatifs partent du dossier infra/.
+
+# Socle commun des services construits depuis backend/ (même Dockerfile, même image).
+x-backend: &backend
+  build:
+    context: ../backend
+  profiles: [demo, prod]
+  env_file:
+    - path: ../.env
+      required: true
+  restart: unless-stopped
+
+services:
+  caddy:
+    image: caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+    profiles: [demo, prod]
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  api:
+    <<: *backend
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    secrets:
+      - db_app_password
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+
+  worker:
+    <<: *backend
+    command: ["arq", "app.worker.WorkerSettings"]
+    secrets:
+      - db_app_password
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      valkey:
+        condition: service_healthy
+
+  # Service à usage unique : `alembic upgrade head` avec le rôle teranga_migrator.
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    secrets:
+      - db_migrator_password
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # PostgreSQL 16 + PostGIS (amd64 seulement). Port publié sur 127.0.0.1 seulement,
+  # jamais sur une interface publique, pour les tests d'intégration locaux.
+  db:
+    image: postgis/postgis:16-3.7@sha256:2412104d3a48ad3b76adfa60a71638c93727dcbb49dd5a9207e4e83ab3591716
+    profiles: [demo, prod]
+    environment:
+      POSTGRES_DB: ${DB_NAME:-terangacycle}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    secrets:
+      - postgres_password
+      - db_migrator_password
+      - db_app_password
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db/initdb/20-roles.sh:/docker-entrypoint-initdb.d/20-roles.sh:ro
+    ports:
+      - "127.0.0.1:${DB_LOCAL_PORT:-5432}:5432"
+    healthcheck:
+      # En TCP : le serveur temporaire de l'initialisation n'écoute que sur le socket
+      # local, la base n'est donc saine qu'une fois les scripts initdb terminés.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  # Valkey en AOF (AD-20) : OTP, limites de débit, file arq.
+  valkey:
+    image: valkey/valkey:9.2.0@sha256:1c2b25b09f354c66fe994733acdf12fcfd4bdf6f3bd92b88a93a70378d884056
+    profiles: [demo, prod]
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes:
+      - valkey-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # Stockage objet S3, un seul nœud, bucket par défaut (AD-13).
+  garage:
+    image: dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
+    profiles: [demo, prod]
+    command: ["/garage", "server", "--single-node", "--default-bucket"]
+    environment:
+      GARAGE_DEFAULT_BUCKET: ${S3_BUCKET:-terangacycle-photos}
+    # L'image ne lit la clé S3 par défaut que dans l'environnement
+    # (GARAGE_DEFAULT_ACCESS_KEY, GARAGE_DEFAULT_SECRET_KEY) : fichier généré, hors Git.
+    env_file:
+      - path: ../.env.secrets/garage.env
+        required: true
+    secrets:
+      - garage_rpc_secret
+    volumes:
+      - ./garage/garage.toml:/etc/garage.toml:ro
+      - garage-meta:/var/lib/garage/meta
+      - garage-data:/var/lib/garage/data
+    healthcheck:
+      test: ["CMD", "/garage", "status"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+secrets:
+  postgres_password:
+    file: ../.env.secrets/postgres_password
+  db_migrator_password:
+    file: ../.env.secrets/db_migrator_password
+  db_app_password:
+    file: ../.env.secrets/db_app_password
+  garage_rpc_secret:
+    file: ../.env.secrets/garage_rpc_secret
+
+volumes:
+  db-data:
+  valkey-data:
+  garage-meta:
+  garage-data:
+  caddy-data:
+  caddy-config:
