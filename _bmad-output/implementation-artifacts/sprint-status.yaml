@@ -1,0 +1,188 @@
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created, ready for development
+#   - in-progress: Developer actively working on implementation
+#   - review: Implementation complete, ready for review
+#   - done: Story completed
+
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+
+# Action Item Status:
+#   - open: Committed during a retrospective, not yet addressed
+#   - in-progress: Actively being worked on
+#   - done: Completed
+
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when its first story starts (via build's sprint sync)
+# - Stories can be worked in parallel if team capacity allows
+# - Developer typically creates the next story after the previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+# - Retrospective appends its action items to action_items; the status view surfaces open ones
+generated: 11-24-2026 09:00
+last_updated: 11-24-2026 09:00
+project: TerangaCycleAI
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+development_status:
+  epic-1: backlog
+  1-1-squelette-backend-et-docker-compose: backlog
+  1-2-configuration-sondes-et-conventions-d-api: backlog
+  1-3-coquille-pwa-et-bord-caddy: backlog
+  1-4-ci-de-qualité: backlog
+  1-5-hygiène-du-dépôt-public: backlog
+  1-6-contrôles-de-contrat-en-ci: backlog
+  1-7-accueil-et-consentement-avant-la-première-capture: backlog
+  1-8-vérifier-la-position-et-la-zone-active-avant-la-photo: backlog
+  1-9-photographier-le-dépôt-en-version-légère-et-sans-métadonnées: backlog
+  1-10-stocker-une-photo-sans-métadonnées-dans-le-bucket-privé: backlog
+  1-11-recevoir-un-signalement-anonyme-et-attribuer-son-numéro-de-s: backlog
+  1-12-renvoyer-un-signalement-sans-doublon-ni-fuite: backlog
+  1-13-compléter-envoyer-et-voir-la-confirmation: backlog
+  1-14-repérer-les-doublons-probables-à-la-réception: backlog
+  1-15-limiter-les-abus-de-signalement: backlog
+  1-16-retirer-son-consentement-au-réentraînement: backlog
+  1-17-charger-et-retirer-les-données-de-démonstration-en-une-comma: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-mode-démonstration-visible-et-interdit-en-production: backlog
+  2-2-demander-un-code-de-connexion-par-sms: backlog
+  2-3-se-connecter-avec-le-code-otp: backlog
+  2-4-rester-connecté-30-jours-et-se-déconnecter: backlog
+  2-5-appliquer-les-rôles-et-la-propriété-sur-chaque-route: backlog
+  2-6-inscrire-les-actions-sensibles-au-journal-d-audit: backlog
+  2-7-consulter-le-journal-d-audit: backlog
+  2-8-consulter-et-rectifier-son-profil: backlog
+  2-9-retirer-un-signalement-anonyme-encore-en-attente: backlog
+  2-10-supprimer-son-compte: backlog
+  2-11-gérer-les-comptes-collecteurs-et-les-rôles: backlog
+  2-12-se-connecter-avec-un-second-facteur-personnel: backlog
+  epic-2-retrospective: optional
+
+  epic-3: backlog
+  3-1-contrat-du-modèle-et-modèle-factice: backlog
+  3-2-publication-d-une-version-du-modèle-et-récupération-par-l-ap: backlog
+  3-3-classification-côté-serveur-par-le-module-ai: backlog
+  3-4-préparation-des-données-d-entraînement-et-jeu-de-test-figé: backlog
+  3-5-entraînement-de-mobilenetv3-large-en-deux-phases-et-calibrat: backlog
+  3-6-export-onnx-quantification-int8-qdq-statique-et-manifeste: backlog
+  3-7-évaluation-sur-le-jeu-de-test-figé-fiche-du-modèle-et-public: backlog
+  3-8-sélecteur-des-types-de-déchet-piloté-par-la-proposition-ia: backlog
+  3-9-classification-locale-dans-la-pwa: backlog
+  3-10-test-doré-des-trois-chaînes-de-classification: backlog
+  3-11-enregistrer-la-classification-locale-et-la-correction-du-cit: backlog
+  3-12-écran-3-résultat-ia-avec-seuil-de-confiance-et-correction: backlog
+  3-13-classification-serveur-en-tâche-de-fond: backlog
+  3-14-désaccord-ia-et-type-de-déchet-pré-rempli-pour-le-modérateur: backlog
+  3-15-remplacer-le-modèle-factice-par-le-modèle-entraîné-sans-touc: backlog
+  epic-3-retrospective: optional
+
+  epic-4: backlog
+  4-1-consulter-la-file-de-modération: backlog
+  4-2-tracer-chaque-changement-de-statut-par-une-porte-unique: backlog
+  4-3-valider-un-signalement-et-fixer-le-type-de-déchet-retenu: backlog
+  4-4-rejeter-un-signalement-avec-un-motif-obligatoire: backlog
+  4-5-effacer-sous-24-h-la-photo-d-un-rejet-personne-ou-plaque-vis: backlog
+  4-6-export-des-corrections-consenties-comme-exemples-étiquetés: backlog
+  4-7-suivre-ses-signalements-sur-la-frise-de-suivi: backlog
+  4-8-voir-les-changements-de-statut-depuis-sa-dernière-visite: backlog
+  4-9-s-abonner-aux-notifications-push: backlog
+  4-10-recevoir-une-notification-push-de-changement-de-statut: backlog
+  4-11-réentraînement-mensuel-sur-les-corrections-exportées: backlog
+  epic-4-retrospective: optional
+
+  epic-5: backlog
+  5-1-lister-les-signalements-validé-proches-d-un-collecteur-vérif: backlog
+  5-2-écran-5-missions-carte-et-liste-des-signalements-proches: backlog
+  5-3-accepter-une-mission-de-façon-exclusive: backlog
+  5-4-accepter-une-mission-depuis-l-écran-5-et-voir-la-position-pr: backlog
+  5-5-annuler-une-mission-active: backlog
+  5-6-soumettre-une-preuve-de-collecte-géorepérée: backlog
+  5-7-écran-6-preuve-de-collecte: backlog
+  5-8-ouvrir-l-itinéraire-vers-une-mission-active: backlog
+  5-9-assigner-un-signalement-validé-à-un-collecteur-vérifié: backlog
+  5-10-historique-des-missions-du-collecteur: backlog
+  5-11-libérer-la-mission-active-d-un-collecteur-supprimé-ou-suspen: backlog
+  5-12-expirer-les-missions-sans-preuve-après-48-h: backlog
+  5-13-tirer-chaque-semaine-l-échantillon-de-preuves-à-revoir: backlog
+  5-14-revoir-une-preuve-tirée-confirmée-ou-contestée: backlog
+  5-15-écran-de-revue-des-preuves-et-mention-contestée-dans-l-histo: backlog
+  epic-5-retrospective: optional
+
+  epic-6: backlog
+  6-1-garder-un-signalement-sur-le-téléphone-quand-le-réseau-manqu: backlog
+  6-2-envoyer-automatiquement-la-file-hors-ligne-sans-doublon: backlog
+  6-3-voir-les-signalements-en-attente-et-relancer-l-envoi: backlog
+  epic-6-retrospective: optional
+
+  epic-7: backlog
+  7-1-vues-analytiques-en-lecture-seule: backlog
+  7-2-calcul-des-indicateurs-de-la-cohorte: backlog
+  7-3-écran-7-tableau-de-bord-des-indicateurs: backlog
+  7-4-carte-de-chaleur-filtrable: backlog
+  7-5-export-agrégé-csv-et-geojson: backlog
+  7-6-carte-publique-agrégée-pour-les-visiteurs: backlog
+  7-7-part-des-preuves-contestées-sur-le-tableau-de-bord: backlog
+  epic-7-retrospective: optional
+
+  epic-8: backlog
+  8-1-couleurs-validées-des-5-types-de-déchet: backlog
+  8-2-mesurer-et-tenir-le-budget-de-premier-chargement-en-3g: backlog
+  8-3-test-de-charge-k6-de-la-lecture-api: backlog
+  8-4-bord-http-durci-et-vérifié: backlog
+  8-5-publier-par-empreinte-et-revenir-en-arrière-en-une-commande: backlog
+  8-6-déployer-l-instance-de-démonstration-sur-le-serveur: backlog
+  8-7-portable-de-secours-et-tuiles-de-la-zone-de-démo-sans-intern: backlog
+  8-8-plans-b-vidéo-de-la-démo-complète-et-10-photos-locales-prépa: backlog
+  8-9-répétition-chronométrée-du-pitch-de-1-min-30-avec-données-ét: backlog
+  8-10-secrets-et-clés-tenus-par-l-organisation-rotation-éprouvée: backlog
+  8-11-supervision-et-alertes-de-l-équipe: backlog
+  8-12-sauvegardes-quotidiennes-chiffrées-hors-de-l-hôte: backlog
+  8-13-chiffrement-au-repos-de-la-base-et-des-photos: backlog
+  8-14-restauration-complète-testée-sur-un-hôte-vierge: backlog
+  8-15-restauration-de-sortie-vers-un-autre-hébergeur: backlog
+  epic-8-retrospective: optional
+
+  epic-9: backlog
+  9-1-déclarer-un-lot-de-matière-api: backlog
+  9-2-écran-de-déclaration-d-un-lot-et-mes-lots: backlog
+  9-3-consulter-les-lots-disponible: backlog
+  9-4-demander-le-contact-du-collecteur-d-un-lot: backlog
+  9-5-réserver-un-lot: backlog
+  epic-9-retrospective: optional
+action_items:
+  - epic: 3
+    action: "Décidé par Mia le 24/11 : si le Modèle entraîné n'atteint pas F1 macro >= 0,80, la démo montre le vrai Modèle étiqueté « prototype » avec ses chiffres réels (pas le Modèle factice). Mettre à jour la story 3.7 et le PRD (FR-16, SM-2) pour l'autoriser en démo uniquement."
+    owner: "Mia"
+    status: open
+  - epic: 1
+    action: "Décidé par Mia le 24/11 : react-router 8 pour la navigation de la PWA. L'ajouter à la Stack de l'épine et à la story 1.3."
+    owner: "Mia"
+    status: open
+  - epic: 1
+    action: "Rôles PostgreSQL teranga_migrator / teranga_app : les créer par un script docker-entrypoint-initdb.d (hors Alembic), story 1.1."
+    owner: "Ahmadou"
+    status: open
+  - epic: 1
+    action: "Polygones des Zones de Dakar : choisir la source et la licence (ex. limites administratives OpenStreetMap, ODbL) avant la story 1.8."
+    owner: "Ahmadou"
+    status: open
+  - epic: 8
+    action: "Sauvegardes planifiées : service dédié du profil prod de Docker Compose ou tâche arq (AD-18 interdit le cron d'hôte), avant la story 8.12."
+    owner: "Ahmadou"
+    status: open
+  - epic: 1
+    action: "Redécouper ou non les stories lourdes 1.11, 1.13, 2.5 et 5.6 avant de les démarrer (question ouverte n° 9 de epics.md)."
+    owner: "Mia"
+    status: open
