@@ -1,17 +1,35 @@
 """Worker arq (AD-8, AD-18) : même image que l'API.
 
-Lancement : `arq app.worker.WorkerSettings`. Les tâches métier et les `cron_jobs`
-arrivent avec leurs stories ; `noop` vérifie seulement la chaîne de bout en bout.
+Lancement : `arq app.worker.WorkerSettings`.
+
+Battement : une tâche asyncio, lancée au démarrage dans le processus du worker, écrit
+`worker:heartbeat` (horodatage Unix, TTL de 90 s) toutes les 15 s. Elle ne passe pas
+par `cron_jobs` : une tâche planifiée transite par la file et serait retardée par une
+file pleine, alors que la boucle prouve que le processus lui-même est vivant.
+`/readyz` et le healthcheck Compose exigent un battement de moins de 60 s.
+
+Healthcheck : `python -m app.worker healthcheck` (code 0 si le battement est frais).
+
+Les tâches métier et les `cron_jobs` arrivent avec leurs stories.
 """
 
+import asyncio
+import contextlib
+import sys
 from typing import Any, ClassVar
 
 from arq.connections import RedisSettings
+from redis.asyncio import Redis
 
-from app.core.config import get_settings
+from app.core.clock import now
+from app.core.config import load_settings_or_exit
+from app.core.health import HEARTBEAT_KEY, heartbeat_is_fresh
 from app.core.logging import configure_logging, get_logger
 
 log = get_logger(__name__)
+
+HEARTBEAT_INTERVAL_S = 15
+HEARTBEAT_TTL_S = 90
 
 
 async def noop(ctx: dict[str, Any]) -> None:
@@ -19,12 +37,67 @@ async def noop(ctx: dict[str, Any]) -> None:
     log.info("noop")
 
 
+async def write_heartbeat(redis: Redis) -> None:
+    await redis.set(HEARTBEAT_KEY, str(now().timestamp()), ex=HEARTBEAT_TTL_S)
+
+
+async def heartbeat_loop(redis: Redis, interval_s: float = HEARTBEAT_INTERVAL_S) -> None:
+    """Écrit le battement à intervalle fixe ; une erreur Valkey est journalisée, pas fatale."""
+    while True:
+        try:
+            await write_heartbeat(redis)
+        except Exception as exc:
+            log.warning("heartbeat_failed", reason=type(exc).__name__)
+        await asyncio.sleep(interval_s)
+
+
 async def startup(ctx: dict[str, Any]) -> None:
-    configure_logging(get_settings().log_level)
+    settings = load_settings_or_exit()
+    configure_logging(settings.log_level)
+    if settings.ephemeral_secrets:
+        log.warning("ephemeral_secrets", secrets=list(settings.ephemeral_secrets))
+    ctx["heartbeat_task"] = asyncio.create_task(heartbeat_loop(ctx["redis"]))
     log.info("worker_started")
+
+
+async def shutdown(ctx: dict[str, Any]) -> None:
+    task: asyncio.Task | None = ctx.pop("heartbeat_task", None)
+    if task is not None:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+    log.info("worker_stopped")
 
 
 class WorkerSettings:
     functions: ClassVar[list] = [noop]
+    # Tâches planifiées de l'épine (AD-18), ajoutées par leurs stories.
+    cron_jobs: ClassVar[list] = []
     on_startup = startup
-    redis_settings = RedisSettings.from_dsn(get_settings().valkey_url)
+    on_shutdown = shutdown
+    redis_settings = RedisSettings.from_dsn(load_settings_or_exit().valkey_url)
+
+
+async def _healthcheck() -> bool:
+    client = Redis.from_url(
+        load_settings_or_exit().valkey_url, socket_connect_timeout=3, socket_timeout=3
+    )
+    try:
+        return heartbeat_is_fresh(await client.get(HEARTBEAT_KEY))
+    finally:
+        await client.aclose()
+
+
+def main(argv: list[str]) -> int:
+    if argv != ["healthcheck"]:
+        print("usage : python -m app.worker healthcheck", file=sys.stderr)
+        return 2
+    try:
+        return 0 if asyncio.run(_healthcheck()) else 1
+    except Exception as exc:
+        print(f"healthcheck en échec : {type(exc).__name__}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

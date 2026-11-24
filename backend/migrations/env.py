@@ -9,7 +9,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-from app.core.config import get_settings
+from app.core.config import MigratorSettings, load_settings
 from app.core.db import Base
 
 config = context.config
@@ -21,7 +21,8 @@ target_metadata = Base.metadata
 
 
 def _migrator_url() -> str:
-    url = get_settings().migrator_database_url
+    # Réglages de migration : l'inventaire AD-26 de l'API n'est pas exigé ici.
+    url = load_settings(MigratorSettings).migrator_database_url
     if url is None:
         raise RuntimeError(
             "MIGRATOR_DATABASE_URL ou le secret db_migrator_password manque : migration impossible."

@@ -51,18 +51,29 @@ Le cœur du projet n'est pas le signalement mais **la valorisation** : le matchi
 Prérequis : Docker avec Compose v2.24 ou plus récent, sur une machine x86_64 (l'image `postgis/postgis` n'existe qu'en amd64), et Python 3 pour le script de secrets.
 
 ```bash
-# 1. Secrets factices dans .env.secrets/ (hors Git) et .env copié de .env.example
+# 1. Secrets factices dans .env.secrets/ (hors Git) et .env copié de .env.example.
+#    À relancer après une mise à jour : il crée les secrets manquants sans rien écraser.
 python infra/gen-dev-secrets.py
 
 # 2. Démarrer la pile de démonstration depuis la racine du dépôt
 docker compose --profile demo up -d --wait
 
-# 3. Vérifier : db, valkey et garage « healthy », migrate « Exited (0) »,
-#    api, worker et caddy « running »
+# 3. Vérifier : db, valkey, garage, api et worker « healthy », migrate « Exited (0) »,
+#    caddy « running »
 docker compose --profile demo ps -a
 ```
 
-L'API répond derrière Caddy sur `http://localhost` (port `HTTP_PORT` du `.env`). Si les ports 80 ou 5432 sont déjà pris sur la machine, changer `HTTP_PORT` et `DB_LOCAL_PORT` dans `.env`.
+L'API répond derrière Caddy sur `http://localhost` (port `HTTP_PORT` du `.env`) :
+
+| Adresse | Réponse |
+|---|---|
+| `/healthz` | Vivacité : `{"status": "ok"}`, sans aucune dépendance |
+| `/readyz` | `{"status": "ready"}` si la base, Valkey, le bucket et le battement du worker (moins de 60 s) répondent, sinon 503 `{"status": "not_ready"}` |
+| `/v1/config` | Configuration publique : `demo_mode`, `env`, `model_version` |
+| `/docs`, `/redoc`, `/openapi.json` | Documentation OpenAPI, absente (404) quand `ENV=prod` |
+| `/metrics` | Jamais relayée par Caddy (404) ; format Prometheus sur le réseau Compose seulement (`http://api:8000/metrics`) |
+
+En `ENV=demo` ou `prod`, l'API et le worker refusent de démarrer si un secret de l'inventaire manque dans `.env.secrets/` (le message nomme le secret). Test de fumée de `/readyz`, pile démarrée (arrête puis relance tour à tour `db`, `valkey`, `garage` et `worker`) : `python backend/scripts/smoke_readyz.py`. Si les ports 80 ou 5432 sont déjà pris sur la machine, changer `HTTP_PORT` et `DB_LOCAL_PORT` dans `.env`.
 
 | Service | Rôle |
 |---|---|
