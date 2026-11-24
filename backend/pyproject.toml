@@ -27,6 +27,7 @@ dev = [
     "pytest==9.2.0",
     "ruff==0.17.6",
     "import-linter==2.17",
+    "pytest-cov==7.1.0",
 ]
 
 [tool.uv]
@@ -52,3 +53,68 @@ addopts = "-ra"
 markers = [
     "integration: test qui exige la pile Docker (PostGIS, Valkey, Garage)",
 ]
+
+# `pytest --cov` : couverture du code de l'application, seuil bloquant de 60 %.
+[tool.coverage.run]
+source = ["app"]
+
+[tool.coverage.report]
+fail_under = 60
+
+# Frontières des modules (AD-1), vérifiées par `uv run lint-imports`.
+# app.main, app.worker et app.reactions sont les racines de composition : seules à
+# pouvoir importer n'importe quel module.
+[tool.importlinter]
+root_package = "app"
+
+# Dans chaque module : router → service → repository, jamais l'inverse. Les couches
+# sont facultatives (entre parenthèses) tant que les stories ne les ont pas créées.
+[[tool.importlinter.contracts]]
+id = "layers"
+name = "Couches router -> service -> repository dans chaque module"
+type = "layers"
+layers = ["(router)", "(service)", "(repository)"]
+containers = [
+    "app.modules.auth",
+    "app.modules.reports",
+    "app.modules.missions",
+    "app.modules.lots",
+    "app.modules.analytics",
+    "app.modules.ai",
+    "app.modules.notifications",
+]
+
+# Aucun cycle entre modules frères.
+[[tool.importlinter.contracts]]
+id = "acyclic_siblings"
+name = "Pas de cycle entre les modules"
+type = "acyclic_siblings"
+ancestors = ["app.modules"]
+
+# Un module n'est importé, hors de lui-même, que par les racines de composition. Seules
+# exceptions : les flèches de l'épine, et seulement vers le `service` du module cible.
+# `app.core` n'est pas importateur autorisé : il ne peut importer aucun module.
+[[tool.importlinter.contracts]]
+id = "protected"
+name = "Seul le service d'un module est importable par un autre (AD-1)"
+type = "protected"
+protected_modules = ["app.modules.*"]
+allowed_importers = ["app.main", "app.worker", "app.reactions"]
+ignore_imports = [
+    "app.modules.missions -> app.modules.reports.service",
+    "app.modules.missions.** -> app.modules.reports.service",
+    "app.modules.missions -> app.modules.auth.service",
+    "app.modules.missions.** -> app.modules.auth.service",
+    "app.modules.reports -> app.modules.ai.service",
+    "app.modules.reports.** -> app.modules.ai.service",
+    "app.modules.reports -> app.modules.auth.service",
+    "app.modules.reports.** -> app.modules.auth.service",
+    "app.modules.lots -> app.modules.missions.service",
+    "app.modules.lots.** -> app.modules.missions.service",
+    "app.modules.lots -> app.modules.auth.service",
+    "app.modules.lots.** -> app.modules.auth.service",
+    "app.modules.notifications -> app.modules.auth.service",
+    "app.modules.notifications.** -> app.modules.auth.service",
+]
+# Les flèches n'existent pas encore toutes : ne pas exiger qu'elles soient présentes.
+unmatched_ignore_imports_alerting = "none"
