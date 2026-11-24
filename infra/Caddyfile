@@ -1,11 +1,81 @@
-# Bord HTTP de TerangaCycle AI (AD-23).
-# Version minimale : HTTP sur :80, relais vers l'API. TLS, en-têtes de sécurité,
-# PWA et MEDIA_HOST arrivent avec la story 1.3.
+# Bord HTTPS de TerangaCycle AI (AD-23).
+#   APP_HOST   : PWA construite (/srv/pwa, image infra/caddy/Dockerfile) et API (/v1, sondes).
+#   MEDIA_HOST : photos du bucket S3_BUCKET, lues dans Garage (S3 path-style).
+# TLS automatique : CA interne de Caddy pour *.localhost, Let's Encrypt pour un vrai domaine.
+# En-têtes de sécurité (CSP, HSTS…) : story 8.4, posés ici en une fois.
 
-:80 {
-	# /metrics reste interne : jamais relayé vers l'extérieur.
-	@internal path /metrics /metrics/*
-	respond @internal 404
+# HTTP → HTTPS. Redirection explicite pour garder le port public (HTTPS_PORT) quand
+# Compose publie 443 sur un autre port de l'hôte ; la redirection automatique de Caddy
+# viserait le 443 de l'hôte. Les défis ACME HTTP-01 restent servis par Caddy.
+http://{$APP_HOST}, http://{$MEDIA_HOST} {
+	redir https://{host}:{$HTTPS_PORT}{uri} 308
+}
 
-	reverse_proxy api:8000
+{$APP_HOST} {
+	# Surfaces internes : jamais relayées vers l'extérieur.
+	@internal path /metrics /metrics/* /v1/ai /v1/ai/*
+	handle @internal {
+		respond 404
+	}
+
+	@api path /v1/* /healthz /readyz
+	handle @api {
+		reverse_proxy api:8000
+	}
+
+	# Tout le reste : la PWA.
+	handle {
+		root * /srv/pwa
+
+		# Routage client : un chemin sans extension, hors /assets/, qui ne correspond à
+		# aucun fichier reçoit index.html. Un fichier absent (/assets/…, *.js, *.png…)
+		# reçoit un vrai 404, jamais du HTML.
+		@spa {
+			not path /assets/*
+			not path_regexp \.[^/]+$
+			not file
+		}
+		rewrite @spa /index.html
+
+		# Toujours revalidés : la coquille, le service worker et le manifeste.
+		@nocache path / /index.html /sw.js /registerSW.js /manifest.webmanifest
+		header @nocache Cache-Control "no-cache"
+		header @spa Cache-Control "no-cache"
+
+		# Fichiers à empreinte de Vite : immuables (seulement s'ils existent).
+		@hashed {
+			path /assets/*
+			file
+		}
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+		file_server
+	}
+}
+
+{$MEDIA_HOST} {
+	# Lecture seule, bucket des photos seulement : le reste de l'API S3 de Garage
+	# (liste des buckets, autres buckets, écriture, ACL…) n'est jamais exposé.
+	@photos {
+		method GET HEAD
+		path /{$S3_BUCKET}/*
+	}
+	handle @photos {
+		# Caddy transmet déjà l'en-tête Host reçu ; écrit ici pour le rendre explicite :
+		# la signature SigV4 des URL présignées couvre Host (port compris), qui ne doit
+		# donc pas être réécrit (par exemple en garage:3900).
+		reverse_proxy garage:3900 {
+			header_up Host {hostport}
+		}
+	}
+
+	@bucket path /{$S3_BUCKET}/*
+	handle @bucket {
+		header Allow "GET, HEAD"
+		respond 405
+	}
+
+	handle {
+		respond 404
+	}
 }

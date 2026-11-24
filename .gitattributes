@@ -13,3 +13,4 @@ uv.lock text eol=lf
 .python-version text eol=lf
 # Copié octet pour octet en .env : un \r finirait dans les valeurs.
 .env.example text eol=lf
+*.dockerignore text eol=lf

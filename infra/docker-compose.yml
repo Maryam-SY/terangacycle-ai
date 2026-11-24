@@ -6,10 +6,11 @@
 #
 # Règles :
 #   - toute image est référencée par `tag@sha256:` ; api, worker et migrate sont
-#     construits depuis backend/Dockerfile (images de base épinglées dans ce fichier) ;
+#     construits depuis backend/Dockerfile, caddy depuis infra/caddy/Dockerfile
+#     (images de base épinglées dans ces fichiers) ;
 #   - healthchecks sans curl ;
 #   - secrets lus dans .env.secrets/ (hors Git) et montés dans /run/secrets/ ;
-#   - /metrics de l'API reste sur le réseau Compose : Caddy ne la relaie pas.
+#   - /metrics et /v1/ai/* de l'API restent sur le réseau Compose : Caddy ne les relaie pas.
 # Les chemins relatifs partent du dossier infra/.
 
 # Socle commun des services construits depuis backend/ (même Dockerfile, même image).
@@ -37,17 +38,38 @@ x-app-secrets: &app-secrets
   - alert_webhook_url
 
 services:
+  # Bord HTTPS : PWA (construite dans l'image) et API sur APP_HOST, photos sur MEDIA_HOST.
   caddy:
-    image: caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+    build:
+      context: ..
+      dockerfile: infra/caddy/Dockerfile
     profiles: [demo, prod]
     ports:
       - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    environment:
+      APP_HOST: ${APP_HOST:-app.localhost}
+      MEDIA_HOST: ${MEDIA_HOST:-media.localhost}
+      # Port HTTPS public, pour la redirection HTTP → HTTPS.
+      HTTPS_PORT: ${HTTPS_PORT:-443}
+      # Seul bucket lisible sur MEDIA_HOST.
+      S3_BUCKET: ${S3_BUCKET:-terangacycle-photos}
+    healthcheck:
+      # Sans curl : wget de busybox (image alpine) sur l'API d'administration de Caddy,
+      # qui n'écoute que dans le conteneur (127.0.0.1:2019).
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
       api:
+        condition: service_healthy
+      garage:
         condition: service_healthy
     restart: unless-stopped
 

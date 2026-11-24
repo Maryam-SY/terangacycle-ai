@@ -58,26 +58,46 @@ python infra/gen-dev-secrets.py
 # 2. Démarrer la pile de démonstration depuis la racine du dépôt
 docker compose --profile demo up -d --wait
 
-# 3. Vérifier : db, valkey, garage, api et worker « healthy », migrate « Exited (0) »,
-#    caddy « running »
+# 3. Vérifier : db, valkey, garage, api, worker et caddy « healthy »,
+#    migrate « Exited (0) »
 docker compose --profile demo ps -a
 ```
 
-L'API répond derrière Caddy sur `http://localhost` (port `HTTP_PORT` du `.env`) :
+Caddy construit la PWA dans son image (`infra/caddy/Dockerfile`, Node 26) : après une modification de `web/`, relancer avec `--build`. Ouvrir ensuite **`https://app.localhost:<HTTPS_PORT>`** dans Chrome (`https://app.localhost` si `HTTPS_PORT=443`, la valeur par défaut). Chrome résout `*.localhost` vers `127.0.0.1` ; `http://` redirige vers `https://`.
+
+**Certificat local.** Pour `*.localhost`, Caddy émet un certificat de son propre CA interne, que la machine ne connaît pas : Chrome affiche d'abord un avertissement, qu'on peut passer en développement. Pour l'éviter, approuver ce CA sur l'hôte. `docker compose exec caddy caddy trust` ne l'installe que dans le conteneur ; pour l'hôte, copier le certificat racine puis l'importer comme autorité de confiance :
+
+```bash
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-root.crt
+# Windows (PowerShell) : Import-Certificate -FilePath .\caddy-root.crt -CertStoreLocation Cert:\CurrentUser\Root
+# macOS : sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain caddy-root.crt
+# Linux (Chrome) : certutil -d sql:$HOME/.pki/nssdb -A -t C,, -n caddy-local -i caddy-root.crt
+```
+
+Le CA est gardé dans le volume `caddy-data` : à refaire après `docker compose down -v`. En démo réelle, `APP_HOST` et `MEDIA_HOST` sont de vrais domaines et Caddy obtient un certificat Let's Encrypt.
+
+Sur `APP_HOST`, Caddy sert la PWA, et relaie vers l'API `/v1/*`, `/healthz` et `/readyz` ; toute autre adresse sans extension renvoie `index.html` (routage côté client), un fichier absent renvoie 404. Sur `MEDIA_HOST` (`media.localhost`), il relaie vers Garage la seule lecture (`GET`, `HEAD`) des photos du bucket `S3_BUCKET` (`/<bucket>/<clé>`, 403 sans signature) ; tout autre chemin reçoit 404 et toute autre méthode 405.
 
 | Adresse | Réponse |
 |---|---|
 | `/healthz` | Vivacité : `{"status": "ok"}`, sans aucune dépendance |
 | `/readyz` | `{"status": "ready"}` si la base, Valkey, le bucket et le battement du worker (moins de 60 s) répondent, sinon 503 `{"status": "not_ready"}` |
 | `/v1/config` | Configuration publique : `demo_mode`, `env`, `model_version` |
-| `/docs`, `/redoc`, `/openapi.json` | Documentation OpenAPI, absente (404) quand `ENV=prod` |
-| `/metrics` | Jamais relayée par Caddy (404) ; format Prometheus sur le réseau Compose seulement (`http://api:8000/metrics`) |
+| `/metrics`, `/v1/ai/*` | Jamais relayées par Caddy (404) ; `/metrics` au format Prometheus sur le réseau Compose seulement (`http://api:8000/metrics`) |
 
-En `ENV=demo` ou `prod`, l'API et le worker refusent de démarrer si un secret de l'inventaire manque dans `.env.secrets/` (le message nomme le secret). Test de fumée de `/readyz`, pile démarrée (arrête puis relance tour à tour `db`, `valkey`, `garage` et `worker`) : `python backend/scripts/smoke_readyz.py`. Si les ports 80 ou 5432 sont déjà pris sur la machine, changer `HTTP_PORT` et `DB_LOCAL_PORT` dans `.env`.
+La documentation OpenAPI (`/docs`, `/redoc`, `/openapi.json`, absente quand `ENV=prod`) n'est plus relayée par Caddy : ces adresses servent la PWA. Elle reste servie par l'API sur le réseau Compose (`http://api:8000/docs`).
+
+En `ENV=demo` ou `prod`, l'API et le worker refusent de démarrer si un secret de l'inventaire manque dans `.env.secrets/` (le message nomme le secret). Tests de fumée, pile démarrée :
+- bord Caddy (chaque cas de la story 1.3 en HTTPS, certificat local non vérifié) : `python backend/scripts/smoke_edge.py` ;
+- `/readyz` (arrête puis relance tour à tour `db`, `valkey`, `garage` et `worker`) : `python backend/scripts/smoke_readyz.py`.
+
+Les deux scripts se connectent à `127.0.0.1` en HTTPS avec `APP_HOST` et `HTTPS_PORT` (environnement, sinon `.env`).
+
+Si les ports 80, 443 ou 5432 sont déjà pris sur la machine, changer `HTTP_PORT`, `HTTPS_PORT` et `DB_LOCAL_PORT` dans `.env`.
 
 | Service | Rôle |
 |---|---|
-| `caddy` | Bord HTTP, relaie vers l'API |
+| `caddy` | Bord HTTPS : PWA et API sur `APP_HOST`, photos (Garage) sur `MEDIA_HOST` |
 | `api` | API FastAPI (rôle de base `teranga_app`, DML seulement) |
 | `worker` | Worker arq, même image que l'API |
 | `migrate` | `alembic upgrade head` avec le rôle `teranga_migrator`, puis s'arrête ; `api` et `worker` attendent sa réussite |
@@ -115,6 +135,8 @@ $env:TEST_APP_DATABASE_URL = "postgresql://teranga_app:${appPw}@localhost:${port
 $env:TEST_MIGRATOR_DATABASE_URL = "postgresql://teranga_migrator:${migratorPw}@localhost:${port}/terangacycle"
 uv run pytest tests/integration
 ```
+
+**PWA sans Docker** (dans `web/`, Node 26) : `npm ci`, `npm run dev` (serveur de développement sur le port 5173), `npm test`, `npm run build`. Détails dans [`web/README.md`](web/README.md).
 
 **Arrêter et tout effacer** (conteneurs et volumes) : `docker compose --profile demo down -v`.
 
