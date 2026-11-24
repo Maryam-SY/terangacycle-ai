@@ -1,0 +1,11 @@
+# Contexte de infra/caddy/Dockerfile = racine du dépôt : on n'envoie que web/,
+# sans dépendances ni constructions locales (la PWA est reconstruite dans l'image),
+# ni fichiers d'environnement locaux : une valeur VITE_* finirait dans le bundle public.
+*
+!web/
+web/node_modules
+web/dist
+web/dev-dist
+web/.env*
+web/**/.env*
+web/**/*.local

@@ -35,6 +35,7 @@ TerangaCycle AI/
 *.pem
 *.key
 *.p12
+*.crt
 .env*.local
 
 # Modèles et bases locales

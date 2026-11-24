@@ -1,0 +1,13 @@
+{
+  "app": {
+    "name": "TerangaCycle AI"
+  },
+  "home": {
+    "title": "Ensemble, gardons Dakar propre",
+    "subtitle": "Bientôt, vous pourrez signaler un dépôt sauvage en une photo et suivre sa collecte."
+  },
+  "notFound": {
+    "title": "Cette page est introuvable",
+    "back": "Retour à l'accueil"
+  }
+}
