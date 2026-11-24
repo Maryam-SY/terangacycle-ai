@@ -2,7 +2,8 @@
 
 Exige la pile démarrée et deux URL de connexion :
 `TEST_APP_DATABASE_URL` (rôle teranga_app) et `TEST_MIGRATOR_DATABASE_URL`
-(rôle teranga_migrator). Sans elles, les tests sont ignorés.
+(rôle teranga_migrator). Sans elles, les tests sont ignorés, sauf avec
+`REQUIRE_INTEGRATION=1` (CI) : ils échouent alors (`tests/conftest.py`).
 """
 
 import os

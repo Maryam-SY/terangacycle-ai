@@ -140,6 +140,68 @@ uv run pytest tests/integration
 
 **Arrêter et tout effacer** (conteneurs et volumes) : `docker compose --profile demo down -v`.
 
+## Intégration continue
+
+Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tourne sur chaque pull request vers `main` et chaque push sur `main`. Il ne demande aucun secret GitHub : les secrets de la pile sont générés à chaque exécution par `infra/gen-dev-secrets.py`. Trois jobs :
+
+| Job | Vérifications |
+|---|---|
+| `backend` | `ruff check`, `ruff format --check`, `lint-imports` (contrats d'import), puis la pile Docker Compose démarrée et `pytest --cov` : tests unitaires, d'architecture et d'intégration, couverture d'au moins 60 % |
+| `web` | `npm run lint` (oxlint), `npm test` (Vitest), `npm run build` (Node 26) |
+| `edge` | après `backend` et `web` : image Caddy construite, pile démarrée, `smoke_edge.py` puis `smoke_readyz.py` |
+
+**Contrats d'import** (`[tool.importlinter]` dans `backend/pyproject.toml`) :
+- `layers` : dans chaque module, `router` → `service` → `repository`, jamais l'inverse ;
+- `acyclic_siblings` : aucun cycle entre les modules de `app.modules` ;
+- `protected` : un module n'importe d'un autre que son `service`, et seulement selon les flèches permises (`missions` → `reports`, `auth` ; `reports` → `ai`, `auth` ; `lots` → `missions`, `auth` ; `notifications` → `auth`) ; `app.core` n'importe aucun module. `app.main`, `app.worker` et `app.reactions`, racines de composition, en sont exclus.
+
+Dans le web, `fetch` est interdit hors de `web/src/api/` et `web/src/offline/` (règle `no-restricted-globals` d'oxlint, `web/.oxlintrc.json`).
+
+**Tests d'intégration obligatoires.** Avec `REQUIRE_INTEGRATION=1` (posé par la CI), un test marqué `integration` qui serait ignoré faute de `TEST_APP_DATABASE_URL` ou `TEST_MIGRATOR_DATABASE_URL` échoue. Sans la variable, il est ignoré comme avant.
+
+**Reproduire la CI en local**, depuis la racine du dépôt :
+
+```bash
+# backend (dans backend/, pile démarrée et URL de test posées comme plus haut)
+cd backend
+uv sync --locked   # échoue si uv.lock n'est plus à jour de pyproject.toml
+uv run ruff check . && uv run ruff format --check . && uv run lint-imports
+REQUIRE_INTEGRATION=1 uv run pytest --cov
+cd ..
+
+# web (dans web/, Node 26)
+cd web && npm ci && npm run lint && npm test && npm run build && cd ..
+
+# edge : comme la CI (qui appelle python3 ; sous Windows, `python`)
+python3 infra/gen-dev-secrets.py
+docker compose --profile demo up -d --build --wait --wait-timeout 300
+python3 backend/scripts/smoke_edge.py
+python3 backend/scripts/smoke_readyz.py
+docker compose --profile demo down -v   # efface aussi les volumes, comme en fin de job
+```
+
+**Protection de la branche `main`** (décision du 24/11/2026) : les contrôles `backend`, `web` et `edge` sont obligatoires pour fusionner, sans l'imposer aux administrateurs (`enforce_admins: false`). À activer une fois la CI verte sur une PR, par une personne administratrice du dépôt (`gh` remplace `{owner}/{repo}` par le dépôt courant ; `app_id` 15368 est GitHub Actions, seule source acceptée pour ces contrôles). `strict: false` permet de fusionner une PR qui n'est pas rebasée sur le dernier `main` : les fusions se font en local, depuis un `main` à jour, une fois la CI verte.
+
+```bash
+gh api -X PUT repos/{owner}/{repo}/branches/main/protection \
+  -H "Accept: application/vnd.github+json" \
+  --input - <<'EOF'
+{
+  "required_status_checks": {
+    "strict": false,
+    "checks": [
+      { "context": "backend", "app_id": 15368 },
+      { "context": "web", "app_id": 15368 },
+      { "context": "edge", "app_id": 15368 }
+    ]
+  },
+  "enforce_admins": false,
+  "required_pull_request_reviews": null,
+  "restrictions": null
+}
+EOF
+```
+
 ## Documentation
 
 | Document | Contenu |

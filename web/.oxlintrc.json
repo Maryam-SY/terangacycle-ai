@@ -3,6 +3,40 @@
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
+    "react/only-export-components": ["warn", { "allowConstantExport": true }],
+    "no-restricted-globals": [
+      "error",
+      {
+        "name": "fetch",
+        "message": "Pas de fetch hors de src/api/ et src/offline/ : passer par le client API (AD-11)."
+      }
+    ],
+    "no-restricted-properties": [
+      "error",
+      {
+        "object": "window",
+        "property": "fetch",
+        "message": "Pas de fetch hors de src/api/ et src/offline/ : passer par le client API (AD-11)."
+      },
+      {
+        "object": "globalThis",
+        "property": "fetch",
+        "message": "Pas de fetch hors de src/api/ et src/offline/ : passer par le client API (AD-11)."
+      },
+      {
+        "object": "self",
+        "property": "fetch",
+        "message": "Pas de fetch hors de src/api/ et src/offline/ : passer par le client API (AD-11)."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/api/**", "src/offline/**"],
+      "rules": {
+        "no-restricted-globals": "off",
+        "no-restricted-properties": "off"
+      }
+    }
+  ]
 }

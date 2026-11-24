@@ -1,0 +1,158 @@
+# CI de qualité (story 1.4) : bloquante sur chaque pull request vers main et chaque push sur main.
+#
+#   backend : ruff (lint, format), import-linter, pytest avec couverture ≥ 60 % sur la pile
+#             Docker Compose réelle (tests d'intégration obligatoires : REQUIRE_INTEGRATION=1) ;
+#   web     : oxlint, Vitest, construction ;
+#   edge    : image Caddy construite, tests de fumée du bord et de /readyz.
+#
+# Aucun secret GitHub : les secrets de la pile sont générés à chaque exécution par
+# infra/gen-dev-secrets.py. Actions épinglées par SHA de commit (tag en commentaire).
+
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Une nouvelle exécution sur la même PR annule l'exécution obsolète ; sur main, chaque
+# push garde son exécution jusqu'au bout.
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          python-version: "3.12"
+          working-directory: backend
+
+      - name: Dépendances (uv.lock à jour exigé)
+        run: uv sync --locked
+
+      - name: ruff check
+        run: uv run ruff check .
+
+      - name: ruff format --check
+        run: uv run ruff format --check .
+
+      - name: Contrats d'import (import-linter)
+        run: uv run lint-imports
+
+      - name: Secrets factices
+        working-directory: .
+        run: python3 infra/gen-dev-secrets.py
+
+      - name: Démarrer la pile
+        working-directory: .
+        run: docker compose --profile demo up -d --build --wait --wait-timeout 300
+
+      - name: URL de test (rôles teranga_app et teranga_migrator)
+        working-directory: .
+        run: |
+          port="$(sed -n 's/^DB_LOCAL_PORT=//p' .env)"
+          port="${port:-5432}"
+          db_name="$(sed -n 's/^DB_NAME=//p' .env)"
+          db_name="${db_name:-terangacycle}"
+          app_pw="$(cat .env.secrets/db_app_password)"
+          migrator_pw="$(cat .env.secrets/db_migrator_password)"
+          echo "::add-mask::${app_pw}"
+          echo "::add-mask::${migrator_pw}"
+          {
+            echo "TEST_APP_DATABASE_URL=postgresql://teranga_app:${app_pw}@127.0.0.1:${port}/${db_name}"
+            echo "TEST_MIGRATOR_DATABASE_URL=postgresql://teranga_migrator:${migrator_pw}@127.0.0.1:${port}/${db_name}"
+          } >> "$GITHUB_ENV"
+
+      - name: pytest et couverture
+        env:
+          # Un test d'intégration ignoré faute de base échoue (tests/conftest.py).
+          REQUIRE_INTEGRATION: "1"
+        run: uv run pytest --cov --cov-report=term-missing
+
+      - name: Journaux de la pile
+        if: failure()
+        working-directory: .
+        run: |
+          docker compose --profile demo ps -a
+          docker compose --profile demo logs --no-color
+
+      - name: Arrêter la pile
+        if: always()
+        working-directory: .
+        run: docker compose --profile demo down -v
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          # Même version que l'image de construction de la PWA (infra/caddy/Dockerfile).
+          node-version: "26.13.1"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Dépendances (package-lock.json)
+        run: npm ci --no-audit --no-fund
+
+      - name: Lint (oxlint)
+        run: npm run lint
+
+      - name: Tests (Vitest)
+        run: npm test
+
+      - name: Construction
+        run: npm run build
+
+  edge:
+    needs: [backend, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Secrets factices
+        run: python3 infra/gen-dev-secrets.py
+
+      - name: Construire l'image Caddy et démarrer la pile
+        run: docker compose --profile demo up -d --build --wait --wait-timeout 300
+
+      - name: Test de fumée du bord Caddy
+        run: python3 backend/scripts/smoke_edge.py
+
+      - name: Test de fumée de /readyz
+        run: python3 backend/scripts/smoke_readyz.py
+
+      - name: Journaux de la pile
+        if: failure()
+        run: |
+          docker compose --profile demo ps -a
+          docker compose --profile demo logs --no-color
+
+      - name: Arrêter la pile
+        if: always()
+        run: docker compose --profile demo down -v
