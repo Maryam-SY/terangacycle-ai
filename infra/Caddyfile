@@ -1,0 +1,11 @@
+# Bord HTTP de TerangaCycle AI (AD-23).
+# Version minimale : HTTP sur :80, relais vers l'API. TLS, en-têtes de sécurité,
+# PWA et MEDIA_HOST arrivent avec la story 1.3.
+
+:80 {
+	# /metrics reste interne : jamais relayé vers l'extérieur.
+	@internal path /metrics /metrics/*
+	respond @internal 404
+
+	reverse_proxy api:8000
+}

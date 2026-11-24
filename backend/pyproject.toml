@@ -1,0 +1,52 @@
+[project]
+name = "terangacycle-api"
+version = "0.1.0"
+description = "API et worker de TerangaCycle AI (monolithe modulaire FastAPI)."
+readme = "README.md"
+requires-python = "==3.12.*"
+# Versions exactes de la Stack de l'épine d'architecture (AD-28).
+dependencies = [
+    "fastapi==0.165.0",
+    "uvicorn[standard]==0.54.0",
+    "pydantic==2.14.4",
+    "pydantic-settings==2.16.3",
+    "sqlalchemy==2.1.9",
+    "geoalchemy2==0.21.0",
+    "alembic==1.20.1",
+    "psycopg[binary]==3.3.9",
+    "arq==0.28.0",
+    # Imposé par arq (redis<6), épinglé explicitement.
+    "redis==5.3.1",
+    "structlog==26.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.2.0",
+    "ruff==0.17.6",
+    "import-linter==2.17",
+]
+
+[tool.uv]
+# Le backend est une application, pas un paquet publié.
+package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "DTZ"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+# assert est l'idiome de pytest ; les tests composent des noms de tables temporaires.
+"tests/**" = ["S101", "S608"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra"
+markers = [
+    "integration: test qui exige la pile Docker (PostGIS, Valkey, Garage)",
+]

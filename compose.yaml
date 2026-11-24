@@ -1,0 +1,8 @@
+# Point d'entrée Compose à la racine : `docker compose --profile demo up -d`
+# fonctionne depuis ici. La pile est décrite dans infra/docker-compose.yml.
+name: terangacycle
+
+include:
+  - path: infra/docker-compose.yml
+    # Variables d'interpolation lues dans le .env de la racine.
+    env_file: .env

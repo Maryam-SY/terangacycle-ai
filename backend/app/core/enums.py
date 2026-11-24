@@ -1,0 +1,82 @@
+"""Énumérations de l'épine (conventions de cohérence), définies une seule fois.
+
+Codes en anglais ; les libellés affichés passent par l'i18n de la PWA.
+"""
+
+from enum import StrEnum
+
+
+class Env(StrEnum):
+    DEV = "dev"
+    DEMO = "demo"
+    PROD = "prod"
+
+
+class ReportStatus(StrEnum):
+    """Statut d'un Signalement (AD-3)."""
+
+    PENDING_REVIEW = "pending_review"
+    VALIDATED = "validated"
+    ASSIGNED = "assigned"
+    COLLECTED = "collected"
+    REJECTED = "rejected"
+
+
+class MissionStatus(StrEnum):
+    ACTIVE = "active"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    EXPIRED = "expired"
+
+
+class WasteType(StrEnum):
+    """Type de déchet ; l'ordre est celui des classes du Modèle (AD-7)."""
+
+    PLASTIC = "plastic"
+    METAL = "metal"
+    GLASS = "glass"
+    ORGANIC = "organic"
+    MIXED = "mixed"
+
+
+class PileSize(StrEnum):
+    """Taille de tas."""
+
+    SMALL = "small"
+    MEDIUM = "medium"
+    LARGE = "large"
+
+
+class WeightKind(StrEnum):
+    """Poids déclaré."""
+
+    WEIGHED = "weighed"
+    ESTIMATED = "estimated"
+
+
+class ProofReviewStatus(StrEnum):
+    UNREVIEWED = "unreviewed"
+    CONFIRMED = "confirmed"
+    CONTESTED = "contested"
+
+
+class LotStatus(StrEnum):
+    AVAILABLE = "available"
+    RESERVED = "reserved"
+
+
+class RejectionReason(StrEnum):
+    SPAM = "spam"
+    NOT_WASTE = "not_waste"
+    OUTSIDE_ZONE = "outside_zone"
+    DUPLICATE = "duplicate"
+    PERSON_OR_PLATE_VISIBLE = "person_or_plate_visible"
+    OTHER = "other"
+
+
+class ClassificationStatus(StrEnum):
+    """État de la Classification serveur d'un Signalement (AD-8)."""
+
+    PENDING = "pending"
+    DONE = "done"
+    FAILED = "failed"
