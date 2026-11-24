@@ -8,7 +8,8 @@
 #   - toute image est référencée par `tag@sha256:` ; api, worker et migrate sont
 #     construits depuis backend/Dockerfile (images de base épinglées dans ce fichier) ;
 #   - healthchecks sans curl ;
-#   - secrets lus dans .env.secrets/ (hors Git) et montés dans /run/secrets/.
+#   - secrets lus dans .env.secrets/ (hors Git) et montés dans /run/secrets/ ;
+#   - /metrics de l'API reste sur le réseau Compose : Caddy ne la relaie pas.
 # Les chemins relatifs partent du dossier infra/.
 
 # Socle commun des services construits depuis backend/ (même Dockerfile, même image).
@@ -21,6 +22,20 @@ x-backend: &backend
       required: true
   restart: unless-stopped
 
+# Secrets de l'API et du worker : mot de passe de base et inventaire AD-26 complet.
+# En ENV=demo ou prod, un secret absent ou vide refuse le démarrage.
+x-app-secrets: &app-secrets
+  - db_app_password
+  - jwt_signing_keys
+  - phone_pepper
+  - device_id_pepper
+  - phone_enc_keys
+  - totp_enc_key
+  - vapid_private_key
+  - s3_access_key_id
+  - s3_secret_access_key
+  - alert_webhook_url
+
 services:
   caddy:
     image: caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
@@ -32,14 +47,27 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
 
   api:
     <<: *backend
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
-    secrets:
-      - db_app_password
+    # Journal d'accès d'uvicorn coupé : il contiendrait chemins et paramètres ; le
+    # middleware de l'API écrit sa propre ligne, masquée (route, statut, durée).
+    command: ["uvicorn", "--factory", "app.main:create_app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
+    secrets: *app-secrets
+    healthcheck:
+      # Vivacité seulement : /healthz ne dépend d'aucun service externe.
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -49,8 +77,14 @@ services:
   worker:
     <<: *backend
     command: ["arq", "app.worker.WorkerSettings"]
-    secrets:
-      - db_app_password
+    secrets: *app-secrets
+    healthcheck:
+      # Battement worker:heartbeat de moins de 60 s dans Valkey.
+      test: ["CMD", "python", "-m", "app.worker", "healthcheck"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -145,6 +179,25 @@ secrets:
     file: ../.env.secrets/db_app_password
   garage_rpc_secret:
     file: ../.env.secrets/garage_rpc_secret
+  # Inventaire AD-26 (python infra/gen-dev-secrets.py).
+  jwt_signing_keys:
+    file: ../.env.secrets/jwt_signing_keys
+  phone_pepper:
+    file: ../.env.secrets/phone_pepper
+  device_id_pepper:
+    file: ../.env.secrets/device_id_pepper
+  phone_enc_keys:
+    file: ../.env.secrets/phone_enc_keys
+  totp_enc_key:
+    file: ../.env.secrets/totp_enc_key
+  vapid_private_key:
+    file: ../.env.secrets/vapid_private_key
+  s3_access_key_id:
+    file: ../.env.secrets/s3_access_key_id
+  s3_secret_access_key:
+    file: ../.env.secrets/s3_secret_access_key
+  alert_webhook_url:
+    file: ../.env.secrets/alert_webhook_url
 
 volumes:
   db-data:

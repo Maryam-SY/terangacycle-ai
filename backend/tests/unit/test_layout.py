@@ -9,11 +9,14 @@ import pytest
 REPO = Path(__file__).resolve().parents[3]
 BACKEND = REPO / "backend"
 
-CORE_MODULES = ["config", "db", "errors", "logging", "clock", "enums"]
+CORE_MODULES = ["config", "db", "logging", "clock", "enums", "http", "health", "public"]
 BUSINESS_MODULES = ["auth", "reports", "missions", "lots", "analytics", "ai", "notifications"]
 
 EXPECTED_FILES = [
     *(f"backend/app/core/{name}.py" for name in CORE_MODULES),
+    # Erreurs : paquet (enveloppe et gestionnaires) et énumération des codes (AD-11).
+    "backend/app/core/errors/__init__.py",
+    "backend/app/core/errors/codes.py",
     *(f"backend/app/modules/{name}/__init__.py" for name in BUSINESS_MODULES),
     "backend/app/reactions.py",
     "backend/app/main.py",
