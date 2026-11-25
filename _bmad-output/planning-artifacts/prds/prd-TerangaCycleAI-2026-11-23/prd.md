@@ -1,15 +1,20 @@
 ---
-title: "PRD — TerangaCycle AI"
+title: "PRD — TerangaCycle"
+version: 2.0
 status: final
 created: 2026-11-23
-updated: 2026-11-23
+updated: 2026-11-25
 ---
 
-# PRD — TerangaCycle AI
+# PRD — TerangaCycle
 
 ## 0. Objet du document
 
-Ce PRD fixe **ce que** TerangaCycle AI doit faire pour la démo du hackathon MakeAfrica (Dakar, 23–28 novembre 2026) et pour le pilote qui suit. Il s'adresse à l'équipe (Mia, Aissatou, Ahmadou) et aux workflows BMAD en aval : spécification UX, architecture, epics et stories.
+Ce PRD fixe **ce que** TerangaCycle doit faire : d'abord la démo du hackathon MakeAfrica (Dakar, 23–28 novembre 2026), puis un MVP opérationnel et un MVP commercial sur un premier territoire, enfin la place de marché de la matière (lots P0 à P4, §9). Il s'adresse à l'équipe et aux workflows BMAD en aval : spécification UX, architecture, epics et stories.
+
+**Version 2.0 (25/11/2026).** Le produit devient une infrastructure de traçabilité de l'économie circulaire (§1). Le changement est décrit dans `_bmad-output/planning-artifacts/sprint-change-proposal-2026-11-25.md`.
+
+**Confidentialité.** Ce dépôt est public. Les prix des offres, les frais de coordination, la rémunération et la commission sont des **paramètres configurables par contrat**, sans valeur chiffrée dans ce document : « valeurs commerciales hors dépôt ». Aucun nom de personne ni coordonnée n'y figure ; les responsables sont désignés par leur rôle (responsable produit, responsable technique, responsable IA).
 
 Il s'appuie sur les sources suivantes, qu'il ne recopie pas :
 
@@ -21,19 +26,25 @@ Il s'appuie sur les sources suivantes, qu'il ne recopie pas :
 - `docs/audit-2026-11-23.md` : incohérences, sécurité, conformité ;
 - les décisions de l'équipe, journalisées dans `.memlog.md`.
 
-Les choix techniques (le « comment ») sont dans `addendum.md`. Le vocabulaire du §3 (Glossaire) est obligatoire. Les décisions validées par Mia et les décisions par défaut sont journalisées dans `.memlog.md` ; les décisions par défaut restent révisables par Mia. Les inférences non confirmées portent la mention `[ASSUMPTION]` et sont reprises au §12.
+Les choix techniques (le « comment ») sont dans `addendum.md`. Le vocabulaire du §3 (Glossaire) est obligatoire. Les décisions validées par la responsable produit et les décisions par défaut sont journalisées dans `.memlog.md` ; les décisions par défaut restent révisables par la responsable produit. Les inférences non confirmées portent la mention `[ASSUMPTION]` et sont reprises au §12.
 
 ## 1. Vision
 
-Un citoyen voit un dépôt sauvage, le prend en photo en moins de 30 secondes, même sans réseau. L'IA embarquée sur son téléphone propose le Type de déchet, et un humain confirme. Un collecteur proche reçoit une Mission, se rend sur place et prouve la collecte par des photos avant et après, le Poids déclaré et sa position. La commune voit enfin où sont les dépôts, combien de temps ils restent et combien de kilos sont collectés, par matière.
+TerangaCycle est une **infrastructure de traçabilité de l'économie circulaire au Sénégal**. Elle relie ceux qui voient ou produisent des déchets (citoyens, entreprises), ceux qui les collectent (collecteurs et récupérateurs vérifiés), ceux qui en ont la charge (communes, opérateurs) et ceux qui les valorisent (recycleurs). Chaque kilo collecté est prouvé, contrôlé et traçable jusqu'à sa vente.
 
-**Thèse.** Le problème n'est pas l'absence de signalement : c'est la **chaîne de confiance** entre le citoyen, le collecteur et la commune. Chaque étape produit une donnée vérifiable : photo, position, classification revue par un humain, preuve géorepérée. Cette chaîne transforme un appel informel en travail traçable. Elle donne aussi aux collecteurs informels un historique crédible de leur travail.
+**Boucle prouvée du MVP.** Un Signalement citoyen ou une Demande de collecte d'entreprise devient une Mission ; la Mission produit une Preuve de collecte ; la Preuve contrôlée produit des kg vérifiés. Le signalement et la mise en relation pour la collecte sont des fonctions de cette infrastructure. On commence par un territoire et cette seule boucle.
 
-**Souveraine, durable, inclusive.**
+Le parcours d'origine reste le premier cas d'usage : un citoyen voit un dépôt sauvage et le prend en photo en moins de 30 secondes, même sans réseau. L'IA embarquée sur son téléphone propose le Type de déchet, et un humain confirme. Un collecteur proche reçoit une Mission, se rend sur place et prouve la collecte (photos avant et après, Poids déclaré, position). La commune voit enfin où sont les dépôts, combien de temps ils restent et combien de kilos sont collectés, par matière.
+
+**Thèse.** Le problème n'est pas l'absence de signalement : c'est la **chaîne de confiance** entre ceux qui produisent, collectent, financent et valorisent. Chaque étape produit une donnée vérifiable : photo, position, classification revue par un humain, preuve géorepérée, contrôle par échantillon. Cette chaîne transforme un appel informel en travail traçable. Elle donne aux collecteurs informels un historique crédible et des rémunérations enregistrées, et aux recycleurs une matière d'origine prouvée.
+
+**Principes.**
 
 - **Souveraine :** le modèle d'IA appartient au projet et tourne sur l'appareil, sans API d'IA étrangère ; les données sont exportables ; l'hébergement est réversible.
-- **Durable :** chaque collecte est comptée en kilos, par Type de déchet.
-- **Inclusive :** l'application fonctionne hors-ligne sur un Android d'entrée de gamme, guide par pictogrammes, et intègre les récupérateurs informels comme acteurs de premier rang ; le wolof suit pendant le pilote.
+- **Durable :** chaque collecte est comptée en kilos, par Type de déchet, et chaque kg vendu remonte à une Preuve de collecte.
+- **Inclusive :** l'application fonctionne hors-ligne sur un Android d'entrée de gamme et guide par pictogrammes ; elle intègre les récupérateurs informels comme acteurs de premier rang, rémunérés pour les collectes validées et vendeurs de la matière qu'ils ont prouvée ; le wolof suit pendant le pilote.
+- **Neutre financièrement :** TerangaCycle ne détient aucun fonds. Il enregistre ce qui est dû, payé ou contesté ; le client paie lui-même le collecteur.
+- **Cloisonnée :** chaque organisation cliente ne voit que ses données, dès le premier jour.
 
 ## 2. Utilisateurs cibles
 
@@ -42,8 +53,10 @@ Un citoyen voit un dépôt sauvage, le prend en photo en moins de 30 secondes, m
 - **Citoyen.** « Quand je vois un dépôt près de chez moi, je veux le signaler sans effort, et savoir que quelqu'un va s'en occuper. » Fonctionnel : moins de 30 s, aucune saisie longue. Émotionnel : ne plus se sentir impuissant.
 - **Collecteur.** « Je veux savoir où se trouve la matière près de moi, ce qu'elle contient, et pouvoir prouver mon travail pour être reconnu et payé. »
 - **Modérateur.** « Je veux écarter le spam et les erreurs de l'IA vite, sans laisser passer un dépôt réel. »
-- **Administrateur commune.** « Je veux savoir où agir en priorité et rendre compte avec des chiffres vérifiables. »
-- **Recycleur** (extension). « Je veux anticiper les volumes de matière par type et par zone. »
+- **Administrateur d'organisation** (commune ou opérateur). « Je veux savoir où agir en priorité, gérer mes collecteurs et rendre compte avec des chiffres vérifiables. »
+- **Gestionnaire d'entreprise** (hôtel, restaurant, marché, supermarché). « Je veux faire collecter mes déchets quand il le faut, et prouver chaque mois ce qui a été collecté et où c'est allé. »
+- **Recycleur.** « Je veux acheter une matière dont l'origine est prouvée, par type, quantité et zone. »
+- **Super Admin** (équipe TerangaCycle). « Je veux ouvrir et suivre les organisations clientes, leurs contrats, la vérification des acteurs, les litiges et la santé de la plateforme. »
 
 ### 2.2 Non-utilisateurs (v1)
 
@@ -81,7 +94,7 @@ Un citoyen voit un dépôt sauvage, le prend en photo en moins de 30 secondes, m
 
 - **UJ-4. M. Ndiaye, chef du service propreté, prépare le point mensuel.**
   - **Persona et contexte :** M. Ndiaye, 55 ans, chef du service propreté, rend compte au maire chaque mois.
-  - **Point de départ :** connecté sur ordinateur avec le rôle Administrateur commune.
+  - **Point de départ :** connecté sur ordinateur avec le rôle Administrateur d'organisation.
   - **Déroulé :** écran 7 avec les indicateurs de FR-31 (Signalements du mois, Délai médian, Taux de traitement, Kg collectés par Type de déchet, Collecteurs vérifiés actifs) → Carte de chaleur filtrée sur le dernier mois → répartition par Type de déchet.
   - **Moment clé :** l'Export agrégé en CSV part dans son rapport, sans aucune donnée personnelle.
   - **Résolution :** il repère deux zones prioritaires sur la Carte de chaleur pour la prochaine tournée.
@@ -96,18 +109,63 @@ Un citoyen voit un dépôt sauvage, le prend en photo en moins de 30 secondes, m
   - **Déroulé :** M. Ndiaye crée le compte Collecteur et le marque vérifié selon les critères retenus (§11, Q7).
   - **Résolution :** Ibrahima peut se connecter et voir les Signalements `validé` proches (UJ-3) ; l'action est inscrite au Journal d'audit. Réalise FR-35.
 
+- **UJ-7. Un gestionnaire d'hôtel demande une collecte ponctuelle.**
+  - **Déroulé :** depuis la console, il choisit un Site, les Types de déchet et un créneau. Une Mission d'Origine `collection_request` part chez les Collecteurs éligibles.
+  - **Résolution :** il voit la Preuve de collecte et les kg vérifiés de son Site, puis les retrouve dans son rapport mensuel. Réalise FR-56 à FR-61.
+
+- **UJ-8. Le Super Admin ouvre une commune cliente.**
+  - **Déroulé :** il crée l'Organisation, lui rattache sa Zone, nomme son premier Administrateur d'organisation et enregistre son Contrat.
+  - **Résolution :** les Signalements reçus dans cette Zone sont désormais rattachés à la commune, qui ne voit que ses données. Réalise FR-44, FR-47, FR-50 et FR-51.
+
+- **UJ-9. Ibrahima voit ce qui lui est dû.**
+  - **Déroulé :** après sa Preuve acceptée, il voit le Montant dû de sa Mission. Plus tard, le payeur confirme le paiement mobile money avec sa référence, et le Montant passe « payé ».
+  - **Cas limite :** s'il n'a rien reçu, il conteste, ce qui ouvre un Litige. Réalise FR-62 à FR-66.
+
+- **UJ-10. Un recycleur achète un Lot de plastique.**
+  - **Déroulé :** Ibrahima constitue un Lot avec les kg de plastique qu'il a prouvés. Un Recycleur vérifié filtre les Lots de plastique de sa zone et réserve ce Lot.
+  - **Résolution :** il obtient le contact d'Ibrahima, confirme la réception, et la vente est enregistrée. Réalise FR-38 à FR-40 et FR-69 à FR-71.
+
+### 2.4 Rôles et espaces
+
+Les rôles sont portés par une **Appartenance** à une Organisation (FR-45). Une personne peut avoir plusieurs Appartenances. Le Citoyen n'en a aucune.
+
+| Acteur | Espace | Organisation (type) | Vérifié par | Accès |
+|---|---|---|---|---|
+| Citoyen | mobile `/` | aucune | — | gratuit, avec ou sans compte |
+| Collecteur | mobile `/` | commune, opérateur, groupement de collecteurs ou plateforme | l'organisation | gratuit ; rémunéré pour les collectes validées ; vendeur de ses kg vérifiés |
+| Modérateur | console `/console` | commune ou opérateur | — | contrat de l'organisation |
+| Administrateur d'organisation | console | commune, opérateur ou groupement de collecteurs | plateforme | contrat de l'organisation |
+| Gestionnaire d'entreprise | console | entreprise | plateforme | contrat de l'organisation |
+| Recycleur | console | recycleur | plateforme | contrat de l'organisation |
+| Super Admin | console | plateforme | — | équipe TerangaCycle |
+
 ## 3. Glossaire
 
 **Acteurs**
 - **Citoyen** : personne qui crée un Signalement, connectée ou anonyme.
-- **Collecteur** : personne ou structure (GIE, récupérateur informel) qui exécute des Missions. Un **Collecteur vérifié** a été validé par un Administrateur commune ; seul lui peut accepter une Mission.
-- **Recycleur** : acteur qui consulte et réserve des Lots de matière (extension).
+- **Collecteur** : personne (récupérateur informel, membre d'un GIE) qui exécute des Missions. Un **Collecteur vérifié** a été validé par une Organisation (commune, opérateur, groupement de collecteurs ou plateforme) dont il est membre ; il n'accepte que les Missions des Organisations qui l'ont vérifié (FR-48).
+- **Groupement de collecteurs** : Organisation de type `collector_group` (par exemple un GIE de pré-collecte) dont les Collecteurs sont membres ; il peut vendre leurs kg vérifiés si son Contrat l'y autorise (FR-38).
+- **Recycleur** : membre d'une Organisation de type recycleur, vérifiée par la plateforme, qui achète des Lots de matière.
+- **Gestionnaire d'entreprise** : membre d'une Organisation de type entreprise ; il gère ses Sites et ses Demandes de collecte.
+- **Super Admin** : membre de l'Organisation plateforme (équipe TerangaCycle), distinct de l'Administrateur d'organisation ; il administre toutes les Organisations, et chacun de ses accès à une autre Organisation est audité.
 - **Modérateur** : personnel qui valide ou rejette les Signalements.
-- **Administrateur commune** : personnel qui pilote le Tableau de bord, gère les comptes et exporte les données.
-- **Personnel** : Modérateur ou Administrateur commune.
+- **Administrateur d'organisation** : membre d'une commune, d'un opérateur ou d'un groupement de collecteurs, qui pilote le Tableau de bord, gère les membres et exporte les données **de son Organisation**. Remplace « Administrateur commune ».
+- **Personnel** : Modérateur ou Administrateur d'organisation d'une commune ou d'un opérateur, pour son Organisation.
 - **Utilisateur connecté** : toute personne authentifiée, quel que soit son rôle.
 - **Visiteur** : personne non connectée qui consulte la carte publique agrégée (FR-34).
 - **Second facteur** : application d'authentification exigée du Personnel en plus de l'OTP (FR-43).
+
+**Organisations et espaces**
+- **Organisation** : client ou acteur de la plateforme, de type commune, opérateur, groupement de collecteurs (`collector_group`), entreprise, recycleur ou plateforme. Elle a un statut `active` ou `suspendue`. Une seule Organisation plateforme existe.
+- **Appartenance** : lien entre une personne, une Organisation et un rôle, avec un statut et une date de vérification.
+- **Organisation responsable** : Organisation à laquelle un Signalement est rattaché à sa réception (FR-47).
+- **Portée d'organisation** : ensemble des Organisations dont une personne peut lire ou modifier les objets (FR-46).
+- **Espace mobile** : partie de l'application servie sous `/`, pour le Citoyen et le Collecteur.
+- **Console web** : partie de l'application servie sous `/console` et chargée séparément, pour le Personnel, le Gestionnaire d'entreprise, le Recycleur et le Super Admin.
+- **Site** : lieu d'une entreprise où des déchets sont produits et collectés.
+- **Demande de collecte** : demande ponctuelle d'une entreprise pour un Site ; elle crée une Mission.
+- **Programme de collecte** : collectes régulières d'un Site, qui créent des Demandes de collecte à échéance.
+- **Origine de Mission** : Signalement `validé` (`report`) ou Demande de collecte (`collection_request`).
 
 **Signalement et suivi**
 - **Signalement** : déclaration d'un dépôt de déchets, avec une photo, une Position, une Taille de tas, un Type de déchet et un commentaire optionnel. Il a un et un seul Statut.
@@ -144,21 +202,36 @@ Un citoyen voit un dépôt sauvage, le prend en photo en moins de 30 secondes, m
 - **Drapeau** : marque affichée dans la File de modération : Désaccord IA, Doublon probable, « faible confiance » (Score de confiance local sous le Seuil de confiance) ou « position imprécise » (FR-7).
 
 **Missions et preuves**
-- **Mission** : prise en charge d'un Signalement `validé` par un Collecteur vérifié. Au plus une Mission `active` par Signalement.
-- **Statut de Mission** : `active` → `terminée` (Preuve de collecte acceptée), `annulée` (par le Collecteur ou l'Administrateur commune) ou `expirée` (sans Preuve dans le délai de FR-42). `terminée`, `annulée` et `expirée` sont terminaux.
+- **Mission** : prise en charge d'une Origine (Signalement `validé` ou Demande de collecte) par un Collecteur vérifié. Au plus une Mission `active` par Origine.
+- **Statut de Mission** : `active` → `terminée` (Preuve de collecte acceptée), `annulée` (par le Collecteur ou l'Administrateur d'organisation) ou `expirée` (sans Preuve dans le délai de FR-42). `terminée`, `annulée` et `expirée` sont terminaux.
 - **Preuve de collecte** : photo avant, photo après, Poids déclaré et Position du Collecteur, horodatés par le serveur. « Preuve » en est l'abréviation admise.
 - **Poids déclaré** : poids saisi par le Collecteur dans la Preuve de collecte, avec la mention `pesé` ou `estimé`.
 - **Revue de Preuve** : état d'une Preuve de collecte acceptée au regard du contrôle par échantillon : `non revue`, `confirmée` ou `contestée`.
 
 **Commune et données**
-- **Tableau de bord** : vue de l'Administrateur commune (indicateurs, Carte de chaleur, répartition par Type de déchet).
+- **Tableau de bord** : vue de l'Administrateur d'organisation (indicateurs, Carte de chaleur, répartition par Type de déchet).
 - **Cohorte** : ensemble des Signalements reçus par le serveur pendant une période (horodatage serveur de réception) ; base des indicateurs de FR-31.
 - **Indicateurs** : Nombre de Signalements, Délai médian, Taux de traitement, Kg collectés et Collecteurs vérifiés actifs, définis en FR-31.
 - **Carte de chaleur** : densité des Signalements, agrégée par cellule de grille ou par Zone.
 - **Export agrégé** : fichier CSV ou GeoJSON sans donnée personnelle, avec des Positions arrondies.
 - **Journal d'audit** : trace horodatée par le serveur, en ajout seul, des actions listées en FR-36 ; aucune entrée ne peut être modifiée ni supprimée.
-- **Lot de matière** : quantité de matière déclarée par un Collecteur pour les Recycleurs (extension).
-- **Statut de Lot** (extension) : `disponible` → `réservé` (FR-40).
+- **kg vérifiés** : Poids déclaré d'une Preuve de collecte acceptée et non `contestée`.
+- **Lot de matière** : quantité de matière constituée **à partir de kg vérifiés** (Éléments de lot) et mise en vente par son vendeur (FR-38).
+- **Élément de lot** : part d'un Lot qui reprend une Preuve d'origine et les kg prélevés sur elle.
+- **Vendeur** : ayant droit des kg d'une Preuve, fixé à l'acceptation de la Preuve : le Collecteur, son groupement, ou l'Organisation de la Mission si son Contrat le prévoit (FR-38).
+- **Statut de Lot** : `disponible` → `réservé` → `vendu` ; `réservé` → `disponible` (réservation annulée) ; `retiré` (terminal).
+- **Réservation** : demande d'un Recycleur vérifié qui bloque un Lot `disponible`.
+- **Vente** : vente confirmée d'un Lot, avec prix et date ; elle porte la Commission.
+- **Commission** : montant enregistré sur une Vente, calculé depuis un paramètre du Contrat du Recycleur ; aucun encaissement.
+
+**Contrats et finance terrain** (aucune détention de fonds)
+- **Contrat** : lien entre une Organisation et une offre ; il porte les paramètres commerciaux (prix mensuel, frais de coordination, rémunération, commission, droit de vendre des Lots), sans valeur dans ce document.
+- **Facture** : document d'une période de Contrat, en état `émise`, `payée` ou `en retard`.
+- **Frais de coordination** et **Rémunération prévue** : montants figés sur une Mission à sa création, calculés depuis le Contrat de son Organisation.
+- **Montant dû** : somme due à un Collecteur pour une Mission terminée, en état `dû`, `payé` ou `contesté`.
+- **Référence de paiement** : référence de transaction mobile money saisie par le payeur ; jamais vérifiée auprès d'un opérateur de paiement.
+- **Litige** : contestation d'une Preuve, d'un Montant dû ou d'une Vente, tranchée par le Super Admin.
+- **Alerte de fraude** : signal créé sur une Preuve suspecte (FR-68).
 - **Données de démonstration** : données fictives, ou créées en Mode démonstration, toujours étiquetées comme telles à l'écran.
 - **Mode démonstration** : configuration du hackathon où le code OTP s'affiche à l'écran et où toute donnée créée est étiquetée Données de démonstration ; interdit en production.
 
@@ -193,12 +266,13 @@ Un utilisateur connecté garde sa session sans ressaisir de code pendant 30 jour
 
 #### FR-3 : Rôles et contrôle d'accès
 
-Le système applique les rôles Citoyen, Collecteur, Recycleur, Modérateur et Administrateur commune sur chaque action. Il vérifie aussi la propriété de chaque objet : un Citoyen ne voit que ses propres Signalements.
+Le système applique les rôles Citoyen, Collecteur, Recycleur, Modérateur et Administrateur d'organisation sur chaque action. Il vérifie aussi la propriété de chaque objet : un Citoyen ne voit que ses propres Signalements.
 
 **Conséquences :**
 - Un test automatisé appelle chaque route de NFR-9 avec chaque rôle et sans jeton ; tout accès non prévu échoue (401 ou 403).
 - Un Collecteur ne voit jamais l'auteur d'un Signalement.
 - Un Citoyen anonyme ne possède que les Signalements créés avec son Identifiant d'appareil. Un Signalement n'est jamais consultable à partir de son seul Numéro de suivi.
+- **(v2.0)** Les rôles sont portés par les Appartenances (§2.4, FR-45) et s'appliquent dans la Portée d'organisation (FR-46). Le test route × rôle couvre tous les rôles de §2.4, et un test d'isolement entre organisations s'y ajoute (NFR-9, NFR-18).
 
 #### FR-4 : Consentement
 
@@ -235,11 +309,12 @@ Le Mode démonstration affiche le code OTP à l'écran, pour une démo sans pass
 
 #### FR-43 : Second facteur du Personnel *(Must avant le pilote ; hors des portes du hackathon)*
 
-Un Modérateur ou un Administrateur commune se connecte avec l'OTP par SMS et un Second facteur (application d'authentification).
+Un Modérateur ou un Administrateur d'organisation se connecte avec l'OTP par SMS et un Second facteur (application d'authentification).
 
 **Conséquences :**
 - Sans Second facteur valide, les fonctions du Personnel sont refusées (403).
 - L'activation et la réinitialisation du Second facteur sont inscrites au Journal d'audit.
+- **(v2.0)** Le Second facteur est aussi obligatoire pour le **Super Admin** dès qu'il y a des données réelles. Il est facultatif en P2 pour le Gestionnaire d'entreprise et le Recycleur.
 
 ### 4.2 Signalement citoyen
 
@@ -326,6 +401,7 @@ Le serveur reclasse la même photo avec la même version du Modèle. Sa prédict
 - Le Type de déchet pré-rempli pour le Modérateur est le choix du Citoyen s'il en a fait un, sinon la Classification serveur. Le Type de déchet retenu n'est fixé qu'à la validation (FR-23) : aucun Type de déchet envoyé par l'appareil ne devient définitif sans décision du Personnel.
 - La création répond sans attendre la Classification serveur, qui est calculée en tâche de fond ; le traitement d'une photo par le Modèle serveur prend moins de 2 s (p95).
 - La file de classification est bornée `[ASSUMPTION : 500 tâches]` ; quand elle est pleine, les nouveaux Signalements sont acceptés et restent « classification serveur en attente » jusqu'à leur reclassement.
+- **(v2.0)** Tant que la Classification serveur n'est pas livrée (lot P4), le Type de déchet pré-rempli est le choix du Citoyen, sinon la Classification locale, sinon aucun. Il ne devient définitif que par la décision du Personnel.
 
 #### FR-15 : Désaccord IA
 
@@ -439,6 +515,7 @@ Un Collecteur vérifié voit les Signalements `validé` dans un rayon réglable 
 - La liste charge des miniatures de 30 Ko au plus ; la photo complète ne se charge qu'à l'ouverture d'un Signalement.
 - Avant l'acceptation, la Position d'un Signalement est donnée arrondie à 3 décimales (environ 110 m) et la distance à 100 m près. Test : un Collecteur vérifié qui n'est pas celui de la Mission ne reçoit jamais plus de 3 décimales.
 - Après l'acceptation, le Collecteur de la Mission reçoit la Position précise (FR-27).
+- **(v2.0)** Le Collecteur ne voit que les Missions ouvertes (Signalements `validé` et Demandes de collecte) des Organisations qui l'ont vérifié (FR-48). Test : un Collecteur vérifié par A ne voit rien de B.
 
 #### FR-25 : Accepter une Mission
 
@@ -449,10 +526,11 @@ Un Collecteur vérifié accepte une Mission, et le Signalement passe à `assign�
 - Un Collecteur non vérifié ne peut pas accepter de Mission (403).
 - Accepter une Mission sur un Signalement qui n'est pas `validé` est refusé (409).
 - Un renvoi de la même acceptation par le même Collecteur renvoie la Mission existante, sans erreur.
+- **(v2.0)** Ces règles valent pour toute Origine de Mission ; l'exclusivité vaut par Origine. Accepter une Mission d'une Organisation qui n'a pas vérifié le Collecteur est refusé (403).
 
 #### FR-26 : Annuler une Mission
 
-Le Collecteur annule sa Mission `active`, ou un Administrateur commune annule une Mission `active` ; la Mission passe à `annulée` et le Signalement revient à `validé`.
+Le Collecteur annule sa Mission `active`, ou un Administrateur d'organisation annule une Mission `active` ; la Mission passe à `annulée` et le Signalement revient à `validé`.
 
 **Conséquences :**
 - Annuler une Mission `terminée`, `annulée` ou `expirée` est refusé (409).
@@ -467,12 +545,13 @@ Depuis une Mission, le Collecteur ouvre l'application de cartes de son télépho
 
 #### FR-28 : Assignation manuelle
 
-Un Administrateur commune peut assigner un Signalement `validé` à un Collecteur vérifié, qui en est notifié. *(Should)*
+Un Administrateur d'organisation peut assigner un Signalement `validé` à un Collecteur vérifié, qui en est notifié. *(Should)*
 
 **Conséquences :**
 - L'assignation crée une Mission `active` et passe le Signalement à `assigné`.
 - Le Collecteur voit la Mission assignée dans l'application au plus 15 s après l'assignation, quand l'application est ouverte.
 - Chaque assignation est inscrite au Journal d'audit.
+- **(v2.0)** L'assignation est faite par l'Administrateur de l'Organisation de la Mission, à un Collecteur vérifié par cette Organisation.
 
 #### FR-42 : Expiration d'une Mission *(Should, avant le pilote)*
 
@@ -517,12 +596,22 @@ Chaque semaine, le système tire au hasard au moins 5 % des Preuves de collecte 
 - Chaque Revue de Preuve est inscrite au Journal d'audit.
 - Le Tableau de bord affiche la part de Preuves `contestée` parmi les Preuves revues ; elle mesure SM-C3.
 - Une Preuve dont une photo est strictement identique à une photo déjà reçue (Signalement ou Preuve) est ajoutée d'office à l'échantillon.
+- **(v2.0)** Une Preuve `contestée` ne produit **aucun kg valorisable** : elle ne peut entrer dans aucun Lot, et l'Élément de lot qui la contient est gelé (FR-71). Le Montant dû correspondant passe `contesté` et un Litige s'ouvre (FR-66).
+- **(v2.0)** L'échantillon tire au moins une Preuve par Organisation qui a des Preuves acceptées dans la semaine.
 
-### 4.9 Tableau de bord commune
+#### FR-68 : Alertes de fraude
+
+Une photo réutilisée (Signalement ou Preuve, toutes Organisations), un Poids déclaré hors des bornes `[ASSUMPTION : bornes configurables]` ou une Preuve `contestée` crée une Alerte de fraude.
+
+**Conséquences :**
+- L'Alerte est visible du Personnel de l'Organisation de la Mission et du Super Admin ; la Preuve concernée est ajoutée à l'échantillon de FR-41.
+- Le Personnel classe une Alerte (`examinée`, motif) ; l'action est inscrite au Journal d'audit.
+
+### 4.9 Tableau de bord de l'organisation
 
 #### FR-31 : Indicateurs
 
-L'Administrateur commune voit les indicateurs suivants sur une période choisie. Ils portent sur la Cohorte de la période : les Signalements reçus par le serveur pendant cette période (horodatage serveur de réception). Réalise UJ-4.
+L'Administrateur d'organisation voit les indicateurs suivants sur une période choisie. Ils portent sur la Cohorte de la période : les Signalements reçus par le serveur pendant cette période (horodatage serveur de réception). Réalise UJ-4.
 
 | Indicateur | Définition |
 |---|---|
@@ -538,17 +627,18 @@ Il voit aussi la répartition des Signalements de la Cohorte par Type de déchet
 - « Ayant atteint » se lit dans l'historique des Statuts : un Signalement `collecté` compte parmi ceux ayant atteint `validé`.
 - Sur un jeu d'essai de 10 Signalements ayant atteint `validé`, dont 6 `collecté`, le Taux de traitement affiché est 60 %.
 - Un Signalement créé hors-ligne entre dans la Cohorte de sa date de réception par le serveur.
+- **(v2.0)** Les indicateurs de FR-31 à FR-33 se calculent dans la Portée d'organisation de la personne. Ils se répartissent aussi par quartier, Type de déchet et période. Le Super Admin voit le total de la plateforme (FR-53).
 
 #### FR-32 : Carte de chaleur
 
-L'Administrateur commune voit la Carte de chaleur, filtrable par période, Type de déchet et Statut.
+L'Administrateur d'organisation voit la Carte de chaleur, filtrable par période, Type de déchet et Statut.
 
 **Conséquences :**
 - L'affichage prend moins de 2 s pour 5 000 Signalements (NFR-3).
 
 #### FR-33 : Export agrégé
 
-L'Administrateur commune télécharge un Export agrégé en CSV et en GeoJSON.
+L'Administrateur d'organisation télécharge un Export agrégé en CSV et en GeoJSON.
 
 **Conséquences :**
 - Le fichier ne contient aucun numéro, nom ni identifiant d'auteur.
@@ -567,7 +657,7 @@ Tout Visiteur voit une carte des Signalements agrégée par cellule ou par Zone,
 
 #### FR-35 : Gérer les Collecteurs
 
-Un Administrateur commune crée, vérifie et suspend un compte Collecteur, et change le rôle d'un utilisateur. Réalise UJ-6.
+Un Administrateur d'organisation gère les **Appartenances** de son Organisation : il crée l'Appartenance d'un Collecteur (et son compte s'il n'existe pas), la vérifie, la suspend et change le rôle d'un membre. La suspension d'un **compte** est réservée au Super Admin. Réalise UJ-6.
 
 **Conséquences :**
 - Chaque action est inscrite au Journal d'audit.
@@ -582,9 +672,12 @@ Le système inscrit au Journal d'audit, avec l'acteur, l'objet, l'état avant et
 - toute création, vérification, suspension, suppression de compte et tout changement de rôle ;
 - toute activation ou réinitialisation du Second facteur (FR-43) ;
 - tout Export agrégé (FR-33) et tout export des Corrections (FR-13) ;
-- toute connexion du Personnel.
+- toute connexion du Personnel ;
+- **(v2.0)** toute action sur une Organisation, une Appartenance, un Contrat, une Facture, un Montant dû, un Litige, un Lot, une Réservation ou une Vente, toute Alerte de fraude, et tout accès du Super Admin aux données d'une autre Organisation.
 
-Un Administrateur commune consulte le Journal d'audit, filtrable par action et par période *(Should)*. Le Personnel voit l'historique des Statuts dans le détail d'un Signalement.
+Chaque entrée porte l'Organisation concernée, sauf pour les actions de plateforme.
+
+Un Administrateur d'organisation consulte le Journal d'audit, filtrable par action et par période *(Should)*. Le Personnel voit l'historique des Statuts dans le détail d'un Signalement.
 
 **Conséquences :**
 - Pour chaque action de la liste, un test vérifie qu'une entrée est créée.
@@ -599,33 +692,220 @@ Un jeu de Données de démonstration peut être chargé : Zones de Dakar, compte
 **Conséquences :**
 - Tout écran qui affiche des Données de démonstration porte l'étiquette « Données de démonstration ».
 - Le jeu de démonstration se retire en une commande.
-- Les comptes de test comprennent au moins un Collecteur vérifié, un Modérateur et un Administrateur commune.
+- Les comptes de test comprennent au moins un Collecteur vérifié, un Modérateur et un Administrateur d'organisation.
 - Tant que le Mode démonstration est actif, tout Signalement, toute Mission et toute Preuve de collecte créés sont automatiquement étiquetés Données de démonstration.
+- **(v2.0)** Le jeu comprend au moins deux Organisations communes, une entreprise, un groupement de collecteurs et un recycleur de démonstration, avec des comptes de chaque rôle de §2.4. Tout montant de démonstration est manifestement fictif et étiqueté.
 
-### 4.12 Lots de matière (extension, après la porte H48)
+### 4.12 Lots de matière (place de marché, lot P3)
 
-#### FR-38 : Déclarer un Lot de matière
+**Description.** Le Collecteur vend la matière qu'il a prouvée. Un Lot ne contient que des kg vérifiés, non contestés et non encore vendus, ce que la base garantit. Un Recycleur vérifié consulte, réserve et achète. Aucun flux d'argent ne passe par TerangaCycle. Réalise UJ-10.
 
-Un Collecteur déclare un Lot de matière (Type de déchet, poids, Zone, photo). *(Should)*
+#### FR-38 : Constituer un Lot à partir de kg vérifiés
+
+Le vendeur constitue un Lot (Type de déchet, Zone) à partir d'Éléments de lot. Chaque Élément reprend une Preuve d'origine et les kg prélevés sur elle.
 
 **Conséquences :**
-- Sans Type de déchet, poids supérieur à 0, Zone et photo, le Lot est refusé (422).
+- Le vendeur est l'ayant droit des kg, fixé à l'acceptation de la Preuve : l'Organisation de la Mission si son Contrat la désigne comme vendeuse ; sinon le groupement de collecteurs du Collecteur, s'il en est membre et si le Contrat du groupement l'autorise à vendre ; sinon le **Collecteur** lui-même.
+- Un Collecteur ne vend que des kg qu'il a lui-même prouvés.
+- Seuls des kg vérifiés, non contestés et non encore vendus peuvent entrer dans un Lot ; la règle est vérifiée par la base de données.
+- La somme des kg prélevés sur une Preuve ne dépasse jamais son Poids déclaré. Test : 20 prélèvements simultanés sur une même Preuve.
 - Un Lot créé a le Statut de Lot `disponible`.
 
 #### FR-39 : Consulter les Lots
 
-Un Recycleur consulte les Lots de matière `disponible`, filtrés par Type de déchet, Zone et poids minimal ; le contact du Collecteur n'est donné qu'après une demande. *(Should)*
+Un Recycleur vérifié consulte les Lots `disponible`, filtrés par Type de déchet, quantité minimale et Zone.
 
 **Conséquences :**
-- Aucune réponse de la liste ne contient le numéro ni le nom du Collecteur.
+- Aucune réponse de la liste ne contient l'identité, le numéro ni le contact du vendeur.
+- Un Recycleur non vérifié est refusé (403).
 
 #### FR-40 : Réserver un Lot
 
-Un Recycleur demande la réservation d'un Lot ; le Lot passe à `réservé` et le Collecteur est notifié. *(Could)*
+Un Recycleur vérifié réserve un Lot `disponible` ; le Lot passe à `réservé` et le vendeur est notifié. Le contact du vendeur n'est donné qu'après la réservation.
 
 **Conséquences :**
 - Réserver un Lot déjà `réservé` est refusé (409).
-- Le Collecteur voit la réservation dans l'application au plus 15 s après, quand l'application est ouverte.
+- L'annulation d'une réservation remet le Lot `disponible`.
+- Le vendeur voit la réservation au plus 15 s après, quand l'application est ouverte.
+
+#### FR-69 : Vérifier un Recycleur
+
+Le Super Admin vérifie une Organisation recycleur. Sans cette vérification, aucune consultation ni réservation n'est possible.
+
+#### FR-70 : Vente confirmée et commission
+
+Le Recycleur confirme la réception, puis le vendeur confirme la vente (prix, date). La Commission est calculée depuis le paramètre du Contrat du Recycleur et enregistrée sur la Vente, en état seulement.
+
+**Conséquences :**
+- Un Lot `vendu` est immuable.
+- Aucun encaissement ni transfert n'a lieu par TerangaCycle.
+
+#### FR-71 : Traçabilité des kg
+
+Chaque kg vendu remonte à une Preuve de collecte.
+
+**Conséquences :**
+- Si une Preuve est contestée après son entrée dans un Lot non vendu, l'Élément est gelé et le Lot passe `retiré`. Si le Lot est déjà vendu, un Litige s'ouvre.
+
+### 4.13 Organisations et appartenances
+
+**Description.** Chaque client est une Organisation, et chaque donnée métier appartient à une Organisation. Les rôles sont donnés par des Appartenances. Réalise UJ-8.
+
+#### FR-44 : Organisation
+
+Une Organisation a un type (commune, opérateur, groupement de collecteurs, entreprise, recycleur, plateforme), un nom et un statut (`active`, `suspendue`). Une commune ou un opérateur est rattaché à une Zone. Une seule Organisation plateforme existe.
+
+**Conséquences :**
+- Une commune sans Zone est refusée (422).
+- Une Organisation `suspendue` ne reçoit plus de nouveau Signalement, de Demande de collecte ni de Mission ; ses membres gardent la lecture de son historique.
+
+#### FR-45 : Appartenance et rôle par organisation
+
+Un rôle est donné par une Appartenance (personne, Organisation, rôle, statut, date de vérification). Une personne peut avoir plusieurs Appartenances.
+
+**Conséquences :**
+- Un rôle incompatible avec le type de l'Organisation est refusé (par exemple Recycleur dans une commune).
+- Le rôle est lu en base à chaque requête, jamais dans le jeton.
+
+#### FR-46 : Cloisonnement des données
+
+Chaque objet métier appartient à une Organisation. Toute lecture, liste ou modification est limitée à la Portée d'organisation de la personne connectée. Le Super Admin fait exception, et chacun de ses accès est audité.
+
+**Conséquences :**
+- Un objet d'une autre Organisation répond 404, sans aucune donnée.
+- Un test d'isolement, généré depuis la table des routes, prouve qu'un membre de A ne lit, ne liste ni ne modifie rien de B (NFR-18).
+
+#### FR-47 : Organisation responsable d'un Signalement
+
+L'Organisation responsable est déduite de la Position à la réception : la commune ou l'opérateur `active` dont la Zone couvre la Position, en prenant la Zone la plus précise. À défaut, c'est l'Organisation plateforme.
+
+**Conséquences :**
+- L'Organisation responsable est fixée à la création et ne change plus.
+- Elle n'est jamais renvoyée au Citoyen.
+
+#### FR-48 : Vérification par une organisation
+
+Un Collecteur est vérifié par l'Organisation (commune, opérateur, groupement de collecteurs ou plateforme) dont il est membre. Un Recycleur, un Gestionnaire d'entreprise et l'Administrateur initial d'une Organisation sont vérifiés par la plateforme.
+
+### 4.14 Super Admin et plateforme
+
+**Description.** L'équipe TerangaCycle ouvre et suit les Organisations clientes, leurs Contrats et leurs Factures, sans encaisser. Réalise UJ-8.
+
+#### FR-49 : Super Admin
+
+Le Super Admin est membre de l'Organisation plateforme. Il est distinct de l'Administrateur d'organisation. Le premier Super Admin est créé par une commande d'exploitation.
+
+**Conséquences :**
+- Le Second facteur est obligatoire avec des données réelles (FR-43).
+- Chaque accès aux données d'une autre Organisation est inscrit au Journal d'audit.
+
+#### FR-50 : Organisations clientes
+
+Le Super Admin crée, modifie, suspend et réactive une Organisation, et nomme son premier Administrateur.
+
+#### FR-51 : Contrats et abonnements
+
+Un Contrat lie une Organisation à une offre : prix mensuel, dates et statut. Il porte aussi les paramètres commerciaux (frais de coordination, rémunération, commission, droit de vendre des Lots).
+
+**Conséquences :**
+- Les valeurs sont saisies en base par le Super Admin. Aucune valeur n'est dans le code, la configuration versionnée ni ce document.
+- Les montants sont des entiers en FCFA.
+
+#### FR-52 : Factures et échéances (états)
+
+Le système émet une Facture par Contrat et par période, avec un montant, un statut (`émise`, `payée`, `en retard`) et une référence. Le Super Admin marque une Facture `payée` avec sa référence.
+
+**Conséquences :**
+- Aucun encaissement, aucune passerelle de paiement.
+- Une Facture `émise` dont l'échéance est dépassée passe `en retard` (tâche planifiée), et une alerte part.
+
+#### FR-53 : Tableau de bord plateforme
+
+Le Super Admin voit les indicateurs SM-B1 à SM-B8 (§10), par période et par Organisation.
+
+#### FR-54 : Paramètres et Journal d'audit global
+
+Le Super Admin règle les paramètres non commerciaux de la plateforme et consulte le Journal d'audit de toutes les Organisations, filtrable par Organisation, action et période.
+
+### 4.15 Espaces
+
+#### FR-55 : Espace mobile et console web
+
+Une seule application propose deux espaces, chargés séparément : l'Espace mobile `/` (Citoyen, Collecteur) et la Console web `/console` (Personnel, Gestionnaire d'entreprise, Recycleur, Super Admin).
+
+**Conséquences :**
+- Après la connexion, chacun arrive dans son espace. Une personne qui a plusieurs Appartenances de console choisit l'Organisation active.
+- Le budget de NFR-5 s'applique à l'Espace mobile seul ; la console n'y est ni chargée ni précachée.
+
+### 4.16 Espace entreprise
+
+**Description.** Une entreprise fait collecter ses déchets et prouve ce qui a été collecté. Réalise UJ-7.
+
+#### FR-56 : Sites
+
+Le Gestionnaire d'entreprise gère les Sites de son entreprise : nom, Position dans la Zone active, contact du site.
+
+#### FR-57 : Déchets déclarés
+
+Pour chaque Site, il déclare les Types de déchet produits et un volume estimé par période.
+
+#### FR-58 : Demande de collecte ponctuelle
+
+Il demande une collecte pour un Site (Types de déchet, volume estimé, créneau souhaité). La Demande crée une Mission d'Origine `collection_request`.
+
+**Conséquences :**
+- La Mission est ouverte aux Collecteurs vérifiés par l'Organisation plateforme et par les opérateurs désignés comme prestataires dans le Contrat de l'entreprise.
+- Une Demande n'a pas de modération citoyenne ; son statut suit celui de la Mission.
+
+#### FR-59 : Programme de collecte
+
+Il programme des collectes régulières (fréquence, Site, Types de déchet). Une tâche planifiée crée les Demandes à échéance, sans doublon.
+
+#### FR-60 : Suivi des demandes, des prestataires et des preuves
+
+Il suit ses Demandes et leurs Missions : le Collecteur (nom affiché et état de vérification, jamais son numéro), les Preuves (photos, Poids déclaré, méthode) et les kg vérifiés par Site.
+
+#### FR-61 : Rapports mensuels
+
+L'entreprise, et la commune ou l'opérateur, téléchargent un rapport mensuel (kg vérifiés par Type de déchet et par Site ou quartier, Missions terminées, Preuves contestées), sans donnée personnelle.
+
+### 4.17 Finance terrain (aucune détention de fonds)
+
+**Description.** Le système enregistre ce qui est dû, payé ou contesté ; le client paie lui-même le collecteur. Réalise UJ-9.
+
+#### FR-62 : Frais et rémunération prévus
+
+À sa création, une Mission reçoit ses Frais de coordination et sa Rémunération prévue, calculés depuis les paramètres du Contrat de son Organisation.
+
+**Conséquences :**
+- Les valeurs sont figées sur la Mission : un changement de Contrat ne modifie pas les Missions existantes.
+
+#### FR-63 : Montant dû
+
+Une Preuve acceptée crée un Montant dû au Collecteur (Mission, Collecteur, montant, payeur, statut `dû`).
+
+#### FR-64 : Paiement confirmé
+
+Le payeur (l'Organisation cliente) enregistre le paiement : Référence de paiement, date, personne qui confirme. Le Montant passe `payé`.
+
+**Conséquences :**
+- TerangaCycle ne reçoit, ne détient et ne transfère aucun fonds ; aucune route ne déplace d'argent.
+- Toute transition est inscrite au Journal d'audit.
+
+#### FR-65 : Montants du Collecteur
+
+Le Collecteur voit ses Montants dus et payés, et conteste un Montant avec un motif obligatoire, ce qui ouvre un Litige.
+
+#### FR-66 : Litiges
+
+Un Litige porte sur un objet (Preuve, Montant dû, Vente), avec un motif, un statut (`ouvert`, `en instruction`, `tranché`) et une décision motivée du Super Admin.
+
+**Conséquences :**
+- Un Montant `contesté` n'est ni `dû` ni `payé` tant que le Litige est ouvert.
+
+#### FR-67 : Suivi des montants
+
+L'Organisation voit ses Montants dus, payés et contestés ; le Super Admin les voit tous. Les deux peuvent les exporter, sans Référence de paiement complète.
 
 ## 5. Exigences non fonctionnelles transverses
 
@@ -635,19 +915,20 @@ Un Recycleur demande la réservation d'un Lot ; le Lot passe à `réservé` et l
 | NFR-2 | Performance | Lecture API | p95 < 300 ms à 50 req/s | k6 |
 | NFR-3 | Performance | Carte | < 2 s pour 5 000 points | Mesure manuelle et Lighthouse |
 | NFR-4 | Réseau faible | Photo envoyée | ≤ 300 Ko | Test automatique |
-| NFR-5 | Réseau faible | Page d'accueil | ≤ 500 Ko hors images et Modèle ; Modèle ≤ 8 Mo, téléchargé une seule fois puis mis en cache | Lighthouse |
-| NFR-6 | Compatibilité | Appareils | Android 8+ avec Chrome, 2 Go de RAM ; mobile 390×844, tableau de bord 1280×800 | Test sur un appareil réel |
+| NFR-5 | Réseau faible | Espace mobile | ≤ 500 Ko hors images et Modèle ; Modèle ≤ 8 Mo, téléchargé une seule fois puis mis en cache ; la console n'est ni chargée ni précachée par l'Espace mobile | Lighthouse ; contrôle CI du manifeste de construction |
+| NFR-6 | Compatibilité | Appareils | Android 8+ avec Chrome, 2 Go de RAM ; mobile 390×844 ; console 1280×800, navigation complète au clavier | Test sur un appareil réel |
 | NFR-7 | Disponibilité | Démo | Service et portable de secours prêts ; vidéo de la démo complète enregistrée avant H60 ; tuiles de la zone de démo disponibles sans réseau ; `/healthz` répond tant que le processus vit ; `/readyz` n'est prêt que si la base, le stockage et le Modèle sont disponibles et ne renvoie qu'un statut global ; hors Mode démonstration, `/docs` et `/openapi.json` ne sont pas exposés | Répétition ; test automatisé des sondes et de l'exposition |
 | NFR-8 | Sécurité | Transport et en-têtes | TLS 1.2 minimum, HSTS, redirection HTTP → HTTPS ; CSP dont `script-src` n'autorise que `'self'` et `'wasm-unsafe-eval'` ; `X-Content-Type-Options: nosniff` ; `Referrer-Policy: no-referrer` ; CORS limité aux origines de la PWA ; photos servies depuis un domaine distinct de l'API | Scan SSL et test des en-têtes |
-| NFR-9 | Sécurité | Contrôle d'accès | Toutes les routes `/v1` testées × chaque rôle et sans jeton, sauf une liste blanche publique explicite (`/healthz`, `/readyz`, création anonyme d'un Signalement, carte publique agrégée) | CI : échec si une route n'est ni testée ni dans la liste blanche |
+| NFR-9 | Sécurité | Contrôle d'accès | Toutes les routes `/v1` testées × chaque rôle de §2.4 (Collecteur et Recycleur, vérifiés ou non) et sans jeton, sauf une liste blanche publique explicite (`/healthz`, `/readyz`, création anonyme d'un Signalement, carte publique agrégée) | CI : échec si une route n'est ni testée ni dans la liste blanche |
 | NFR-10 | Sécurité | Chaîne logicielle | Aucun secret dans Git ; la CI échoue sur toute vulnérabilité critique ou haute non justifiée dans un fichier d'exceptions daté ; images épinglées par empreinte et actions par SHA de commit | Gitleaks, pip-audit, npm audit, Trivy en CI |
 | NFR-11 | Qualité | Code | Couverture backend ≥ 60 %, lint sans erreur | CI |
 | NFR-12 | Accessibilité | WCAG 2.1 AA | Contraste ≥ 4,5:1 pour le texte (3:1 pour le texte ≥ 18,66 px gras et les éléments non textuels) ; cibles tactiles ≥ 44 px ; libellés pour lecteurs d'écran ; chaque Type de déchet, chaque étape de la Frise de suivi et chaque action principale a un pictogramme accompagné d'un libellé ; navigation complète au clavier sur les écrans du Personnel | Script CI qui calcule chaque paire texte/fond des jetons ; audit Lighthouse |
 | NFR-13 | Langue | Interface | Français d'abord ; aucune chaîne en dur (wolof prêt à ajouter) | Revue de code |
-| NFR-14 | Observabilité | Journaux | Journaux structurés avec identifiant de requête, rôle, route et durée ; jamais de jeton ni de numéro complet | Revue des journaux |
+| NFR-14 | Observabilité | Journaux | Journaux structurés avec identifiant de requête, rôle, route et durée ; jamais de jeton, de numéro complet ni de Référence de paiement complète | Revue des journaux |
 | NFR-15 | Continuité (pilote) | Sauvegarde et restauration | Sauvegarde quotidienne chiffrée de la base et des photos, hors du serveur hôte ; perte maximale de 24 h ; une restauration complète réussie avant la collecte de données réelles ; disponibilité visée de 99 % par mois | Exercice de restauration ; supervision |
 | NFR-16 | Supervision (pilote) | Alertes | Une alerte part sur le canal de l'équipe si : le taux de réponses 5xx dépasse 2 % sur 5 min ; une sauvegarde échoue ou le disque est rempli à plus de 85 % `[ASSUMPTION]` ; le plafond SMS est atteint (FR-1) ; la file de Classification serveur est pleine (FR-14) | Déclenchement simulé de chaque alerte |
 | NFR-17 | Sécurité | Données au repos et base | Base, photos et sauvegardes chiffrées au repos (pilote) ; l'API se connecte avec un rôle qui ne peut ni modifier le schéma, ni modifier ou supprimer une entrée du Journal d'audit ; aucune colonne ne contient le numéro de téléphone en clair | Test CI (création de table et mise à jour du Journal refusées) ; recherche du numéro en clair dans une copie de la base |
+| NFR-18 | Sécurité | Isolement entre organisations | Pour chaque route qui manipule un objet d'Organisation, aucune lecture, liste ni écriture croisée entre deux Organisations | CI : test généré à deux Organisations ; échec si une route n'est pas couverte |
 
 ## 6. Confidentialité, sécurité et conformité
 
@@ -659,7 +940,10 @@ Un Recycleur demande la réservation d'un Lot ; le Lot passe à `réservé` et l
 - la photo du Signalement et les photos de la Preuve de collecte ;
 - la Position du Collecteur dans la Preuve de collecte ;
 - l'empreinte de l'Identifiant d'appareil ;
-- l'IP, dans le Journal d'audit et pour la limitation de débit.
+- l'IP, dans le Journal d'audit et pour la limitation de débit ;
+- **(v2.0)** les Sites d'entreprise (Position et contact du site), les Montants dus et les Références de paiement, le contact des vendeurs de Lots et des Recycleurs.
+
+Les Références de paiement ne sont visibles que du payeur, du Collecteur concerné et du Super Admin. Le contact d'un vendeur n'est donné qu'au Recycleur qui a réservé son Lot.
 
 **Protection :**
 - le numéro est chiffré au repos, et la recherche passe par une empreinte calculée avec une clé secrète ;
@@ -675,6 +959,7 @@ Un Recycleur demande la réservation d'un Lot ; le Lot passe à `réservé` et l
 | IP du Journal d'audit | 6 mois |
 | Compte supprimé | Purgé sous 30 jours |
 | Statistiques agrégées | Sans limite |
+| Pièces financières (Factures, Montants, Ventes) | Durée légale comptable `[ASSUMPTION : à confirmer]` |
 
 Une tâche planifiée applique ces durées. Test avec une horloge simulée : une photo plus ancienne que sa durée est supprimée et son lien ne fonctionne plus ; une IP de plus de 6 mois est effacée du Journal d'audit.
 
@@ -690,6 +975,9 @@ Une tâche planifiée applique ces durées. Test avec une horloge simulée : une
 | Accès indus au Personnel | FR-43 |
 | Fuite par renvoi | FR-9 |
 | Mode démonstration oublié en production | FR-6 |
+| Faux paiement confirmé | FR-64 à FR-66 (double vue payeur et Collecteur, contestation, Litige) |
+| kg gonflés ou réutilisés dans un Lot | FR-38, FR-71, FR-68 |
+| Accès entre organisations | FR-46, NFR-18 |
 
 ### 6.3 Conformité
 
@@ -697,6 +985,7 @@ Une tâche planifiée applique ces durées. Test avec une horloge simulée : une
   - aucune obligation pour la démo : elle n'utilise que des comptes de test et des Données de démonstration, y compris les Signalements créés en direct (FR-37), dont les photos ne montrent ni personne ni plaque ;
   - pour le pilote, déclaration ou demande d'autorisation à la CDP avant la collecte de données réelles ;
   - tout hébergement hors du Sénégal (pilote AWS) est un transfert à couvrir dans ce dossier.
+- **Aucune détention de fonds :** TerangaCycle n'encaisse aucun fonds pour compte de tiers. Un avis juridique sur la réglementation de la BCEAO est requis avant toute évolution vers un encaissement (§11, Q20). La facturation (forme juridique, TVA) est une question ouverte (§11, Q17).
 - **WCAG 2.1 AA :** NFR-12.
   - Le jeton Vert `#1F8A5B` de la maquette est remplacé par `#187A50` dans toutes ses utilisations : fond sous texte blanc (5,33:1), texte sur Fond (5,06:1), pastilles sur Menthe (4,70:1).
   - Le Rouge `#D9482B` (4,28:1 sur blanc) n'est utilisé que pour des aplats, icônes et bordures, ou pour un texte d'au moins 18,66 px en gras ; un message d'erreur s'écrit en Encre avec une icône rouge.
@@ -713,17 +1002,17 @@ Une tâche planifiée applique ces durées. Test avec une horloge simulée : une
 
 ## 7. Plateforme et identité visuelle
 
-- **PWA installable** (pas d'application native), mobile d'abord ; tableau de bord sur ordinateur.
+- **PWA installable** (pas d'application native), une seule application React avec deux espaces chargés séparément (FR-55) : l'Espace mobile `/`, mobile d'abord, et la Console web `/console`, sur ordinateur.
 - **Référence visuelle :** maquette Figma (écrans 1 à 7), police Inter, jetons de couleur du brief, avec les règles d'usage du §6.3.
-- **Écrans hors maquette :** la maquette Figma est figée. Les éléments suivants sont décrits dans la spécification UX, avec les mêmes jetons (corrigés) et la même police : Taille de tas (écran 3) ; variante « en attente d'envoi » de l'écran 4 ; consentement (FR-4) ; connexion OTP ; File de modération et détail d'un Signalement (UJ-2) ; administration des comptes et Journal d'audit ; bandeau Mode démonstration ; photo et filtre par Type de déchet dans la liste de l'écran 5.
+- **Écrans hors maquette :** la maquette Figma est figée. Les éléments suivants sont décrits dans la spécification UX, avec les mêmes jetons (corrigés) et la même police : Taille de tas (écran 3) ; variante « en attente d'envoi » de l'écran 4 ; consentement (FR-4) ; connexion OTP ; File de modération et détail d'un Signalement (UJ-2) ; administration des comptes et Journal d'audit ; bandeau Mode démonstration ; photo et filtre par Type de déchet dans la liste de l'écran 5 ; **(v2.0)** gabarit de la console et sélecteur d'Organisation ; Organisations (Super Admin) ; Membres d'une Organisation ; Alertes de fraude ; Sites, Demandes, Programmes et Rapports (entreprise) ; Contrats, Factures et Tableau de bord plateforme ; Montants du Collecteur (mobile) ; Lots, Réservations et Ventes (mobile pour le Collecteur vendeur, console pour les autres) ; Litiges. Une spécification UX légère de la console est produite avant le lot P2.
 - **Libellés de la Frise de suivi** (écran 4) : « Signalé », « Validé par la modération », « Assigné à un collecteur », « Collecté, preuve photo ».
-- **Entrées de rôle :** les boutons « Je suis collecteur » et « Espace commune » de l'écran 1 mènent à la connexion OTP.
+- **Entrées de rôle :** sur l'écran 1, « Je suis collecteur » mène à la connexion OTP de l'Espace mobile, et « Espace professionnel » (qui remplace « Espace commune ») à la connexion de la console.
 - **Ton :** consignes courtes, en français simple, avec pictogrammes ; des messages d'erreur qui disent quoi faire. Fidèle à la *teranga* : remercier le Citoyen, ne jamais le culpabiliser ; nommer le Collecteur comme un acteur reconnu ; un refus de Preuve donne la distance mesurée, sans accuser.
 - **Honnêteté :** aucun chiffre de démonstration n'est présenté comme réel, et aucun objectif comme un résultat.
 
 ## 8. Non-objectifs
 
-- Paiement mobile réel des Collecteurs.
+- **Détention ou transfert de fonds par TerangaCycle**, et passerelle de paiement : le système enregistre des états (FR-62 à FR-67) ; le client paie le collecteur.
 - Applications natives iOS et Android.
 - Entraînement d'un modèle à partir de zéro, ou détection d'objets multiples.
 - Optimisation de tournées multi-véhicules.
@@ -733,14 +1022,30 @@ Une tâche planifiée applique ces durées. Test avec une horloge simulée : une
 - Interface en wolof pendant le hackathon (seule la préparation à la traduction est exigée ; voir §9.2).
 - Preuve de collecte hors-ligne : au MVP, le Collecteur doit avoir du réseau sur place (question rouverte pour le pilote, §11, Q8).
 - Floutage automatique des visages et des plaques : après le MVP ; la consigne de capture et la modération le compensent.
-- Multi-commune : cloisonnement du Personnel et des données par commune, et configuration des Types de déchet par commune. Le MVP et le pilote servent une seule commune, la Zone active ; le modèle reste réplicable (§11, Q10).
+- Ouverture **à grande échelle** de nombreux territoires, configuration des Types de déchet par Organisation et inscription des Organisations en libre-service : lot P4. Le cloisonnement par Organisation est, lui, dans le MVP (FR-46) ; la Zone active reste unique au MVP.
 - Déclenchement automatique du réentraînement sur un seuil de Corrections : le réentraînement du pilote est manuel et mensuel (FR-16).
 
-## 9. Périmètre du MVP
+## 9. Périmètre et lots
 
-### 9.1 Dans le périmètre (démo du hackathon)
+### 9.0 Lots de livraison (v2.0)
 
-Les exigences sont livrées par porte du plan de 72 h.
+La **Priorité** (lot) est l'axe de planification. Les portes H24, H48 et H60 du §9.1 ne servent plus qu'à la démo du hackathon.
+
+| Lot | Contenu | Exigences |
+|---|---|---|
+| **P0 · en cours** | Finir l'Epic 1, avec l'Organisation dès la création d'un Signalement | FR-4, FR-7 à FR-10, FR-37, FR-44 (table), FR-47 |
+| **Piste hackathon** | IA minimale (Modèle sur le téléphone, Seuil de confiance, Correction) et File hors-ligne | FR-11, FR-12, FR-13 (partie création), FR-17 à FR-19 |
+| **P1 · MVP opérationnel** | Comptes OTP, Organisations, Appartenances, Super Admin minimal, console, audit ; modération, Statuts, notifications ; vérification des Collecteurs, Missions, Preuves, contrôle par échantillon, alertes de fraude ; Tableau de bord et exports | FR-1 à FR-3, FR-5, FR-6, FR-20 à FR-33, FR-35, FR-36, FR-41 à FR-43, FR-45, FR-46, FR-48, FR-49, FR-55, FR-68 |
+| **P2 · MVP commercial** | Organisations et contrats ; espace entreprise ; finance terrain ; rapports mensuels | FR-50 à FR-54, FR-56 à FR-67 |
+| **P3 · Place de marché** | Recycleurs vérifiés, Lots issus de kg vérifiés et vendus par le Collecteur, réservation, vente, commission | FR-38 à FR-40, FR-69 à FR-71 |
+| **P4 · Automatisation** | Reste de l'IA (Classification serveur, pipeline d'entraînement, réentraînement) ; canal SMS citoyen ; analyses ; ouverture de nombreux territoires | FR-13 (export), FR-14 à FR-16, FR-34 si elle n'est pas tirée avant |
+| **Post-pilote** | Données ouvertes et interopérabilité (exports standards, API en lecture pour partenaires) | — |
+
+La démo du hackathon montre P0, la piste hackathon et le chemin nominal de P1. Les actions qui précèdent les premières données réelles (sauvegardes, chiffrement, restauration) conditionnent la sortie de P1.
+
+### 9.1 Démo du hackathon (portes)
+
+Les exigences de la démo sont livrées par porte du plan de 72 h.
 
 | Porte | Exigences livrées | État visé |
 |---|---|---|
@@ -752,12 +1057,12 @@ Les exigences sont livrées par porte du plan de 72 h.
 
 - **FR-27, FR-28, FR-34, FR-36 (consultation) :** seulement si la porte H48 est atteinte en avance.
 - **FR-41 à FR-43 :** avant le pilote, hors des portes du hackathon.
-- **FR-38 à FR-40 (Lots de matière) :** extension.
-  `[NOTE FOR PM]` La valorisation est au cœur du discours (« le cœur n'est pas le signalement »), et le Proposal la place déjà après le hackathon ; à l'oral, on assume : la démo prouve la chaîne de confiance, et la place de marché vient avec le pilote.
-  `[NOTE FOR PM]` L'incitation des Collecteurs pendant le pilote n'est pas définie : le paiement réel et les points sont des non-objectifs (§8). Le modèle de rémunération ou de reconnaissance est à négocier avec la commune (§11, Q7). Sans lui, SM-7 est à risque.
+- **FR-38 à FR-40 et FR-69 à FR-71 (place de marché) :** lot P3 (§9.0).
+- **FR-50 à FR-67 (contrats, espace entreprise, finance terrain) :** lot P2 (§9.0).
+  `[NOTE FOR PM]` L'incitation des Collecteurs au pilote passe par la Rémunération prévue et les Montants dus (FR-62 à FR-65) ; le payeur et la grille restent à fixer (§11, Q11). Sans elles, SM-7 est à risque.
 - **Wolof :** préparation à la traduction au MVP (NFR-13) ; écran de signalement en wolof pendant le pilote (mois 3 à 6), relu par des locuteurs natifs.
 - **SMS et WhatsApp :** après le pilote (mois 6 à 12, comme annoncé dans le Proposal).
-- **Points citoyens** (US-07), suivi des paiements des Collecteurs, intégration aux systèmes municipaux : feuille de route, sans échéance.
+- **Points citoyens** (US-07), intégration aux systèmes municipaux : feuille de route, sans échéance. Le suivi des paiements des Collecteurs est dans le lot P2 (FR-62 à FR-67).
 - **Fonds de carte :** les tuiles publiques d'OpenStreetMap sont réservées à la démo ; le pilote utilise un fournisseur ou un serveur de tuiles propre.
 
 ### 9.3 Risques de démo et plans B
@@ -791,26 +1096,48 @@ Ce sont des **objectifs à mesurer**, pas des résultats.
 - **SM-8** : la part des classifications corrigées baisse de mois en mois. Valide FR-13 et FR-16 (réentraînement mensuel).
 - **SM-9** : Kg collectés avec Preuve de collecte, par Type de déchet : suivi mensuel, sans cible. Valide FR-29 et FR-31.
 
+**Indicateurs d'activité (MVP commercial) — suivis, sans cible publiée dans ce dépôt**
+- **SM-B1** : clients payants (Organisations avec un Contrat actif). Valide FR-51.
+- **SM-B2** : revenu mensuel récurrent. Valide FR-51 et FR-52.
+- **SM-B3** : coût moyen par collecte. Valide FR-62.
+- **SM-B4** : Missions terminées. Valide FR-29.
+- **SM-B5** : Preuves valides (acceptées et non contestées). Valide FR-41.
+- **SM-B6** : kg vérifiés. Valide FR-41 et FR-71.
+- **SM-B7** : Lots vendus. Valide FR-70.
+- **SM-B8** : rémunérations versées (Montants `payé`). Valide FR-64.
+
 **Contre-indicateurs (à ne pas optimiser)**
 - **SM-C1** : nombre brut de Signalements. Le faire monter récompense le spam ; il équilibre SM-1 et SM-6.
 - **SM-C2** : taux de validation en modération. Un taux proche de 100 % signale une modération de complaisance ; il équilibre SM-6.
 - **SM-C3** : kg collectés par Mission. Des poids gonflés feraient monter l'indicateur ; on suit plutôt la part de Preuves `contestée` (FR-41). Il équilibre SM-5 et SM-6.
 - **SM-C4** : part de classifications acceptées sans Correction. Décourager la Correction masquerait les erreurs du Modèle ; il équilibre SM-8.
+- **SM-C5** : part des Montants confirmés sans aucune contestation. Une part de contestations nulle doit inquiéter autant qu'une part élevée ; il équilibre SM-B8.
 
 ## 11. Questions ouvertes
 
 | # | Question | Responsable | Échéance | Revisiter quand |
 |---|---|---|---|---|
-| 1 | **Licence du code :** MIT (adoption) ou AGPL-3.0 (commun numérique) ? Un fichier `LICENSE` doit être à la racine avant la démo. | Mia | H60 | À la revue de la porte H60, au plus tard |
-| 2 | **Passerelle SMS au Sénégal :** couverture, coût, valeur du plafond quotidien de FR-1. Le Mode démonstration couvre le hackathon. | Ahmadou | Avant le pilote | Dès réception des offres de passerelles |
-| 3 | **Région d'hébergement du pilote :** Le Cap, Paris ou hébergeur sénégalais ; latence depuis Dakar, dossier CDP, test du plan de sortie (§6.4). | Ahmadou | Avant le pilote | Dès l'accord de la commune partenaire sur le pilote |
-| 4 | **Âge minimum** pour créer un compte, et relecture juridique du texte de consentement (FR-4). La démo n'utilise que des comptes de test. | Mia | Avant le pilote | Avant la rédaction finale de l'écran de consentement du pilote |
-| 5 | **Cadre légal :** la loi n° 2008-12 a-t-elle été remplacée ou complétée ? Durées de conservation du §6.1 à valider avec la commune. | Mia | Avant le dépôt du dossier CDP | À la première réunion avec la commune partenaire |
-| 6 | **Table de conversion Taille de tas → Poids estimé :** table provisoire `[ASSUMPTION]` livrée avec FR-7 ; valeurs réelles à obtenir d'un collecteur. | Ahmadou (table provisoire), Mia (valeurs terrain) | H24, puis avant le pilote | Dès le premier entretien avec un collecteur |
-| 7 | **Collecteurs au pilote :** incitation (rémunération par la commune, GIE, reconnaissance), enrôlement des récupérateurs informels, critères de « Collecteur vérifié » (pièce d'identité obligatoire ou non). Risque direct sur SM-7. | Mia, avec la commune | Avant le pilote | À la négociation de la convention de pilote avec la commune |
-| 8 | **Preuve de collecte hors-ligne au pilote** (§8) : à décider après mesure de la couverture réseau des premiers sites. | Ahmadou | Fin du 1er mois du pilote | Dès que la part de Preuves refusées faute de réseau est mesurée sur les premiers sites |
-| 9 | **Jeu de photos locales et Modèle :** dans le dépôt à quelle date ? (SM-2) | Aissatou | H24 | À la revue de la porte H24 |
-| 10 | **Multi-commune** (§8) : quand et comment cloisonner le Personnel et les données par commune ? | Mia | Avant une deuxième commune | Dès qu'une deuxième commune demande le service |
+| 1 | **Licence du code :** MIT (adoption) ou AGPL-3.0 (commun numérique) ? Un fichier `LICENSE` doit être à la racine avant la démo. | Responsable produit | H60 | À la revue de la porte H60, au plus tard |
+| 2 | **Passerelle SMS au Sénégal :** couverture, coût, valeur du plafond quotidien de FR-1. Le Mode démonstration couvre le hackathon. | Responsable technique | Avant le pilote | Dès réception des offres de passerelles |
+| 3 | **Région d'hébergement du pilote :** Le Cap, Paris ou hébergeur sénégalais ; latence depuis Dakar, dossier CDP, test du plan de sortie (§6.4). | Responsable technique | Avant le pilote | Dès l'accord de la commune partenaire sur le pilote |
+| 4 | **Âge minimum** pour créer un compte, et relecture juridique du texte de consentement (FR-4). La démo n'utilise que des comptes de test. | Responsable produit | Avant le pilote | Avant la rédaction finale de l'écran de consentement du pilote |
+| 5 | **Cadre légal :** la loi n° 2008-12 a-t-elle été remplacée ou complétée ? Durées de conservation du §6.1 à valider avec la commune. | Responsable produit | Avant le dépôt du dossier CDP | À la première réunion avec la commune partenaire |
+| 6 | **Table de conversion Taille de tas → Poids estimé :** table provisoire `[ASSUMPTION]` livrée avec FR-7 ; valeurs réelles à obtenir d'un collecteur. | Responsable technique (table provisoire), responsable produit (valeurs terrain) | H24, puis avant le pilote | Dès le premier entretien avec un collecteur |
+| 7 | **Collecteurs au pilote :** incitation (rémunération par la commune, GIE, reconnaissance), enrôlement des récupérateurs informels, critères de « Collecteur vérifié » (pièce d'identité obligatoire ou non). Risque direct sur SM-7. | Responsable produit, avec la commune | Avant le pilote | À la négociation de la convention de pilote avec la commune |
+| 8 | **Preuve de collecte hors-ligne au pilote** (§8) : à décider après mesure de la couverture réseau des premiers sites. | Responsable technique | Fin du 1er mois du pilote | Dès que la part de Preuves refusées faute de réseau est mesurée sur les premiers sites |
+| 9 | **Jeu de photos locales et Modèle :** dans le dépôt à quelle date ? (SM-2) | Responsable IA | H24 | À la revue de la porte H24 |
+| 10 | ~~**Multi-commune**~~ : **fermée le 25/11/2026**, tranchée par FR-46 (cloisonnement par Organisation dès le MVP). L'ouverture à grande échelle est reprise par la Q21. | — | — | — |
+| 11 | **Rémunération des Collecteurs :** qui paie, et selon quelle grille (paramètres du Contrat) ? | Responsable produit | Avant le pilote | À la négociation de la convention de pilote |
+| 12 | **Prix des abonnements** par type d'Organisation (valeurs hors dépôt). | Responsable produit | Avant le lot P2 | À la première offre commerciale |
+| 13 | **Frais de coordination :** forfait ou pourcentage ? | Responsable produit | Avant le lot P2 | À la première offre commerciale |
+| 14 | **Commission sur les ventes de Lots :** assiette et payeur (valeur hors dépôt). | Responsable produit | Avant le lot P3 | Au premier recycleur partenaire |
+| 15 | **Rôle de l'opérateur public national de gestion des déchets :** Organisation opérateur, partenaire de données ou autre. | Responsable produit | Avant le pilote | Au premier échange formel |
+| 16 | **Commune et entreprises du pilote.** | Responsable produit | Avant le pilote | — |
+| 17 | **Forme juridique et facturation** (TVA). | Responsable produit | Avant la première Facture réelle | — |
+| 18 | **Dossier CDP et région d'hébergement** (reprend la Q3). | Responsable technique | Avant les données réelles | — |
+| 19 | **Passerelle SMS :** OTP des comptes réels et canal citoyen (reprend la Q2). | Responsable technique | Avant les comptes réels | — |
+| 20 | **Avis juridique BCEAO** avant tout encaissement pour compte de tiers. | Responsable produit | Avant toute évolution vers un encaissement | — |
+| 21 | **Ayant droit des kg** entre Collecteur, groupement et Organisation de la Mission : règles fines au-delà de l'ordre de FR-38, et ouverture de nombreux territoires (lot P4). | Responsable produit | Avant le lot P3 | Au premier groupement vendeur |
 
 ## 12. Index des hypothèses
 
@@ -831,3 +1158,5 @@ Seules les hypothèses encore ouvertes figurent ici. Chacune porte la mention `[
 - §5 NFR-16 : seuil d'alerte disque à 85 %.
 - §6.1 : durées de conservation, à valider avec la commune.
 - §11 Q6 : table provisoire Taille de tas → Poids estimé.
+- §4.8 FR-68 : bornes du Poids déclaré qui déclenchent une Alerte de fraude, configurables.
+- §6.1 : durée de conservation des pièces financières, à confirmer.

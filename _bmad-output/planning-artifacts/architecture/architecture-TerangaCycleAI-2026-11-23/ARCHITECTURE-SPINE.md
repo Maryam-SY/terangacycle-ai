@@ -7,13 +7,15 @@ paradigm: 'Monolithe modulaire, en couches dans chaque module (router → servic
 scope: 'Système complet : API FastAPI, PWA, IA ONNX, données, déploiement (MVP du hackathon et pilote)'
 status: final
 created: '2026-11-23'
-updated: '2026-11-23'
-binds: [FR-1..FR-43, NFR-1..NFR-17]
+updated: '2026-11-25'
+version: '2.0'
+binds: [FR-1..FR-71, NFR-1..NFR-18]
 sources:
   - _bmad-output/planning-artifacts/prds/prd-TerangaCycleAI-2026-11-23/prd.md
   - _bmad-output/planning-artifacts/prds/prd-TerangaCycleAI-2026-11-23/addendum.md
   - docs/dossier-technique.md
   - docs/audit-2026-11-23.md
+  - _bmad-output/planning-artifacts/sprint-change-proposal-2026-11-25.md
 companions:
   - _bmad-output/planning-artifacts/prds/prd-TerangaCycleAI-2026-11-23/addendum.md
 ---
@@ -23,6 +25,8 @@ companions:
 > Chaque AD porte **Binds** (ce qu'elle lie), **Prevents** (la divergence empêchée) et **Rule** (la règle). Les termes en majuscule sont ceux du Glossaire du PRD (§3). Les raisons sont dans `.memlog.md`.
 >
 > Priorité des sources : PRD > addendum > dossier technique. Pour les noms et formes fixés ici, l'épine remplace l'addendum.
+>
+> **Version 2.0 (25/11/2026).** Organisations clientes et cloisonnement (AD-31, AD-32), console web (AD-33), aucune détention de fonds (AD-34), Lots issus de kg vérifiés (AD-35), origine des Missions (AD-36) ; nouveaux modules `orgs`, `enterprise` et `finance`. Voir `sprint-change-proposal-2026-11-25.md`.
 
 ## Paradigme
 
@@ -40,8 +44,11 @@ companions:
 flowchart TB
   subgraph modules["backend/app/modules"]
     auth
+    orgs
     reports
     missions
+    enterprise
+    finance
     lots
     analytics
     ai
@@ -56,18 +63,33 @@ flowchart TB
   lots -->|service| missions
   lots -->|service| auth
   notifications -->|service| auth
+  reports -->|service| orgs
+  missions -->|service| orgs
+  enterprise -->|service| missions
+  enterprise -->|service| orgs
+  finance -->|service| orgs
+  lots -->|service| orgs
   reactions -->|service| auth
   reactions -->|service| reports
   reactions -->|service| missions
   reactions -->|service| notifications
+  reactions -->|service| orgs
+  reactions -->|service| enterprise
+  reactions -->|service| finance
+  reactions -->|service| lots
   analytics -.->|vues SQL en lecture| reports
   analytics -.->|vues SQL en lecture| missions
   analytics -.->|vues SQL en lecture| auth
+  analytics -.->|vues SQL en lecture| orgs
+  analytics -.->|vues SQL en lecture| finance
+  analytics -.->|vues SQL en lecture| lots
   modules -.->|"technique, émission d'événements"| core
   reactions -.-> core
 ```
 
-Flèches pleines : appels de service autorisés. Pointillés vers `core` : dépendance technique. Toute autre dépendance entre modules est interdite, cycles compris. `core` ne dépend d'aucun module.
+Flèches pleines : appels de service autorisés. Pointillés vers `core` : dépendance technique. Toute autre dépendance entre modules est interdite, cycles compris. `core` ne dépend d'aucun module : le chargement des Appartenances passe par un port branché dans `main.py` et `worker.py` (AD-32).
+
+**v2.0.** `auth` n'importe pas `orgs`. Les réactions entre modules (Preuve acceptée → Montant dû et solde de kg, Preuve contestée → Lot retiré et Litige) restent dans `reactions.py` (AD-21) : `finance` et `lots` n'importent pas `missions` pour réagir. `pyproject.toml` ajoute `orgs`, `enterprise` et `finance` aux conteneurs `layers`, et les flèches ci-dessus aux `ignore_imports`, story par story.
 
 ## Invariants et règles
 
@@ -89,16 +111,19 @@ Flèches pleines : appels de service autorisés. Pointillés vers `core` : dépe
 
 | Propriétaire | Tables |
 |---|---|
-| `auth` | `users`, `collector_profiles`, `refresh_tokens`, `devices`, `staff_second_factors` |
+| `auth` | `users` (sans colonne `role`, AD-32), `refresh_tokens`, `devices`, `staff_second_factors` |
+| `orgs` | `organizations` (dont la ligne système de l'Organisation plateforme), `memberships`, `contracts` |
 | `reports` | `reports`, `report_photos`, `classifications`, `corrections`, `report_status_events`, `tracking_counters`, `weight_estimates` |
-| `missions` | `missions`, `proofs` (photos avant/après en colonnes), `proof_reviews` |
-| `lots` | `material_lots`, `lot_requests` |
+| `missions` | `missions` (+ `organization_id`, `origin`, `collection_request_id`, `planned_fee_xof`, `planned_payout_xof`), `proofs` (photos avant/après en colonnes), `proof_reviews`, `fraud_alerts` |
+| `enterprise` | `sites`, `site_waste_declarations`, `collection_requests`, `collection_schedules` |
+| `finance` | `invoices`, `payouts`, `disputes` |
+| `lots` | `lots` (remplace `material_lots`), `lot_items`, `lot_proof_balances`, `lot_reservations`, `sales` (remplace `lot_requests`) |
 | `notifications` | `notifications` (journal d'envoi push), `push_subscriptions` |
 | `core/audit` | `audit_logs` (ajout seul), `audit_log_ips` (AD-25) |
 | `core/idempotency` | `idempotency_records` (AD-5) |
 | `core/geo` | `zones` (lecture seule, chargée par migration ou seed) |
 
-`analytics` ne possède que des vues (AD-22) ; `ai`, aucune table. Noms faisant foi, qui remplacent l'addendum : `proofs`, `proof_reviews` (une ligne par revue), `staff_second_factors`, champ `classification_status` au premier niveau, `ENV=prod`.
+`analytics` ne possède que des vues (AD-22) ; `ai`, aucune table. `collector_profiles` est retirée du plan (v2.0) : la vérification d'un Collecteur est portée par `memberships.verified_at` (AD-32). Noms faisant foi, qui remplacent l'addendum : `proofs`, `proof_reviews` (une ligne par revue), `staff_second_factors`, champ `classification_status` au premier niveau, `ENV=prod`.
 
 ### AD-3 — Une seule porte pour les Statuts
 
@@ -115,6 +140,7 @@ Flèches pleines : appels de service autorisés. Pointillés vers `core` : dépe
   - Verrous : ligne `missions` d'abord, puis `reports`. Le géorepérage de la Preuve suit le verrou de la Mission.
   - Retrait (FR-5) : `reports.service.withdraw()`, propriétaire, `pending_review` seulement ; pas une transition : ligne, photos, Classifications et événements supprimés ; audit `report.withdrawn`.
   - Une table de transitions constante par machine à états, testée sur chaque couple.
+  - **v2.0 :** la porte des Statuts de Signalement ne concerne que les Missions d'Origine `report` ; la Demande de collecte a sa propre machine à états dans `enterprise` (AD-36).
 
 ```mermaid
 stateDiagram-v2
@@ -137,6 +163,7 @@ stateDiagram-v2
   - Insertion de la Mission puis `reports.service.transition(validated → assigned)`, dans la même unité de travail (AD-17).
   - Violation d'unicité : Mission `active` du même Collecteur → 200 avec elle (FR-25) ; sinon 409 `mission_already_taken`.
   - Aucun verrou applicatif ne remplace l'index.
+  - **v2.0 :** l'exclusivité vaut par Origine : un second index unique partiel `missions(collection_request_id) WHERE status = 'active'` (AD-36). L'acceptation exige que le Collecteur soit vérifié par une Organisation éligible pour la Mission (403 `collector_not_verified_here`).
 
 ### AD-5 — Idempotence et rejeu
 
@@ -189,9 +216,9 @@ stateDiagram-v2
   - **Accès :** JWT de 15 min, Ed25519 (`alg: EdDSA`), avec `iss`, `aud`, `kid`, `sub`, `tv`, `amr`, décodé avec `algorithms=["EdDSA"]` ; en mémoire dans la PWA. Révocation et Second facteur : AD-30.
   - **Renouvellement :** opaque, rotatif, haché, par famille ; cookie `HttpOnly; Secure; SameSite=Strict; Path=/v1/auth` sur l'origine unique (AD-23).
   - **Identifiant d'appareil :** `X-Device-Id` = 32 octets aléatoires en base64url (43 caractères), générés au premier lancement, gardés dans la table Dexie `meta` (seule exception au test de FR-2) ; autre format : 400 `invalid_device_id`.
-  - **Principal unique :** seule `core.security.principal()` lit `Authorization` et `X-Device-Id` et renvoie `Principal(kind, user_id, role, device_hash, owner_key)`, avec `device_hash = HMAC-SHA256(DEVICE_ID_PEPPER, id)`. Débit, AD-5 et idempotence le réutilisent.
+  - **Principal unique :** seule `core.security.principal()` lit `Authorization`, `X-Device-Id` et `X-Org-Id` et renvoie `Principal(kind, user_id, memberships, active_org_id, scope, device_hash, owner_key)` (v2.0, AD-32), avec `device_hash = HMAC-SHA256(DEVICE_ID_PEPPER, id)`. Débit, AD-5 et idempotence le réutilisent.
   - `devices(device_hash, training_consent, consent_at, first_seen_at)` n'est écrite que par `auth.service.touch_device()`, appelée par `reports.service.create()`.
-  - **Autorisation en deux temps :** `require_role(...)` dans le router, puis contrôle de propriété dans le service avant toute lecture (404 sinon).
+  - **Autorisation en deux temps :** `require_membership(...)` dans le router (v2.0, remplace `require_role`), puis contrôle de propriété et de Portée d'organisation dans le service avant toute lecture (404 sinon, AD-31).
   - **Liste blanche publique (close) :** `/healthz`, `/readyz`, `GET /v1/config`, `POST /v1/reports`, `GET /v1/public/map`. **Principal appareil**, testé comme un rôle : `GET /v1/reports/mine`, `GET /v1/reports/mine/changes`, `DELETE /v1/reports/<id>`, `PUT /v1/device/consent`.
   - Le test « route × rôle » est généré depuis la table des routes.
 
@@ -216,6 +243,7 @@ stateDiagram-v2
   - Photos lues par URL signée de 5 min sur `MEDIA_HOST` (AD-13). Téléphone en HMAC (`PHONE_PEPPER`) et AES-GCM (AD-26).
   - `structlog` masque `phone`, `token`, `otp`, `X-Device-Id` et toute Position.
   - Le test « jamais plus de 3 décimales » couvre toutes les réponses d'un Collecteur sans la Mission `active`, distances comprises.
+  - **v2.0 :** le Gestionnaire d'entreprise voit la Position exacte de ses Sites et les photos de Preuve de ses Demandes. Le Recycleur voit la Zone d'un Lot, jamais une Position de Preuve. Le contact du vendeur n'est donné qu'au Recycleur qui a réservé le Lot : `auth.service.get_contact()` pour un Collecteur vendeur, `orgs.service.get_contact()` pour une Organisation vendeuse. Les Références de paiement sont masquées par `structlog` et visibles seulement du payeur, du Collecteur et du Super Admin.
 
 ### AD-11 — Conventions d'API `[ADOPTED]`
 
@@ -224,7 +252,7 @@ stateDiagram-v2
 - **Rule:**
   - Préfixe `/v1`. Enveloppe d'erreur `{"error": {"code", "message", "request_id"}}` ; codes en énumération unique (`core/errors/codes.py`) exportée dans l'OpenAPI ; la CI exige `errors.<code>` dans `fr.json`.
   - Pagination `?limit=&cursor=`, `limit` ≤ 100, réponse `{items, next_cursor}`.
-  - **Photos :** uniquement par l'API, en `multipart/form-data`, dans la requête de création : `POST /v1/reports` (`meta`, `photo`), `POST /v1/missions/<id>/proof` (`meta`, `photo_before`, `photo_after`), `POST /v1/lots` (`meta`, `photo`). Aucune URL présignée en écriture.
+  - **Photos :** uniquement par l'API, en `multipart/form-data`, dans la requête de création : `POST /v1/reports` (`meta`, `photo`), `POST /v1/missions/<id>/proof` (`meta`, `photo_before`, `photo_after`). Aucune URL présignée en écriture. v2.0 : `POST /v1/lots` est en JSON, construit à partir de Preuves (AD-35) ; il n'envoie plus de photo.
   - **Client :** `backend/scripts/export_openapi.py` écrit `web/src/api/openapi.json` depuis l'application ; types par `openapi-typescript` ; seul client HTTP, une instance `openapi-fetch` enveloppée dans `web/src/api/` (jeton, `X-Device-Id`, `Idempotency-Key`, erreurs). Fichiers versionnés ; la CI échoue si la régénération diffère.
   - ESLint interdit `fetch` hors de `web/src/api/` et `web/src/offline/`.
 
@@ -262,10 +290,10 @@ stateDiagram-v2
 - **Rule:**
   - Toute configuration passe par `core.config.Settings` (pydantic-settings) ; secrets : AD-26.
   - `ENV ∈ {dev, demo, prod}`. `DEMO_MODE` est la **seule** source du Mode démonstration : permis si `ENV ∈ {dev, demo}`, exigé par `ENV=demo`, sinon démarrage refusé.
-  - `is_demo NOT NULL DEFAULT false` sur `users`, `reports`, `missions`, `proofs`, `proof_reviews`, `material_lots`, `lot_requests`, `audit_logs` ; valeur `core.demo.flag(parent_is_demo)` (`DEMO_MODE` ou étiquette du parent) ; exposé dans les réponses.
+  - `is_demo NOT NULL DEFAULT false` sur `users`, `reports`, `missions`, `proofs`, `proof_reviews`, `audit_logs` et toutes les tables métier de v2.0 (`organizations` sauf la ligne plateforme, `memberships`, `contracts`, `sites`, `collection_requests`, `collection_schedules`, `invoices`, `payouts`, `disputes`, `fraud_alerts`, `lots`, `lot_items`, `lot_reservations`, `sales`) ; valeur `core.demo.flag(parent_is_demo)` (`DEMO_MODE` ou étiquette du parent) ; exposé dans les réponses.
   - `GET /v1/config` (public, servi par `auth`) : `demo_mode`, `env`, `model_version`, polygone simplifié de la Zone active (`ACTIVE_ZONE_ID`), précaché par la PWA.
   - **SMS :** seul `core.sms.SmsSender` envoie : `DemoSmsSender` (champ `demo_otp`, absent du schéma hors démo) ou `GatewaySmsSender`, selon `SMS_BACKEND` ; le plafond de FR-1 est vérifié dans ce port.
-  - `python -m app.cli demo load|purge`, refusé si `ENV=prod` ; `purge` (rôle `teranga_migrator`) supprime les lignes `is_demo` et leurs objets, jamais `audit_logs`.
+  - `python -m app.cli demo load|purge`, refusé si `ENV=prod` ; `load` crée d'abord les Organisations de démonstration (v2.0) ; `purge` (rôle `teranga_migrator`) supprime les lignes `is_demo` et leurs objets, jamais `audit_logs`.
   - Un réglage nommé distinct par seuil du PRD ; les quatre « 50 m » : `REPORT_ACCURACY_FLAG_M`, `PROOF_REPORT_ACCURACY_CAP_M`, `PROOF_COLLECTOR_ACCURACY_MAX_M`, `DUPLICATE_RADIUS_M`. `CONFIDENCE_THRESHOLD` ne fait que vérifier le manifeste au démarrage.
 
 ### AD-15 — Base de données et migrations
@@ -321,6 +349,10 @@ stateDiagram-v2
     | `auth.purge_deleted_accounts` | 1 jour | `auth` | FR-5 |
     | `missions.sample_proofs` (`secrets.SystemRandom`) | lundi | `missions` | FR-41 |
     | `ops.health_sweep` | 1 min | `core/alerts` | NFR-16 |
+    | `missions.fraud_sweep` (v2.0) | 1 h | `missions` | FR-68 |
+    | `enterprise.generate_scheduled_requests` (v2.0) | 1 jour | `enterprise` | FR-59 |
+    | `finance.issue_invoices` (v2.0) | 1 mois | `finance` | FR-52 |
+    | `finance.mark_overdue_invoices` (v2.0) | 1 jour | `finance` | FR-52 |
 
   - Durées du §6.1 en réglages nommés (`RETENTION_*`, `ACCOUNT_PURGE_DAYS`).
   - Acteur d'audit d'une tâche : `system:<nom_de_tâche>`.
@@ -356,9 +388,9 @@ stateDiagram-v2
 - **Binds:** AD-1, AD-8, FR-4, FR-5, FR-21, FR-35, FR-40.
 - **Prevents:** un cycle d'imports, une règle métier dans une clé étrangère, une suppression de compte faite module par module, des contenus de tâche divergents.
 - **Rule:**
-  - Événements autosuffisants, modèles Pydantic de `core/events.py` : `ReportStatusChanged` (`event_id` de `report_status_events`, Numéro de suivi, `owner_key`, `author_user_id`, `to_status`, `reason`), `MissionAssigned`, `AccountDeleted`, `TrainingConsentWithdrawn`, `CollectorSuspended`, `LotReserved`.
+  - Événements autosuffisants, modèles Pydantic de `core/events.py` : `ReportStatusChanged` (`event_id` de `report_status_events`, Numéro de suivi, `owner_key`, `author_user_id`, `to_status`, `reason`), `MissionAssigned`, `AccountDeleted`, `TrainingConsentWithdrawn`, `LotReserved` ; v2.0 : `ProofAccepted`, `ProofContested`, `ProofConfirmed`, `MissionCompleted`, `MissionReleased`, `CollectionRequestCreated`, `MembershipSuspended(user_id, organization_id)` (remplace `CollectorSuspended`), `OrganizationSuspended`, `SaleConfirmed`.
   - Émis par `core.events.emit()` sous `after_commit` ; tâche `react:<event_id>`.
-  - Réactions idempotentes, seulement dans `reactions.py` : `ReportStatusChanged` → `notifications.service.push()` ; `AccountDeleted` → `missions.service.on_collector_deleted()` (Mission `active` annulée) puis `reports.service.detach_owner()` ; `TrainingConsentWithdrawn` → `reports.service.revoke_training_consent()`.
+  - Réactions idempotentes, seulement dans `reactions.py` : `ReportStatusChanged` → `notifications.service.push()` ; `AccountDeleted` → `missions.service.on_collector_deleted()` (Mission `active` annulée) puis `reports.service.detach_owner()` ; `TrainingConsentWithdrawn` → `reports.service.revoke_training_consent()` ; v2.0 : `ProofAccepted` → `finance.service.create_payout()` et `lots.service.on_proof_accepted()` ; `ProofContested` → `lots.service.on_proof_contested()` et `finance.service.on_proof_contested()` (Montant `contested`, Litige ouvert) ; `MembershipSuspended` → `missions.service.on_membership_suspended()` (Missions `active` de cette Organisation seulement) ; `MissionAssigned`, `MissionCompleted` et `MissionReleased` → `enterprise.service` (Origine `collection_request`).
   - **Suppression de compte (FR-5) :** `auth.service.delete_account()` efface `phone_hash` et `phone_enc`, incrémente `token_version`, révoque les familles et émet `AccountDeleted`. `detach_owner` supprime les Signalements `pending_review` et `rejected` (ligne et photos) et met `author_user_id` à `NULL` ailleurs, `owner_key` gardé. `users` purgé après `ACCOUNT_PURGE_DAYS`.
   - Aucune clé étrangère `ON DELETE CASCADE` ni `SET NULL` entre modules.
 
@@ -370,6 +402,7 @@ stateDiagram-v2
   - `v_report_facts`, `v_mission_facts`, `v_collector_facts` appartiennent à `analytics`, dans `modules/analytics/views/*.sql`, avec une liste de colonnes déclarée ; `recreate_analytics_views()` les recrée, sans `CASCADE`.
   - `v_report_facts` : jalons de `report_status_events` (`received_at`, `validated_at`, `rejected_at`, `assigned_at`, `collected_at`). `v_mission_facts` : `accepted_at`, `weight_kg`, `weight_kind`, `review_status`, `retained_type`. `v_collector_facts` : Collecteurs vérifiés.
   - Kg collectés hors `review_status = 'contested'`.
+  - **v2.0 :** chaque vue expose `organization_id`, et sa lecture exige `scope` (AD-31). Nouvelles vues `v_finance_facts` et `v_lot_facts` pour le tableau de bord plateforme (FR-53).
   - Vues sans donnée personnelle, avec `is_demo` ; hors Mode démonstration, filtre `is_demo = false` ; chaque réponse porte `contains_demo_data`.
   - CI : `alembic upgrade head`, puis chaque vue vérifiée contre son contrat sur le jeu de démonstration.
 
@@ -402,8 +435,8 @@ stateDiagram-v2
 - **Prevents:** des noms d'action divergents, une action de FR-36 non journalisée, des IP impossibles à purger.
 - **Rule:**
   - `core.audit.record(action, actor, object_type, object_id, before, after, ip=None)` ; `Actor(kind, ref)`, `kind` parmi `user`, `device`, `system` ; `before`/`after` limités aux champs modifiés, sans donnée personnelle ; horodatage serveur, `request_id`.
-  - `AuditAction` (`core/audit/actions.py`), liste close : `report.transition`, `report.correction`, `report.withdrawn`, `mission.transition`, `mission.assign`, `proof.review`, `account.create`, `account.verify`, `account.suspend`, `account.delete`, `account.role_change`, `mfa.enable`, `mfa.reset`, `staff.login`, `export.aggregate`, `export.corrections`, `retention.purge`. Un test vérifie que chacune est produite.
-  - `audit_logs` : aucune clé étrangère vers les tables métier.
+  - `AuditAction` (`core/audit/actions.py`), liste close : `report.transition`, `report.correction`, `report.withdrawn`, `mission.transition`, `mission.assign`, `proof.review`, `account.create`, `account.verify`, `account.suspend`, `account.delete`, `account.role_change`, `mfa.enable`, `mfa.reset`, `staff.login`, `export.aggregate`, `export.corrections`, `retention.purge` ; v2.0 : `org.create`, `org.update`, `org.suspend`, `membership.create`, `membership.verify`, `membership.suspend`, `membership.role_change`, `contract.create`, `contract.update`, `invoice.issue`, `invoice.status`, `payout.create`, `payout.status`, `dispute.open`, `dispute.decide`, `lot.create`, `lot.reserve`, `lot.withdraw`, `sale.confirm`, `fraud_alert.create`, `fraud_alert.review`, `superadmin.access`. Un test vérifie que chacune est produite.
+  - `audit_logs` : aucune clé étrangère vers les tables métier ; v2.0 : `organization_id` nullable (actions de plateforme).
   - IP dans `audit_log_ips(audit_log_id, ip, created_at)` (`INSERT`, `SELECT`, `DELETE` pour `teranga_app`), purgée à 6 mois ; `audit_logs` reste en ajout seul.
   - Purges auditées par lot (nombre, catégorie).
 
@@ -457,23 +490,107 @@ stateDiagram-v2
 - **Binds:** FR-2, FR-3, FR-5, FR-35, FR-43, S4, S5.
 - **Prevents:** un compte suspendu ou rétrogradé qui agit encore, un Second facteur vérifié selon la route, une famille révoquée par deux renouvellements concurrents.
 - **Rule:**
-  - **Révocation :** à chaque requête, `principal()` lit `(status, role, token_version)` dans Valkey (`authz:<user_id>`, TTL 60 s, repli en base) ; `status ≠ active` ou `tv ≠ token_version` → 401 `session_revoked`. Le rôle vient de la base, jamais du jeton.
+  - **Révocation :** à chaque requête, `principal()` lit `(status, token_version, memberships)` dans Valkey (`authz:<user_id>`, TTL 60 s, repli en base par le port `MembershipLoader`, AD-32) ; `status ≠ active` ou `tv ≠ token_version` → 401 `session_revoked`. Les rôles viennent des Appartenances en base, jamais du jeton.
   - Suspension, suppression, changement de rôle, réinitialisation du Second facteur et déconnexion globale incrémentent `token_version`, révoquent les familles et invalident le cache par `after_commit`.
-  - **Second facteur :** TOTP RFC 6238 (30 s, ±1), secret chiffré (`TOTP_ENC_KEY`), code rejoué refusé. Le jeton porte `amr` (`otp`, ou `otp` et `totp`), mémorisé par la famille. Si `STAFF_MFA_REQUIRED`, `require_role` du Personnel exige `totp`, sinon 403 `second_factor_required` ; faux par défaut en `dev`/`demo`, forcé vrai en `prod` (pilote).
+  - **Second facteur :** TOTP RFC 6238 (30 s, ±1), secret chiffré (`TOTP_ENC_KEY`), code rejoué refusé. Le jeton porte `amr` (`otp`, ou `otp` et `totp`), mémorisé par la famille. Si `STAFF_MFA_REQUIRED`, `require_membership` des rôles `moderator`, `org_admin` et `super_admin` exige `totp`, sinon 403 `second_factor_required` ; faux par défaut en `dev`/`demo`, forcé vrai en `prod` (pilote).
   - **Renouvellement PWA :** seule `refreshSession()` (`web/src/api/session.ts`) appelle `/v1/auth/refresh` : promesse partagée dans l'onglet, sérialisée entre onglets par `navigator.locks.request('tc-refresh', …)` ; client et outbox l'utilisent.
   - **Grâce serveur :** un jeton de renouvellement réutilisé moins de `REFRESH_REUSE_GRACE_S` (10 s) après rotation → 401 `refresh_superseded`, sans révocation ; au-delà, la famille est révoquée.
   - Durée glissante de 30 jours (FR-2) ; la déconnexion révoque la famille.
+
+### AD-31 — Organisations et cloisonnement des données
+
+- **Binds:** FR-3, FR-44 à FR-47, FR-49, NFR-9, NFR-18, AD-2, AD-9, AD-22.
+- **Prevents:** une fuite entre organisations, un filtre oublié dans une requête, un cloisonnement ajouté après coup par migration de données.
+- **Rule:**
+  - Chaque table métier porte `organization_id NOT NULL`, indexé, avec une clé étrangère vers `organizations` sans `ON DELETE`. Exceptions closes, sans organisation : `users`, `devices`, `refresh_tokens`, `staff_second_factors`, `zones`, `idempotency_records`, `push_subscriptions`. `audit_logs.organization_id` est nullable (actions de plateforme). Les tables du vendeur de la place de marché portent `organization_id` = l'Organisation de la Mission d'origine (AD-35).
+  - `organizations(id, type, name, zone_id, status, is_demo, …)`, `type` parmi `commune`, `operator`, `collector_group`, `enterprise`, `recycler`, `platform` ; `zone_id` obligatoire pour `commune` (`CHECK`).
+  - `core.security.OrgScope(org_ids: frozenset[UUID] | ALL)` est calculée par `principal()` : Organisation active pour le Personnel, le Gestionnaire d'entreprise et le Recycleur ; Organisations qui l'ont vérifié pour le Collecteur ; `ALL` pour le Super Admin ; aucune pour le Citoyen, à qui seule la propriété s'applique.
+  - Toute fonction de repository qui lit ou écrit une table cloisonnée exige un paramètre `scope`, sans valeur par défaut ; un test d'architecture parcourt les repositories et échoue sinon.
+  - Un objet hors portée renvoie 404, comme le contrôle de propriété (AD-9).
+  - Une lecture `ALL` est inscrite `superadmin.access` : une entrée par requête, sans donnée personnelle.
+  - Organisation responsable d'un Signalement : `orgs.service.responsible_org(geog)` renvoie l'Organisation `active` de type `commune` ou `operator` dont la Zone couvre la Position, la plus précise d'abord (quartier, puis commune, puis ville), sinon l'Organisation plateforme. Elle est fixée à la création et immuable.
+  - L'Organisation plateforme est une ligne système à UUID fixe, insérée par migration, jamais supprimée ni étiquetée `is_demo`.
+  - Test d'isolement (NFR-18) : généré depuis la table des routes ; deux Organisations seedées avec les mêmes objets ; chaque route est appelée par un membre de A sur un objet de B.
+  - Différé : RLS PostgreSQL en défense en profondeur (P4).
+
+### AD-32 — Rôles par appartenance
+
+- **Binds:** FR-3, FR-35, FR-45, FR-48, FR-49, FR-55, AD-9, AD-30.
+- **Prevents:** un rôle global qui ignore l'organisation, un `core` qui importe un module, une appartenance lue dans le jeton.
+- **Rule:**
+  - `memberships(user_id, organization_id, role, status, verified_at, verified_by, is_demo)`, unique `(user_id, organization_id, role)`.
+  - `CHECK` de compatibilité entre rôle et type d'Organisation : `collector` ↔ `commune`, `operator`, `collector_group`, `platform` ; `moderator` ↔ `commune`, `operator` ; `org_admin` ↔ `commune`, `operator`, `collector_group` ; `enterprise_manager` ↔ `enterprise` ; `recycler` ↔ `recycler` ; `super_admin` ↔ `platform`.
+  - `principal()` lit `(status, token_version, memberships)` dans `authz:<user_id>`. Le repli en base passe par le **port** `core.security.MembershipLoader`, implémenté par `orgs.service` et branché dans `main.py` et `worker.py` : `core` n'importe aucun module.
+  - Organisation active : l'en-tête `X-Org-Id` est exigé seulement si la personne a plusieurs Appartenances de console (sinon 400 `org_required`). Hors Appartenance : 403 `org_not_member`. Le Super Admin peut viser toute Organisation (audité, AD-31).
+  - `require_role(...)` devient `require_membership(*roles)` ; le contrôle de propriété dans le service est inchangé.
+  - Créer, suspendre ou changer le rôle d'une Appartenance incrémente `token_version` et invalide le cache par `after_commit` (AD-30).
+  - La suspension d'un compte (`users.status`) relève du Super Admin ; celle d'une Appartenance, de l'Administrateur de son Organisation.
+
+### AD-33 — Deux espaces dans une seule PWA
+
+- **Binds:** FR-55, NFR-5, NFR-6, NFR-12, AD-16, AD-23.
+- **Prevents:** une console qui alourdit le téléphone d'un collecteur, et deux applications à maintenir.
+- **Rule:**
+  - `web/src/mobile/` sert la route `/`, et `web/src/console/` la route `/console/*`, chargée par `React.lazy` dans un morceau de construction distinct. Aucune importation de `console/` depuis `mobile/` (règle ESLint `no-restricted-imports`).
+  - Le précache du service worker exclut les morceaux `console`.
+  - CI : le manifeste de construction prouve que l'entrée mobile (JS et CSS, hors images et Modèle) tient en 500 Ko et ne référence aucun morceau `console`.
+  - Même origine, même CSP et même client API (AD-11, AD-23) ; Caddy renvoie `/console/*` vers `index.html`.
+  - Après la connexion, la redirection suit les Appartenances : aucune, ou `collector` seul, mène à `/` ; tout autre rôle mène à `/console`. La barrière reste l'API.
+  - Écrans du Collecteur vendeur (Lots, Montants) : dans l'Espace mobile.
+
+### AD-34 — États financiers sans détention de fonds
+
+- **Binds:** FR-51, FR-52, FR-62 à FR-67, FR-70, PRD §6.3.
+- **Prevents:** un TerangaCycle qui encaisse pour compte de tiers, des montants en flottants, des valeurs commerciales dans le dépôt.
+- **Rule:**
+  - Montants en `BIGINT`, en francs CFA entiers (`*_xof`), jamais en flottant ni en décimal. Taux en points de base entiers (`*_bps`).
+  - `finance` enregistre des états (`invoices`, `payouts`, `disputes`). Il n'existe ni table de solde, ni portefeuille, ni passerelle de paiement, ni route qui déclenche un transfert. Un test d'architecture interdit toute dépendance de paiement dans `pyproject.toml`.
+  - `payouts.status` parmi `due`, `paid`, `contested` ; `paid` exige `payment_reference`, `paid_at` et `confirmed_by`. Les transitions suivent une table constante, testée, et sont auditées.
+  - La Référence de paiement est masquée dans les journaux (AD-10).
+  - Valeurs commerciales (prix, frais, rémunération, commission, droit de vendre des Lots) : seulement dans `contracts`, en base, saisies par le Super Admin. `Settings`, `.env.example` et le seed hors démo n'en contiennent aucune ; les Données de démonstration utilisent des valeurs fictives étiquetées `is_demo`.
+  - Frais et rémunération sont figés sur la Mission à sa création (`planned_fee_xof`, `planned_payout_xof`).
+  - La Commission d'une Vente vient du paramètre `commission_bps` du Contrat du Recycleur et est figée sur `sales`.
+
+### AD-35 — Lots issus de kg vérifiés, garantis par la base
+
+- **Binds:** FR-38, FR-41, FR-70, FR-71, AD-2, AD-21.
+- **Prevents:** un kg vendu deux fois, un Lot bâti sur une Preuve contestée, un Collecteur qui vend les kg d'un autre, un module qui lit les tables d'un autre.
+- **Rule:**
+  - `lots` tient sa projection `lot_proof_balances(proof_id PK, organization_id, collector_user_id, seller_kind, seller_ref, waste_type, zone_id, kg_total, kg_taken, eligible, sold_kg)`, alimentée par les réactions à `ProofAccepted`, `ProofContested` et `ProofConfirmed` (AD-21). `CHECK (0 <= kg_taken AND kg_taken <= kg_total)`.
+  - **Vendeur (ayant droit) fixé à `ProofAccepted`, dans cet ordre :**
+    - l'Organisation de la Mission (`seller_kind = organization`), si son Contrat la désigne comme vendeuse ;
+    - sinon, le groupement (`seller_kind = organization`, type `collector_group`), si le Collecteur en est membre vérifié et si le Contrat du groupement l'autorise à vendre ;
+    - sinon, le Collecteur lui-même (`seller_kind = collector`, `seller_ref` = son identifiant d'utilisateur).
+  - Un Collecteur ne prélève que sur ses propres Preuves ; une Organisation, que sur les soldes dont elle est vendeuse.
+  - Prélever des kg : `UPDATE lot_proof_balances SET kg_taken = kg_taken + :kg WHERE proof_id = :p AND seller_kind = :k AND seller_ref = :r AND eligible AND kg_taken + :kg <= kg_total`. Si aucune ligne n'est touchée : 409 `kg_not_available`. Puis insertion de `lot_items(lot_id, proof_id, kg)` dans la même unité de travail.
+  - `lots(seller_kind, seller_ref, organization_id, waste_type, zone_id, kg, status)` ; `status` parmi `available`, `reserved`, `sold`, `withdrawn`.
+  - `ProofContested` passe `eligible` à faux. Un Élément d'un Lot non vendu est gelé et le Lot passe `withdrawn` ; un Lot vendu ouvre un Litige (FR-71).
+  - Une Vente confirmée fixe `sold_kg` ; un Lot `sold` est immuable.
+  - Test : 20 prélèvements concurrents sur une même Preuve ne dépassent jamais `kg_total` ; un Collecteur ne prélève jamais sur la Preuve d'un autre.
+
+### AD-36 — Origine des Missions
+
+- **Binds:** FR-24, FR-25, FR-28, FR-58, FR-59, AD-3, AD-4.
+- **Prevents:** une Mission sans origine claire, deux Missions actives sur une même Demande, une Demande d'entreprise qui passe par la modération citoyenne.
+- **Rule:**
+  - `missions.origin` parmi `report` et `collection_request`, avec `CHECK ((origin = 'report') = (report_id IS NOT NULL))` et `CHECK ((origin = 'collection_request') = (collection_request_id IS NOT NULL))`.
+  - Exclusivité (AD-4) : deux index uniques partiels, `(report_id) WHERE status = 'active'` et `(collection_request_id) WHERE status = 'active'`.
+  - `missions.organization_id` : l'Organisation responsable du Signalement, ou l'entreprise de la Demande.
+  - Éligibilité : `orgs.service.eligible_collector_orgs(mission)`. Pour un Signalement, c'est l'Organisation de la Mission. Pour une Demande, c'est l'Organisation plateforme et les opérateurs désignés comme prestataires dans le Contrat de l'entreprise.
+  - La Demande a sa machine à états (`requested → assigned → completed | cancelled`), propre à `enterprise` et mise à jour par réaction à `MissionAssigned`, `MissionCompleted` et `MissionReleased`.
+  - Mise en place par expansion : la story 5.3 ajoute `organization_id` et `origin` (`report` seulement) ; la story 11.3 ajoute `collection_request_id`, rend `report_id` nullable et pose les `CHECK`.
 
 ## Conventions de cohérence
 
 | Sujet | Convention |
 |---|---|
 | Nommage | Code et base en anglais ; textes en français via i18n ; tables au pluriel en `snake_case`. |
-| Énumérations | Définies une fois dans `core/enums.py`, exportées dans l'OpenAPI, jamais recopiées dans `web/` ou `ml/` ; test `classes` du manifeste = `WasteType`. Statut : `en attente de modération`=`pending_review`, `validé`=`validated`, `assigné`=`assigned`, `collecté`=`collected`, `rejeté`=`rejected`. Statut de Mission : `active`, `terminée`=`completed`, `annulée`=`cancelled`, `expirée`=`expired`. Type de déchet : `plastique`=`plastic`, `métal`=`metal`, `verre`=`glass`, `organique`=`organic`, `mixte`=`mixed`. Taille de tas : `small`, `medium`, `large`. Poids déclaré : `pesé`=`weighed`, `estimé`=`estimated`. Revue de Preuve : `non revue`=`unreviewed`, `confirmée`=`confirmed`, `contestée`=`contested`. Statut de Lot : `disponible`=`available`, `réservé`=`reserved`. Motifs de rejet : `spam`, `not_waste`, `outside_zone`, `duplicate` (avec `duplicate_of_report_id`), `person_or_plate_visible` (purge 24 h), `other` (texte obligatoire). |
+| Énumérations | Définies une fois dans `core/enums.py`, exportées dans l'OpenAPI, jamais recopiées dans `web/` ou `ml/` ; test `classes` du manifeste = `WasteType`. Statut : `en attente de modération`=`pending_review`, `validé`=`validated`, `assigné`=`assigned`, `collecté`=`collected`, `rejeté`=`rejected`. Statut de Mission : `active`, `terminée`=`completed`, `annulée`=`cancelled`, `expirée`=`expired`. Type de déchet : `plastique`=`plastic`, `métal`=`metal`, `verre`=`glass`, `organique`=`organic`, `mixte`=`mixed`. Taille de tas : `small`, `medium`, `large`. Poids déclaré : `pesé`=`weighed`, `estimé`=`estimated`. Revue de Preuve : `non revue`=`unreviewed`, `confirmée`=`confirmed`, `contestée`=`contested`. Statut de Lot : `disponible`=`available`, `réservé`=`reserved`, `vendu`=`sold`, `retiré`=`withdrawn`. v2.0 : `OrganizationType` (`commune`, `operator`, `collector_group`, `enterprise`, `recycler`, `platform`) ; `MembershipRole` (`collector`, `moderator`, `org_admin`, `enterprise_manager`, `recycler`, `super_admin`) ; `MissionOrigin` (`report`, `collection_request`) ; `CollectionRequestStatus` (`requested`, `assigned`, `completed`, `cancelled`) ; `InvoiceStatus` (`issued`, `paid`, `overdue`) ; `PayoutStatus` (`due`, `paid`, `contested`) ; `DisputeStatus` (`open`, `investigating`, `decided`). Motifs de rejet : `spam`, `not_waste`, `outside_zone`, `duplicate` (avec `duplicate_of_report_id`), `person_or_plate_visible` (purge 24 h), `other` (texte obligatoire). |
 | Identifiants | UUID v4 ; Numéro de suivi `TC-AAAA-NNNNNN` pour l'affichage seulement. |
 | Temps | `TIMESTAMPTZ` UTC ; ISO 8601 avec `Z` ; « maintenant » via `core.clock`. |
 | Géographie | `GEOGRAPHY(Point, 4326)` ; Zones en `GEOGRAPHY(MultiPolygon, 4326)` ; `{lat, lng}` dans l'API ; mètres. |
-| Poids | `NUMERIC(8,2)` kg ; pas d'argent au MVP. |
+| Poids | `NUMERIC(8,2)` kg. |
+| Montants (v2.0) | `BIGINT` en FCFA entiers (`*_xof`) ; taux en points de base (`*_bps`) ; aucune valeur commerciale dans le dépôt (AD-34). |
 | Erreurs | `DomainError(code, http_status)`, code de `core/errors/codes.py`, un seul gestionnaire ; jamais de `HTTPException` dans un service. |
 | Journaux | `structlog` JSON avec `request_id`, `route`, `role`, `duration_ms` ; masquage AD-10 et AD-23. |
 | Transactions | Une unité de travail par requête ou tâche (AD-17) ; les services rejoignent celle de l'appelant ; ni service ni repository n'appelle `commit`, `rollback` ou `begin` ; effets externes par `after_commit`. |
@@ -580,15 +697,27 @@ erDiagram
   REPORTS ||--o{ CORRECTIONS : a
   REPORTS ||--o{ REPORT_STATUS_EVENTS : historique
   REPORTS ||--o{ MISSIONS : "pris en charge par"
-  USERS ||--o| COLLECTOR_PROFILES : a
   USERS ||--o{ MISSIONS : collecteur
   MISSIONS ||--o| PROOFS : prouvee_par
   PROOFS ||--o{ PROOF_REVIEWS : revue
-  USERS ||--o{ MATERIAL_LOTS : declare
-  ZONES ||--o{ MATERIAL_LOTS : situe
-  MATERIAL_LOTS ||--o{ LOT_REQUESTS : demande
+  ZONES ||--o{ LOTS : situe
   USERS ||--o{ PUSH_SUBSCRIPTIONS : a
   AUDIT_LOGS ||--o| AUDIT_LOG_IPS : ip
+  ORGANIZATIONS ||--o{ MEMBERSHIPS : a
+  USERS ||--o{ MEMBERSHIPS : membre
+  ORGANIZATIONS ||--o{ CONTRACTS : signe
+  ORGANIZATIONS ||--o{ REPORTS : responsable
+  ORGANIZATIONS ||--o{ MISSIONS : porte
+  ORGANIZATIONS ||--o{ SITES : possede
+  SITES ||--o{ COLLECTION_REQUESTS : demande
+  COLLECTION_REQUESTS ||--o{ MISSIONS : "prise en charge par"
+  CONTRACTS ||--o{ INVOICES : facture
+  MISSIONS ||--o| PAYOUTS : "montant du"
+  PROOFS ||--o| LOT_PROOF_BALANCES : solde
+  LOTS ||--|{ LOT_ITEMS : contient
+  PROOFS ||--o{ LOT_ITEMS : origine
+  LOTS ||--o{ LOT_RESERVATIONS : reserve
+  LOTS ||--o| SALES : vendu
 ```
 
 ### Arborescence minimale
@@ -599,7 +728,7 @@ terangacycle-ai/
     app/
       core/          # config, db, security, storage, audit, geo, errors, jobs, events, clock,
                      # idempotency, ratelimit, alerts, sms, enums, logging
-      modules/       # auth, reports, missions, lots, analytics (views/*.sql), ai, notifications
+      modules/       # auth, orgs, reports, missions, enterprise, finance, lots, analytics (views/*.sql), ai, notifications
       reactions.py   # réactions inter-modules (AD-21)
       main.py        # routers, gestionnaire d'erreurs, middleware
       worker.py      # WorkerSettings arq, cron_jobs (AD-18)
@@ -608,6 +737,8 @@ terangacycle-ai/
     tests/           # unit/, integration/, authz/, architecture/
   web/src/
     api/             # openapi.json, types générés, client openapi-fetch, session.ts
+    mobile/          # espace mobile `/` (AD-33)
+    console/         # console web `/console`, chargée à part (AD-33)
     features/        # un dossier par fonctionnalité
     offline/         # outbox Dexie
     i18n/            # fr.json, wo.json
@@ -629,10 +760,17 @@ terangacycle-ai/
 | 4.6 Modération (FR-22, FR-23) | `reports` | AD-3, AD-18, AD-19 |
 | 4.7 Missions (FR-24 à FR-28, FR-42) | `missions` | AD-3, AD-4, AD-10, AD-18 |
 | 4.8 Preuve de collecte (FR-29, FR-30, FR-41) | `missions`, `core/storage` | AD-5, AD-6, AD-11, AD-13, AD-18 |
-| 4.9 Tableau de bord (FR-31 à FR-34) | `analytics` | AD-10, AD-22 |
+| 4.9 Tableau de bord (FR-31 à FR-34) | `analytics` | AD-10, AD-22, AD-31 |
 | 4.10 Administration et audit (FR-35, FR-36) | `auth`, `core/audit` | AD-21, AD-25, AD-30 |
 | 4.11 Données de démonstration (FR-37) | `infra/seed`, `core/config` | AD-14, AD-22 |
-| 4.12 Lots de matière (FR-38 à FR-40) | `lots` | AD-2, AD-10, AD-11, AD-21 |
+| 4.12 Place de marché (FR-38 à FR-40, FR-69 à FR-71) | `lots`, `orgs` | AD-2, AD-10, AD-11, AD-21, AD-34, AD-35 |
+| 4.13 Organisations et appartenances (FR-44 à FR-48) | `orgs`, `core/security` | AD-31, AD-32 |
+| 4.14 Super Admin et plateforme (FR-49 à FR-54) | `orgs`, `finance`, `analytics` | AD-25, AD-31, AD-34 |
+| 4.15 Espaces (FR-55) | `web/src/mobile`, `web/src/console` | AD-33 |
+| 4.16 Espace entreprise (FR-56 à FR-61) | `enterprise`, `missions` | AD-10, AD-18, AD-36 |
+| 4.17 Finance terrain (FR-62 à FR-67) | `finance`, `reactions.py` | AD-21, AD-34 |
+| FR-68 (alertes de fraude) | `missions` | AD-18, AD-25 |
+| NFR-18 (isolement entre organisations) | `tests/authz` | AD-31 |
 | NFR-1, NFR-5, NFR-6 (Modèle, poids, appareils) | `web/features/classify`, `ml/` | AD-7, AD-16, AD-29 |
 | NFR-2, NFR-3 (API, carte) | `core/db`, `analytics`, worker | AD-8, AD-10, AD-22 |
 | NFR-4 (photo ≤ 300 Ko) | `web/offline`, `core/storage` | AD-12, AD-13 |
@@ -649,7 +787,9 @@ terangacycle-ai/
 ## Différé
 
 - **Découpage en services** (par exemple `ai`) ; AD-1 garde la porte ouverte.
-- **Multi-commune** ; la Zone active suffit.
+- **Ouverture de nombreux territoires** (P4) : Zone active = union des Zones des Organisations actives. Le cloisonnement par Organisation, lui, est en place (AD-31).
+- **RLS PostgreSQL** en défense en profondeur du cloisonnement (P4).
+- **Passerelle de paiement** : exclue tant que l'avis juridique BCEAO n'est pas rendu (AD-34).
 - **Temps réel** (SSE, WebSocket).
 - **Fournisseur SMS, région du pilote, PostgreSQL managé ou auto-hébergé** (PRD Q2, Q3) : isolés par `core/sms` (AD-14), AD-13 et AD-27.
 - **Orchestrateur** (Kubernetes).
