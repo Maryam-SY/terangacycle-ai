@@ -5,6 +5,24 @@
 export const THEME_COLOR = '#0B3D2E'
 export const BACKGROUND_COLOR = '#F6FAF7'
 
+// Manifeste de l'application installable (UX-DR-23). L'icône maskable garde son motif dans
+// la zone de sécurité (cercle central de 80 %), sur un fond brand-900 jusqu'aux bords.
+export const MANIFEST = {
+  name: 'TerangaCycle AI',
+  short_name: 'TerangaCycle',
+  lang: 'fr',
+  start_url: '/',
+  scope: '/',
+  display: 'standalone',
+  theme_color: THEME_COLOR,
+  background_color: BACKGROUND_COLOR,
+  icons: [
+    { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+    { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
+    { src: '/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+  ],
+} as const
+
 // L'API et les sondes ne sont jamais servies par index.html hors ligne.
 export const NAVIGATE_FALLBACK_DENYLIST: RegExp[] = [/^\/v1\//, /^\/healthz/, /^\/readyz/]
 

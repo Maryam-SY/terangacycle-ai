@@ -1,14 +1,9 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { defineConfig } from 'vitest/config'
 
-import {
-  BACKGROUND_COLOR,
-  NAVIGATE_FALLBACK_DENYLIST,
-  PRECACHE_GLOB_PATTERNS,
-  THEME_COLOR,
-} from './pwa.config.ts'
+import { MANIFEST, NAVIGATE_FALLBACK_DENYLIST, PRECACHE_GLOB_PATTERNS } from './pwa.config.ts'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -18,18 +13,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'TerangaCycle AI',
-        short_name: 'TerangaCycle',
-        lang: 'fr',
-        start_url: '/',
-        scope: '/',
-        display: 'standalone',
-        theme_color: THEME_COLOR,
-        background_color: BACKGROUND_COLOR,
-        icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-        ],
+        ...MANIFEST,
+        icons: MANIFEST.icons.map((icon) => ({ ...icon })),
       },
       workbox: {
         globPatterns: PRECACHE_GLOB_PATTERNS,
@@ -37,4 +22,8 @@ export default defineConfig({
       },
     }),
   ],
+  test: {
+    // Vitest seulement : les parcours Playwright (e2e/*.spec.ts) tournent à part (npm run test:e2e).
+    include: ['src/**/*.test.{ts,tsx}'],
+  },
 })

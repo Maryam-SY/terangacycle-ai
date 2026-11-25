@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-24-2026 09:00
-last_updated: 11-25-2026 13:00
+last_updated: 11-25-2026 14:00
 project: TerangaCycleAI
 project_key: NOKEY
 tracking_system: file-system
@@ -42,7 +42,7 @@ development_status:
   1-4-ci-de-qualité: done
   1-5-hygiène-du-dépôt-public: done
   1-6-contrôles-de-contrat-en-ci: done
-  1-7-accueil-et-consentement-avant-la-première-capture: backlog
+  1-7-accueil-et-consentement-avant-la-première-capture: in-progress
   1-8-vérifier-la-position-et-la-zone-active-avant-la-photo: backlog
   1-9-photographier-le-dépôt-en-version-légère-et-sans-métadonnées: backlog
   1-10-stocker-une-photo-sans-métadonnées-dans-le-bucket-privé: backlog
