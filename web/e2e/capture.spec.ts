@@ -253,7 +253,8 @@ function fail(page: Page, code: number) {
 }
 
 function trigger(page: Page) {
-  return page.getByRole('button', { name: fr.capture.trigger })
+  // `exact` : « Reprendre la photo » contient aussi « prendre la photo ».
+  return page.getByRole('button', { name: fr.capture.trigger, exact: true })
 }
 
 function detected(accuracy: number): string {

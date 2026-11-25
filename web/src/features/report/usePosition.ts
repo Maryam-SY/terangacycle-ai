@@ -2,7 +2,7 @@
 // arrêté au démontage de l'écran, relancé par « Réessayer ».
 // Donnée personnelle : les coordonnées ne sont jamais écrites dans la console ni envoyées
 // ici ; elles ne servent qu'à l'affichage et à la vérification de la Zone active.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 export type PositionState =
   | { status: 'locating' }
@@ -33,9 +33,22 @@ export function afterPositionError(
   return { status: 'error', reason: 'unavailable' }
 }
 
-/** État de la Position et `retry()` pour relancer le suivi après un refus ou un échec. */
-export function usePosition(): { position: PositionState; retry: () => void } {
+const UNAVAILABLE: PositionState = { status: 'error', reason: 'unavailable' }
+
+/** État de la Position, `retry()` pour relancer le suivi après un refus ou un échec, et
+ *  `current()` : la dernière mesure reçue, même si l'écran n'a pas encore été redessiné
+ *  (une photo peut arriver juste après une nouvelle mesure). */
+export function usePosition(): {
+  position: PositionState
+  retry: () => void
+  current: () => PositionState
+} {
   const [position, setPosition] = useState<PositionState>({ status: 'locating' })
+  const latest = useRef<PositionState>({ status: 'locating' })
+  const update = useCallback((next: PositionState) => {
+    latest.current = next
+    setPosition(next)
+  }, [])
   // Chaque essai relance l'effet : nouveau `watchPosition`, l'ancien est arrêté.
   const [attempt, setAttempt] = useState(0)
   const geolocation = typeof navigator === 'undefined' ? undefined : navigator.geolocation
@@ -46,7 +59,7 @@ export function usePosition(): { position: PositionState; retry: () => void } {
     const watchId = geolocation.watchPosition(
       ({ coords }) => {
         if (!active) return
-        setPosition({
+        update({
           status: 'located',
           lat: coords.latitude,
           lng: coords.longitude,
@@ -56,8 +69,7 @@ export function usePosition(): { position: PositionState; retry: () => void } {
       },
       (error) => {
         if (!active) return
-        const now = Date.now()
-        setPosition((current) => afterPositionError(current, error.code, now))
+        update(afterPositionError(latest.current, error.code, Date.now()))
       },
       WATCH_OPTIONS,
     )
@@ -65,14 +77,19 @@ export function usePosition(): { position: PositionState; retry: () => void } {
       active = false
       geolocation.clearWatch(watchId)
     }
-  }, [geolocation, attempt])
+  }, [geolocation, attempt, update])
 
   const retry = useCallback(() => {
-    setPosition({ status: 'locating' })
+    update({ status: 'locating' })
     setAttempt((value) => value + 1)
-  }, [])
+  }, [update])
+
+  const current = useCallback(
+    () => (geolocation ? latest.current : UNAVAILABLE),
+    [geolocation],
+  )
 
   // Navigateur sans géolocalisation : rien à suivre, l'écran l'explique.
-  if (!geolocation) return { position: { status: 'error', reason: 'unavailable' }, retry }
-  return { position, retry }
+  if (!geolocation) return { position: UNAVAILABLE, retry, current }
+  return { position, retry, current }
 }

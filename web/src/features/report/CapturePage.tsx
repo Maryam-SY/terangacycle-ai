@@ -218,7 +218,7 @@ function CaptureScreen() {
     [focusTitle],
   )
   const reasonId = useId()
-  const { position, retry: retryPosition } = usePosition()
+  const { position, retry: retryPosition, current: currentPosition } = usePosition()
   const { config, retry: retryConfig } = usePublicConfig()
   const [continuedAnyway, setContinuedAnyway] = useState(false)
   const [photo, setPhoto] = useState<PhotoState>({ stage: 'idle' })
@@ -300,17 +300,20 @@ function CaptureScreen() {
     // passe en arrière-plan) : acceptée, sa précision est gardée avec la photo.
     // La mesure doit aussi être récente : le suivi s'arrête souvent pendant que
     // l'appareil photo est ouvert, et la Position gardée doit être celle de la prise.
-    const usable = verdict.kind === 'ready' || verdict.kind === 'imprecise'
+    // Dernière mesure reçue, même si l'écran ne l'affiche pas encore.
+    const atShot = currentPosition()
+    const verdictAtShot = assessCapture(atShot, config, continuedAnyway)
+    const usable = verdictAtShot.kind === 'ready' || verdictAtShot.kind === 'imprecise'
     if (
       !usable ||
-      position.status !== 'located' ||
-      now - position.fixedAt > MAX_PHOTO_FIX_AGE_MS
+      atShot.status !== 'located' ||
+      now - atShot.fixedAt > MAX_PHOTO_FIX_AGE_MS
     ) {
       pendingFocus.current = 'error'
       setPhoto({ stage: 'error', reason: 'position' })
       return
     }
-    const fix: Fix = { lat: position.lat, lng: position.lng, accuracy: position.accuracy }
+    const fix: Fix = { lat: atShot.lat, lng: atShot.lng, accuracy: atShot.accuracy }
     pendingFocus.current = 'processing'
     setPhoto({ stage: 'processing' })
     try {
