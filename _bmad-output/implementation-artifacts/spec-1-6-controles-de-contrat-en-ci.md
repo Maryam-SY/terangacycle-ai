@@ -2,7 +2,7 @@
 title: 'Story 1.6 — Contrôles de contrat en CI'
 type: 'chore'
 created: '2026-11-25'
-status: 'in-review'
+status: 'done'
 baseline_commit: '294c384414a5f669433cdee87fa7be53fe6874c2'
 route: 'dispatch'
 review_loop_iteration: 0
