@@ -9,8 +9,30 @@ import pytest
 REPO = Path(__file__).resolve().parents[3]
 BACKEND = REPO / "backend"
 
-CORE_MODULES = ["config", "db", "logging", "clock", "enums", "http", "health", "public", "geo"]
-BUSINESS_MODULES = ["auth", "reports", "missions", "lots", "analytics", "ai", "notifications"]
+CORE_MODULES = [
+    "config",
+    "db",
+    "logging",
+    "clock",
+    "enums",
+    "http",
+    "health",
+    "public",
+    "geo",
+    "storage",
+    "security",
+    "demo",
+]
+BUSINESS_MODULES = [
+    "auth",
+    "orgs",
+    "reports",
+    "missions",
+    "lots",
+    "analytics",
+    "ai",
+    "notifications",
+]
 
 EXPECTED_FILES = [
     *(f"backend/app/core/{name}.py" for name in CORE_MODULES),

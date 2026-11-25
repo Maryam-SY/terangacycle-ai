@@ -20,6 +20,11 @@ class ErrorCode(StrEnum):
     PHOTO_TOO_MANY_PIXELS = "photo_too_many_pixels"
     PHOTO_UNREADABLE = "photo_unreadable"
     STORAGE_UNAVAILABLE = "storage_unavailable"
+    # Principal (core.security) et création d'un Signalement (story 1.11).
+    INVALID_DEVICE_ID = "invalid_device_id"
+    INVALID_TOKEN = "invalid_token"  # noqa: S105 (code d'erreur, pas un secret)
+    CONSENT_REQUIRED = "consent_required"
+    OUTSIDE_ACTIVE_ZONE = "outside_active_zone"
 
 
 DEFAULT_MESSAGES: dict[ErrorCode, str] = {
@@ -36,6 +41,18 @@ DEFAULT_MESSAGES: dict[ErrorCode, str] = {
     ),
     ErrorCode.PHOTO_UNREADABLE: "Photo illisible ou abîmée. Reprenez la photo.",
     ErrorCode.STORAGE_UNAVAILABLE: "Stockage des photos indisponible. Réessayez plus tard.",
+    # Story 1.11 : même texte que `errors.<code>` de web/src/i18n/fr.json (test).
+    ErrorCode.INVALID_DEVICE_ID: (
+        "Votre appareil n'a pas pu être reconnu. Fermez puis rouvrez l'application, et réessayez."
+    ),
+    ErrorCode.INVALID_TOKEN: "Votre session n'est plus valide. Reconnectez-vous puis réessayez.",
+    ErrorCode.CONSENT_REQUIRED: (
+        "Pour envoyer un signalement, acceptez d'abord les conditions d'utilisation."
+    ),
+    ErrorCode.OUTSIDE_ACTIVE_ZONE: (
+        "TerangaCycle n'est pas encore actif ici. Merci de votre aide : vous pourrez signaler "
+        "un dépôt dès que vous serez dans la zone couverte."
+    ),
 }
 
 

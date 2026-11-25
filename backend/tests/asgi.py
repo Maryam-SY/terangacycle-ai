@@ -6,6 +6,7 @@ réponse. Le cycle de vie (lifespan) n'est pas exécuté.
 
 import asyncio
 import json
+import uuid
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -93,3 +94,31 @@ def request(
     if body:
         headers.setdefault("content-length", str(len(body)))
     return asyncio.run(_call(app, method, path, body, headers, on_message))
+
+
+def multipart(
+    fields: dict[str, str], files: dict[str, tuple[str, bytes, str]]
+) -> tuple[bytes, str]:
+    """Corps `multipart/form-data` et son type de contenu.
+
+    `fields` : champs texte ; `files` : nom → (nom de fichier, octets, type annoncé).
+    """
+    boundary = f"tc-test-{uuid.uuid4().hex}"
+    crlf = b"\r\n"
+    parts = [
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'.encode()
+        + value.encode("utf-8")
+        + crlf
+        for name, value in fields.items()
+    ]
+    parts += [
+        (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; '
+            f'filename="{filename}"\r\nContent-Type: {content_type}\r\n\r\n'
+        ).encode()
+        + content
+        + crlf
+        for name, (filename, content, content_type) in files.items()
+    ]
+    body = b"".join(parts) + f"--{boundary}--\r\n".encode()
+    return body, f"multipart/form-data; boundary={boundary}"

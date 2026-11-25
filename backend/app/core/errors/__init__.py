@@ -3,9 +3,14 @@
 Un service lève `DomainError` ; jamais de `HTTPException` dans un service. Toute
 réponse d'erreur suit l'enveloppe `{"error": {"code", "message", "request_id"}}`,
 sans trace ni détail interne ; la trace complète part dans le journal.
+
+Une requête invalide (422 `validation_error`) nomme les champs fautifs dans son message,
+jamais leur valeur : `validation_error(["meta.lat"])` ou la validation de FastAPI.
 """
 
+import re
 import uuid
+from collections.abc import Iterable, Sequence
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -23,8 +28,11 @@ __all__ = [
     "ErrorCode",
     "ErrorResponse",
     "error_response",
+    "field_of",
     "install_error_handlers",
     "request_id_of",
+    "validation_error",
+    "validation_message",
 ]
 
 log = get_logger(__name__)
@@ -65,6 +73,50 @@ _STATUS_CODES: dict[int, ErrorCode] = {
     405: ErrorCode.METHOD_NOT_ALLOWED,
     422: ErrorCode.VALIDATION_ERROR,
 }
+
+
+# Champs nommés dans le message d'une erreur de validation : noms seulement, jamais une
+# valeur reçue ; un nom fourni par le client (clé inconnue) est assaini et borné.
+MAX_NAMED_FIELDS = 5
+MAX_FIELD_NAME_LENGTH = 64
+_UNSAFE_FIELD_CHARS = re.compile(r"[^A-Za-z0-9_.\-]")
+# Premier élément de `loc` dans une erreur de FastAPI : la source, pas le champ.
+_REQUEST_SOURCES = frozenset({"body", "query", "path", "header", "cookie"})
+
+
+def _safe_field_name(name: str) -> str:
+    return _UNSAFE_FIELD_CHARS.sub("?", name)[:MAX_FIELD_NAME_LENGTH] or "?"
+
+
+def validation_message(fields: Iterable[str]) -> str:
+    """Message d'une requête invalide qui nomme les champs à vérifier (5 au plus)."""
+    names = list(dict.fromkeys(_safe_field_name(name) for name in fields))
+    if not names:
+        return default_message(ErrorCode.VALIDATION_ERROR)
+    label = "Champ à vérifier" if len(names) == 1 else "Champs à vérifier"
+    shown = ", ".join(names[:MAX_NAMED_FIELDS])
+    more = " …" if len(names) > MAX_NAMED_FIELDS else ""
+    return f"La requête est invalide. {label} : {shown}{more}."
+
+
+def validation_error(fields: Iterable[str]) -> DomainError:
+    """422 `validation_error` dont le message nomme les champs fautifs."""
+    return DomainError(ErrorCode.VALIDATION_ERROR, 422, validation_message(fields))
+
+
+def field_of(loc: Sequence[Any], prefix: str | None = None) -> str:
+    """Nom pointé d'un champ d'après le `loc` d'une erreur de validation.
+
+    Erreur de FastAPI : la source est retirée, `("body", "photo")` → `photo`. Erreur d'un
+    modèle reçu dans un champ : `("consent", "terms")` avec `prefix="meta"` →
+    `meta.consent.terms` ; un `loc` vide désigne le champ lui-même (`meta`).
+    """
+    parts = [str(part) for part in loc]
+    if prefix is not None:
+        return ".".join([prefix, *parts])
+    if len(parts) > 1 and parts[0] in _REQUEST_SOURCES:
+        parts = parts[1:]
+    return ".".join(parts) or "?"
 
 
 def request_id_of(request: Request) -> str:
@@ -110,7 +162,15 @@ async def _http_exception_handler(request: Request, exc: StarletteHTTPException)
 
 
 async def _validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    return error_response(422, ErrorCode.VALIDATION_ERROR, request_id_of(request))
+    errors = exc.errors() if isinstance(exc, RequestValidationError) else []
+    # JSON illisible : le `loc` porte une position dans le corps, pas un champ.
+    fields = [
+        "body" if error.get("type") == "json_invalid" else field_of(error.get("loc", ()))
+        for error in errors
+    ]
+    return error_response(
+        422, ErrorCode.VALIDATION_ERROR, request_id_of(request), validation_message(fields)
+    )
 
 
 async def _domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:

@@ -1,10 +1,11 @@
 """Point d'entrée HTTP : application FastAPI.
 
 `create_app()` assemble les briques de `core` : gestionnaires d'erreurs, middleware
-de requête, sondes, `/metrics` et `GET /v1/config`. Les routers des modules
-arrivent avec leurs stories. Une configuration refusée arrête le processus (code 1).
+de requête, sondes, `/metrics` et `GET /v1/config`, puis les routers des modules
+(`reports` depuis la story 1.11). Une configuration refusée arrête le processus (code 1).
 
-Au démarrage (lifespan), l'API charge la Zone active une fois (`app.state.active_zone`).
+Au démarrage (lifespan), l'API vérifie la clé DEVICE_ID_PEPPER (32 octets en base64,
+AD-26) puis charge la Zone active une fois (`app.state.active_zone`). Clé mal formée,
 Zone inconnue ou base injoignable : journal `startup_refused` et code de sortie 1.
 
 Aucune application n'est créée à l'import : uvicorn appelle la fabrique
@@ -25,13 +26,14 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 from starlette.concurrency import run_in_threadpool
 
-from app.core import health, public
+from app.core import health, public, security
 from app.core.config import Settings, load_settings_or_exit
 from app.core.enums import Env
 from app.core.errors import ErrorResponse, install_error_handlers
 from app.core.geo import ActiveZone, UnknownZoneError, load_active_zone
 from app.core.http import RequestContextMiddleware
 from app.core.logging import configure_logging, get_logger
+from app.modules.reports import router as reports_router
 
 log = get_logger(__name__)
 
@@ -96,6 +98,12 @@ def load_active_zone_or_exit(settings: Settings) -> ActiveZone:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
+    try:
+        # Décodée une fois : `principal()` lit cette clé, jamais la configuration globale.
+        app.state.device_id_key = security.device_id_key(settings)
+    except security.InvalidPepperError as exc:
+        # Le message nomme le secret, jamais sa valeur.
+        refuse_startup(str(exc))
     app.state.active_zone = await run_in_threadpool(load_active_zone_or_exit, settings)
     log.info("active_zone_loaded", zone=app.state.active_zone.id)
     yield
@@ -122,7 +130,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
 
     install_error_handlers(app)
+    # Ajoutée avant le middleware de requête, donc exécutée après lui (`request_id` posé).
+    app.add_middleware(reports_router.ReportUploadGuard)
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
     app.include_router(public.router)
+    app.include_router(reports_router.router)
     return app

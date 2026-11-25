@@ -29,6 +29,7 @@ SPINE = {
     ("missions", "auth"),
     ("reports", "ai"),
     ("reports", "auth"),
+    ("reports", "orgs"),
     ("lots", "missions"),
     ("lots", "auth"),
     ("notifications", "auth"),

@@ -23,6 +23,8 @@ dependencies = [
     "boto3==1.44.10",
     # Contrôle et ré-encodage des photos reçues (core.storage, story 1.10).
     "pillow==13.0.0",
+    # Corps multipart/form-data de POST /v1/reports (`meta` + `photo`, story 1.11).
+    "python-multipart==0.0.34",
 ]
 
 [dependency-groups]
@@ -81,6 +83,7 @@ type = "layers"
 layers = ["(router)", "(service)", "(repository)"]
 containers = [
     "app.modules.auth",
+    "app.modules.orgs",
     "app.modules.reports",
     "app.modules.missions",
     "app.modules.lots",
@@ -114,6 +117,8 @@ ignore_imports = [
     "app.modules.reports.** -> app.modules.ai.service",
     "app.modules.reports -> app.modules.auth.service",
     "app.modules.reports.** -> app.modules.auth.service",
+    "app.modules.reports -> app.modules.orgs.service",
+    "app.modules.reports.** -> app.modules.orgs.service",
     "app.modules.lots -> app.modules.missions.service",
     "app.modules.lots.** -> app.modules.missions.service",
     "app.modules.lots -> app.modules.auth.service",

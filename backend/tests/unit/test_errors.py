@@ -1,15 +1,24 @@
 """Enveloppe d'erreur unique, codes énumérés et `request_id` (AD-11)."""
 
 import json
+import re
 import uuid
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
 from pydantic import BaseModel
 
 from app.core.config import Settings
-from app.core.errors import DomainError, ErrorCode
+from app.core.errors import (
+    MAX_NAMED_FIELDS,
+    DomainError,
+    ErrorCode,
+    field_of,
+    validation_error,
+    validation_message,
+)
 from app.core.errors.codes import DEFAULT_MESSAGES
 from app.main import create_app
 from tests.asgi import Response, request
@@ -91,6 +100,26 @@ def test_invalid_body_is_validation_error(app: FastAPI, payload: dict) -> None:
     _assert_envelope(response, 422, ErrorCode.VALIDATION_ERROR)
 
 
+@pytest.mark.parametrize(
+    ("payload", "named"),
+    [({"name": "x"}, "size"), ({"size": 2}, "name"), ({}, "name, size")],
+    ids=["size", "name", "deux"],
+)
+def test_validation_error_names_the_field(app: FastAPI, payload: dict, named: str) -> None:
+    response = request(app, "POST", "/v1/_test/items", json_body=payload)
+    error = _assert_envelope(response, 422, ErrorCode.VALIDATION_ERROR)
+    assert named in error["message"]
+
+
+def test_validation_message_never_echoes_a_value(app: FastAPI) -> None:
+    response = request(
+        app, "POST", "/v1/_test/items", json_body={"name": "x", "size": SECRET_DETAIL}
+    )
+    error = _assert_envelope(response, 422, ErrorCode.VALIDATION_ERROR)
+    assert "size" in error["message"]
+    assert SECRET_DETAIL not in response.text
+
+
 def test_malformed_json_is_validation_error(app: FastAPI) -> None:
     response = request(
         app,
@@ -99,7 +128,10 @@ def test_malformed_json_is_validation_error(app: FastAPI) -> None:
         body=b"{pas du json",
         headers={"content-type": "application/json"},
     )
-    _assert_envelope(response, 422, ErrorCode.VALIDATION_ERROR)
+    error = _assert_envelope(response, 422, ErrorCode.VALIDATION_ERROR)
+    # JSON illisible : le corps est nommé, jamais une position dans le corps.
+    assert "body" in error["message"]
+    assert not re.search(r"[0-9]", error["message"]), error["message"]
 
 
 def test_valid_body_passes(app: FastAPI) -> None:
@@ -139,6 +171,40 @@ def test_domain_error_default_message(app: FastAPI) -> None:
     assert error["message"] == DEFAULT_MESSAGES[ErrorCode.NOT_FOUND]
 
 
+@pytest.mark.parametrize(
+    ("loc", "prefix", "expected"),
+    [
+        (("body", "photo"), None, "photo"),
+        (("header", "x-device-id"), None, "x-device-id"),
+        (("body",), None, "body"),
+        (("items", 0, "name"), None, "items.0.name"),
+        (("lat",), "meta", "meta.lat"),
+        (("consent", "training"), "meta", "meta.consent.training"),
+        ((), "meta", "meta"),
+    ],
+)
+def test_field_of(loc: tuple, prefix: str | None, expected: str) -> None:
+    assert field_of(loc, prefix) == expected
+
+
+def test_validation_message_is_bounded_and_sanitized() -> None:
+    names = [f"champ{i}" for i in range(MAX_NAMED_FIELDS + 2)]
+    message = validation_message(names)
+    assert all(name in message for name in names[:MAX_NAMED_FIELDS])
+    assert names[-1] not in message and "…" in message
+    # Nom fourni par le client (clé inconnue) : assaini, borné.
+    hostile = validation_message(['<script>"x"</script>' + "a" * 200])
+    assert "<" not in hostile and '"' not in hostile
+    assert len(hostile) < 150
+    assert validation_message([]) == DEFAULT_MESSAGES[ErrorCode.VALIDATION_ERROR]
+
+
+def test_validation_error_is_a_422_domain_error() -> None:
+    error = validation_error(["meta.lat", "meta.lat", "photo"])
+    assert (error.code, error.http_status) == (ErrorCode.VALIDATION_ERROR, 422)
+    assert error.message == "La requête est invalide. Champs à vérifier : meta.lat, photo."
+
+
 def test_domain_error_rejects_unknown_code() -> None:
     with pytest.raises(ValueError):
         DomainError("code_inconnu", 400)
@@ -164,7 +230,32 @@ def test_every_code_has_a_default_message() -> None:
         "photo_too_many_pixels",
         "photo_unreadable",
         "storage_unavailable",
+        "invalid_device_id",
+        "invalid_token",
+        "consent_required",
+        "outside_active_zone",
     }
+
+
+def test_outside_active_zone_message_is_the_story_text() -> None:
+    assert DEFAULT_MESSAGES[ErrorCode.OUTSIDE_ACTIVE_ZONE].startswith(
+        "TerangaCycle n'est pas encore actif ici."
+    )
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        ErrorCode.INVALID_DEVICE_ID,
+        ErrorCode.INVALID_TOKEN,
+        ErrorCode.CONSENT_REQUIRED,
+        ErrorCode.OUTSIDE_ACTIVE_ZONE,
+    ],
+)
+def test_story_1_11_messages_match_the_french_catalog(code: ErrorCode) -> None:
+    fr = Path(__file__).resolve().parents[3] / "web" / "src" / "i18n" / "fr.json"
+    catalog = json.loads(fr.read_text(encoding="utf-8"))
+    assert DEFAULT_MESSAGES[code] == catalog["errors"][code.value]
 
 
 def test_error_codes_are_exported_in_openapi(app: FastAPI) -> None:

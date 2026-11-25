@@ -83,12 +83,33 @@ Sur `APP_HOST`, Caddy sert la PWA, et relaie vers l'API `/v1/*`, `/healthz` et `
 | `/healthz` | Vivacité : `{"status": "ok"}`, sans aucune dépendance |
 | `/readyz` | `{"status": "ready"}` si la base, Valkey, le bucket et le battement du worker (moins de 60 s) répondent, sinon 503 `{"status": "not_ready"}` |
 | `/v1/config` | Configuration publique : `demo_mode`, `env`, `model_version` |
+| `POST /v1/reports` | Signalement anonyme (`X-Device-Id`, `multipart/form-data` : `meta` en JSON et `photo`) : 201 avec `id`, `tracking_number` (`TC-AAAA-NNNNNN`), `status`, `received_at`, `is_demo` |
 | `/metrics`, `/v1/ai/*` | Jamais relayées par Caddy (404) ; `/metrics` au format Prometheus sur le réseau Compose seulement (`http://api:8000/metrics`) |
+
+**`POST /v1/reports`** (story 1.11). En-tête `X-Device-Id` : 32 octets aléatoires en base64url, 43 caractères ; aucun `Authorization`. Corps `multipart/form-data` de 2 Mo au plus (Caddy et l'API) :
+- `photo` : JPEG, PNG ou WebP, 1 Mo au plus, 12 mégapixels au plus ; stockée ré-encodée en JPEG sans métadonnées ;
+- `meta` (JSON, champs inconnus refusés) : `client_uuid` (UUID), `lat` (−90 à 90), `lng` (−180 à 180), `accuracy_m` (> 0 ; au-delà de `REPORT_ACCURACY_FLAG_M`, drapeau « position imprécise »), `heap_size` (`small`, `medium`, `large`), `comment` facultatif (280 caractères au plus après retrait des blancs de bord ; vide = aucun), `waste_type` facultatif (`plastic`, `metal`, `glass`, `organic`, `mixed`), `captured_at` (ISO 8601 avec fuseau, entre le 01/01/2000 et maintenant + 1 jour ; jamais utilisée pour décider), `consent` : `{terms, training}`.
+
+Erreurs (enveloppe `{"error": {"code", "message", "request_id"}}` ; une requête refusée n'écrit rien). Ordre des contrôles : en-têtes (400, 401, taille du corps 413), `meta` et photo présents (422), consentement, Zone active, puis la photo elle-même (413, 415, 422) :
+
+| Statut | Code | Cas |
+|---|---|---|
+| 400 | `invalid_device_id` | `X-Device-Id` absent, répété ou mal formé (contrôlé avant le corps, et avant le jeton) |
+| 401 | `invalid_token` | en-tête `Authorization` présent (aucun jeton vérifiable avant l'Epic 2) |
+| 413 | `photo_too_large` | corps de plus de 2 Mio (`Content-Length`, avant lecture) ou photo de plus de 1 Mo ; Caddy refuse aussi en 413 tout corps de plus de 2 Mo |
+| 422 | `validation_error` | `meta` absent, illisible ou invalide, ou photo absente ; le message nomme le champ (`meta.lat`, `photo`), jamais sa valeur |
+| 422 | `consent_required` | `consent.terms` absent ou faux |
+| 422 | `outside_active_zone` | Position hors de la Zone active (`ACTIVE_ZONE_ID`) |
+| 415 | `unsupported_media_type` | photo ni JPEG, ni PNG, ni WebP (format lu dans les octets) |
+| 422 | `photo_too_many_pixels`, `photo_unreadable` | photo de plus de 12 mégapixels, ou illisible |
+| 503 | `storage_unavailable` | stockage des photos indisponible |
+
+L'Organisation responsable (commune ou opérateur dont la Zone couvre la Position, sinon l'Organisation plateforme) n'est jamais renvoyée.
 
 La documentation OpenAPI (`/docs`, `/redoc`, `/openapi.json`, absente quand `ENV=prod`) n'est plus relayée par Caddy : ces adresses servent la PWA. Elle reste servie par l'API sur le réseau Compose (`http://api:8000/docs`).
 
-En `ENV=demo` ou `prod`, l'API et le worker refusent de démarrer si un secret de l'inventaire manque dans `.env.secrets/` (le message nomme le secret). Tests de fumée, pile démarrée :
-- bord Caddy (chaque cas de la story 1.3 en HTTPS, certificat local non vérifié) : `python backend/scripts/smoke_edge.py` ;
+En `ENV=demo` ou `prod`, l'API et le worker refusent de démarrer si un secret de l'inventaire manque dans `.env.secrets/` (le message nomme le secret). Quel que soit `ENV`, l'API refuse aussi de démarrer si `DEVICE_ID_PEPPER` est mal formé (32 octets en base64 attendus) : le générer avec `python infra/gen-dev-secrets.py`. En `dev` sans ce secret, une valeur éphémère est tirée à chaque démarrage : les empreintes d'appareil (`owner_key`) changent alors à chaque redémarrage. Tests de fumée, pile démarrée :
+- bord Caddy (chaque cas de la story 1.3 en HTTPS, certificat local non vérifié, plus un `POST /v1/reports` au Plateau qui doit renvoyer 201, story 1.11) : `python backend/scripts/smoke_edge.py` ;
 - `/readyz` (arrête puis relance tour à tour `db`, `valkey`, `garage` et `worker`) : `python backend/scripts/smoke_readyz.py`.
 
 Les deux scripts se connectent à `127.0.0.1` en HTTPS avec `APP_HOST` et `HTTPS_PORT` (environnement, sinon `.env`).
@@ -178,7 +199,7 @@ Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tourne sur ch
 **Contrats d'import** (`[tool.importlinter]` dans `backend/pyproject.toml`) :
 - `layers` : dans chaque module, `router` → `service` → `repository`, jamais l'inverse ;
 - `acyclic_siblings` : aucun cycle entre les modules de `app.modules` ;
-- `protected` : un module n'importe d'un autre que son `service`, et seulement selon les flèches permises (`missions` → `reports`, `auth` ; `reports` → `ai`, `auth` ; `lots` → `missions`, `auth` ; `notifications` → `auth`) ; `app.core` n'importe aucun module. `app.main`, `app.worker` et `app.reactions`, racines de composition, en sont exclus.
+- `protected` : un module n'importe d'un autre que son `service`, et seulement selon les flèches permises (`missions` → `reports`, `auth` ; `reports` → `ai`, `auth`, `orgs` ; `lots` → `missions`, `auth` ; `notifications` → `auth`) ; `app.core` n'importe aucun module. `app.main`, `app.worker` et `app.reactions`, racines de composition, en sont exclus.
 - `s3_access` : seul `app.core.storage` importe `boto3`/`botocore`, plus la sonde `/readyz` (`app.core.health`) avec son propre client.
 
 Dans le web, `fetch` est interdit hors de `web/src/api/` et `web/src/offline/` (règle `no-restricted-globals` d'oxlint, `web/.oxlintrc.json`).

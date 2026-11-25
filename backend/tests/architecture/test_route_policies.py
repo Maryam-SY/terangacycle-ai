@@ -45,9 +45,8 @@ EXPECTED_PUBLIC_ROUTES: frozenset[RouteKey] = frozenset(
         ("GET", "/v1/public/map"),
     }
 )
-EXPECTED_RESERVED: frozenset[RouteKey] = frozenset(
-    {("POST", "/v1/reports"), ("GET", "/v1/public/map")}
-)
+# Seule la carte publique (story 7.6) reste réservée : `POST /v1/reports` existe (1.11).
+EXPECTED_RESERVED: frozenset[RouteKey] = frozenset({("GET", "/v1/public/map")})
 IGNORED_METHODS = {"HEAD", "OPTIONS"}
 CADDYFILE = Path(__file__).resolve().parents[3] / "infra" / "Caddyfile"
 INTERNAL_MATCHER = re.compile(r"^\s*@internal\s+path\s+(.+?)\s*$", re.MULTILINE)
@@ -174,6 +173,7 @@ def test_route_walk_sees_every_kind_of_route(make_settings: Callable[..., Settin
     prod_routes, _ = app_routes(create_app(make_settings(env=Env.PROD)))
     core = {("GET", "/healthz"), ("GET", "/readyz"), ("GET", "/metrics"), ("GET", "/v1/config")}
     assert core <= prod_routes
+    assert ("POST", "/v1/reports") in prod_routes
     assert DOCS_ROUTES <= dev_routes
     assert not DOCS_ROUTES & prod_routes
 
@@ -247,10 +247,19 @@ def test_reserved_public_entries_may_be_absent(make_settings: Callable[..., Sett
     assert route_table_errors(app) == []
     # Une entrée publique non réservée sans route, elle, est orpheline.
     errors = route_table_errors(app, reserved=frozenset())
-    assert errors == [
-        "GET /v1/public/map : entrée publique orpheline, aucune route de ce nom",
-        "POST /v1/reports : entrée publique orpheline, aucune route de ce nom",
-    ]
+    assert errors == ["GET /v1/public/map : entrée publique orpheline, aucune route de ce nom"]
+
+
+def test_report_creation_is_a_real_public_route(make_settings: Callable[..., Settings]) -> None:
+    """Story 1.11 : `POST /v1/reports` est publique et n'est plus réservée ; aucune route
+    ne permet de modifier l'Organisation responsable d'un Signalement."""
+    routes, _ = app_routes(create_app(make_settings()))
+    key = ("POST", "/v1/reports")
+    assert key in routes and key in PUBLIC_ROUTES and key not in RESERVED_PUBLIC_ROUTES
+    assert key not in ROUTE_POLICIES
+    report_routes = {route for route in routes if route[1].startswith("/v1/reports")}
+    assert report_routes == {key}
+    assert not [route for route in routes if "organization" in route[1] or "/orgs" in route[1]]
 
 
 def test_route_both_public_and_declared_fails(make_settings: Callable[..., Settings]) -> None:
@@ -305,6 +314,15 @@ def test_ai_route_without_internal_policy_fails() -> None:
 def test_caddy_internal_matcher_is_parsed() -> None:
     caddyfile = "site {\n\t@internal path /metrics /metrics/* /v1/ai /v1/ai/*\n}\n"
     assert internal_patterns(caddyfile) == ["/metrics", "/metrics/*", "/v1/ai", "/v1/ai/*"]
+
+
+def test_caddy_bounds_the_report_body() -> None:
+    """Story 1.11 : Caddy refuse (413) tout corps de `POST /v1/reports` au-delà de 2 Mo."""
+    caddyfile = CADDYFILE.read_text(encoding="utf-8")
+    matcher = re.search(r"^\s*@reports\s+path\s+(\S+)\s*$", caddyfile, re.MULTILINE)
+    assert matcher and matcher.group(1) == "/v1/reports"
+    limit = re.search(r"request_body\s+@reports\s*\{\s*max_size\s+(\S+)\s*\}", caddyfile)
+    assert limit and limit.group(1) == "2MB"
 
 
 class _Endpoint(HTTPEndpoint):
