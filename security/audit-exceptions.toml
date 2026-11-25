@@ -20,4 +20,8 @@
 # reason = "Bibliothèque système non utilisée par l'application ; pas de correctif publié."
 # expires = 2027-01-31
 #
-# Aucune exception à ce jour.
+[[exception]]
+tool = "trivy"
+id = "CVE-2026-78661"
+reason = "golang.org/x/net/html (DoS) embarqué dans Caddy 2.11.9, dernière version publiée ; notre Caddyfile n'analyse aucun HTML (pas de templates) ; à retirer dès une version de Caddy avec x/net >= 0.62.0."
+expires = 2026-12-26
