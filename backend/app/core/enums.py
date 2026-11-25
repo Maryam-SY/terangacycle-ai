@@ -12,6 +12,16 @@ class Env(StrEnum):
     PROD = "prod"
 
 
+class Role(StrEnum):
+    """Rôles du Glossaire ; l'autorisation qui les applique arrive avec la story 2.5."""
+
+    CITIZEN = "citizen"
+    COLLECTOR = "collector"
+    RECYCLER = "recycler"
+    MODERATOR = "moderator"
+    MUNICIPAL_ADMIN = "municipal_admin"
+
+
 class ReportStatus(StrEnum):
     """Statut d'un Signalement (AD-3)."""
 

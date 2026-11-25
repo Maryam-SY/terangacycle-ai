@@ -1,8 +1,9 @@
 """Codes d'erreur de l'API (AD-11) : énumération unique, exportée dans l'OpenAPI.
 
 Chaque code a un message par défaut en français ; la PWA affiche sa propre
-traduction (`errors.<code>` dans `fr.json`). Les stories ajoutent leurs codes ici,
-jamais ailleurs.
+traduction (`errors.<code>` dans `web/src/i18n/fr.json` et `wo.json`, exigée par
+`tests/unit/test_error_messages.py`). Les stories ajoutent leurs codes ici, jamais
+ailleurs.
 """
 
 from enum import StrEnum

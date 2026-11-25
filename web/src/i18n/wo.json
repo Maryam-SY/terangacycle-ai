@@ -9,5 +9,11 @@
   "notFound": {
     "title": "Cette page est introuvable",
     "back": "Retour à l'accueil"
+  },
+  "errors": {
+    "not_found": "Nous ne trouvons pas ce que vous cherchez. Vérifiez le lien ou revenez à l'accueil.",
+    "method_not_allowed": "Cette action n'est pas possible ici. Revenez à l'accueil puis réessayez.",
+    "validation_error": "Certaines informations ne sont pas valides. Vérifiez-les puis réessayez.",
+    "internal_error": "Un problème est survenu de notre côté. Réessayez dans quelques instants."
   }
 }
