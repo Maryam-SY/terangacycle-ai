@@ -316,6 +316,15 @@ def test_caddy_internal_matcher_is_parsed() -> None:
     assert internal_patterns(caddyfile) == ["/metrics", "/metrics/*", "/v1/ai", "/v1/ai/*"]
 
 
+def test_caddy_bounds_the_report_body() -> None:
+    """Story 1.11 : Caddy refuse (413) tout corps de `POST /v1/reports` au-delà de 2 Mo."""
+    caddyfile = CADDYFILE.read_text(encoding="utf-8")
+    matcher = re.search(r"^\s*@reports\s+path\s+(\S+)\s*$", caddyfile, re.MULTILINE)
+    assert matcher and matcher.group(1) == "/v1/reports"
+    limit = re.search(r"request_body\s+@reports\s*\{\s*max_size\s+(\S+)\s*\}", caddyfile)
+    assert limit and limit.group(1) == "2MB"
+
+
 class _Endpoint(HTTPEndpoint):
     async def get(self, request: Request) -> PlainTextResponse:
         return PlainTextResponse("x")

@@ -34,7 +34,7 @@ from sqlalchemy import Engine, create_engine, make_url, text
 from sqlalchemy.orm import Session
 
 from app.core import clock, db, geo, storage
-from app.core.config import get_settings
+from app.core.config import get_settings, load_settings
 from app.core.errors import ErrorCode
 from app.core.errors.codes import DEFAULT_MESSAGES
 from app.main import create_app
@@ -43,6 +43,7 @@ from app.modules.reports import repository as reports_repository
 from tests import photos
 from tests.asgi import Response
 from tests.reports import (
+    CAPTURED_AT,
     MISSING,
     PLATEAU,
     TEST_PEPPER,
@@ -334,9 +335,11 @@ def test_nominal_report_is_stored_completely(
     assert row.citizen_type == "plastic"
     with Session(stack.engine) as session:
         zone = geo.zone_of(session, *PLATEAU)
-    assert zone is not None and row.zone_id == zone.id
+        zones = geo.zones_covering(session, *PLATEAU)
+    # Zone la plus précise, même ordre que celui qui choisit l'Organisation responsable.
+    assert zone is not None and row.zone_id == zone.id == zones[0].id
     assert row.received_at == FIXED_NOW
-    assert row.client_captured_at == datetime(2032, 5, 10, 8, 29, 30, tzinfo=UTC)
+    assert row.client_captured_at == datetime.fromisoformat(CAPTURED_AT)
     assert row.flag_imprecise_position is False
     assert row.training_consent is True
     assert row.is_demo is False
@@ -523,8 +526,8 @@ def test_failure_after_storage_rolls_back_and_deletes_the_object(
     stored_keys: list[str] = []
     original_ingest = storage.ingest_photo
 
-    def spying_ingest(*args: Any) -> storage.StoredPhoto:
-        stored = original_ingest(*args)
+    def spying_ingest(*args: Any, **kwargs: Any) -> storage.StoredPhoto:
+        stored = original_ingest(*args, **kwargs)
         stored_keys.append(stored.object_key)
         assert stored.object_key in stack.objects()  # écrit pendant l'unité
         return stored
@@ -588,10 +591,11 @@ def test_reports_go_to_their_commune_or_to_the_platform(stack: Stack) -> None:
         assert stack.report(report_id).organization_id == org
 
 
-def test_most_precise_active_commune_or_operator_wins(stack: Stack) -> None:
+def _quartier_point(stack: Stack) -> Any:
+    """Un quartier (`id`, `parent_id`) et un point intérieur (`lat`, `lng`) couvert par sa
+    seule commune d'arrondissement."""
     with stack.engine.connect() as conn:
-        # Un quartier, un point intérieur couvert par sa seule commune d'arrondissement.
-        quartier = conn.execute(
+        return conn.execute(
             text(
                 """
                 SELECT q.id, q.parent_id, ST_Y(p.pt) AS lat, ST_X(p.pt) AS lng FROM zones q
@@ -606,6 +610,10 @@ def test_most_precise_active_commune_or_operator_wins(stack: Stack) -> None:
                 """
             )
         ).one()
+
+
+def test_most_precise_active_commune_or_operator_wins(stack: Stack) -> None:
+    quartier = _quartier_point(stack)
     c1 = quartier.parent_id
     (_c3, *p3) = next(point for point in _commune_points(stack, 3) if point[0] != c1)
     early = datetime(2032, 1, 1, tzinfo=UTC)
@@ -621,6 +629,24 @@ def test_most_precise_active_commune_or_operator_wins(stack: Stack) -> None:
     # Quartier avant commune ; à défaut de commune d'arrondissement, la ville.
     assert stack.report(in_quartier["id"]).organization_id == operator
     assert stack.report(elsewhere["id"]).organization_id == city
+
+
+def test_arrondissement_org_beats_the_city_org(stack: Stack) -> None:
+    ((commune, lat, lng),) = _commune_points(stack, 1)
+    # La ville d'abord, et plus ancienne : la commune d'arrondissement l'emporte quand même.
+    stack.organization("commune", "dakar", created_at=datetime(2032, 1, 1, tzinfo=UTC))
+    arrondissement = stack.organization("commune", commune)
+    body = stack.created(stack.post(report_meta(lat=lat, lng=lng)))
+    assert stack.report(body["id"]).organization_id == arrondissement
+
+
+def test_oldest_active_org_wins_on_one_zone(stack: Stack) -> None:
+    quartier = _quartier_point(stack)
+    # Créée en premier, mais plus récente : l'ordre d'insertion ne compte pas.
+    stack.organization("operator", quartier.id, created_at=datetime(2032, 3, 1, tzinfo=UTC))
+    older = stack.organization("operator", quartier.id, created_at=datetime(2032, 2, 1, tzinfo=UTC))
+    body = stack.created(stack.post(report_meta(lat=quartier.lat, lng=quartier.lng)))
+    assert stack.report(body["id"]).organization_id == older
 
 
 # --- Numéro de suivi ------------------------------------------------------------------------
@@ -665,6 +691,30 @@ def test_tracking_year_follows_the_utc_clock(stack: Stack, monkeypatch: pytest.M
     assert first["received_at"] == "2027-01-01T00:00:00Z"
 
 
+def test_one_clock_reading_dates_the_number_and_the_photo_key(
+    stack: Stack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Minuit passe pendant le traitement de la photo : le Numéro, `received_at` et la clé
+    de la photo gardent l'instant lu une fois au début."""
+    moment = {"now": datetime(2026, 12, 31, 23, 59, 59, 999999, tzinfo=UTC)}
+    monkeypatch.setattr(clock, "now", lambda: moment["now"])
+    original_ingest = storage.ingest_photo
+
+    def ingest_after_midnight(*args: Any, **kwargs: Any) -> storage.StoredPhoto:
+        moment["now"] = datetime(2027, 1, 1, tzinfo=UTC)
+        return original_ingest(*args, **kwargs)
+
+    monkeypatch.setattr(storage, "ingest_photo", ingest_after_midnight)
+    body = stack.created(stack.post())
+    assert body["tracking_number"].startswith("TC-2026-")
+    assert body["received_at"] == "2026-12-31T23:59:59.999999Z"
+    (photo,) = stack.photos_of(body["id"])
+    assert photo.object_key.startswith("report/2026/12/")
+    assert stack.report(body["id"]).received_at == datetime(
+        2026, 12, 31, 23, 59, 59, 999999, tzinfo=UTC
+    )
+
+
 # --- Drapeau et démonstration ----------------------------------------------------------------
 
 
@@ -677,11 +727,9 @@ def test_imprecise_position_flag(stack: Stack, accuracy_m: float, flagged: bool)
 
 
 @pytest.mark.parametrize("demo_mode", [True, False])
-def test_is_demo_follows_demo_mode(
-    stack: Stack, monkeypatch: pytest.MonkeyPatch, demo_mode: bool
-) -> None:
-    monkeypatch.setenv("DEMO_MODE", "true" if demo_mode else "false")
-    get_settings.cache_clear()
+def test_is_demo_follows_demo_mode(stack: Stack, demo_mode: bool) -> None:
+    # Application construite avec le réglage : c'est lui qui fait foi, pas l'environnement.
+    stack.app = create_app(load_settings(demo_mode=demo_mode))
     body = stack.created(stack.post())
     assert body["is_demo"] is demo_mode
     assert stack.report(body["id"]).is_demo is demo_mode

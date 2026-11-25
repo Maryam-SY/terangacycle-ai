@@ -123,12 +123,22 @@ def test_platform_organization_row(app_engine: Engine) -> None:
             "ck_organizations_platform_is_system",
         ),
         (
+            "UPDATE organizations SET status = 'suspended' WHERE type = 'platform'",
+            "ck_organizations_platform_is_active",
+        ),
+        (
             "INSERT INTO organizations (id, type, name, zone_id, status, created_at, updated_at) "
             "VALUES (gen_random_uuid(), 'commune', 'X', 'dakar', 'closed', now(), now())",
             "ck_organizations_status",
         ),
     ],
-    ids=["commune-sans-zone", "seconde-plateforme", "plateforme-demo", "statut-inconnu"],
+    ids=[
+        "commune-sans-zone",
+        "seconde-plateforme",
+        "plateforme-demo",
+        "plateforme-suspendue",
+        "statut-inconnu",
+    ],
 )
 def test_organization_constraints(rolled_back: Connection, statement: str, constraint: str) -> None:
     with pytest.raises(IntegrityError) as exc_info, rolled_back.begin_nested():
@@ -205,13 +215,22 @@ def test_organization_foreign_key_has_no_on_delete_and_is_indexed(app_engine: En
                 "FROM pg_constraint WHERE conname = 'fk_reports_organization_id_organizations'"
             )
         ).one()
-        indexes = conn.scalars(
-            text("SELECT indexdef FROM pg_indexes WHERE tablename = 'reports'")
-        ).all()
+        indexes = dict(
+            conn.execute(
+                text("SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'reports'")
+            ).all()
+        )
     # `a` : NO ACTION, ni CASCADE ni SET NULL (AD-21, AD-31).
     assert (fk.target, fk.confdeltype, fk.confupdtype) == ("organizations", "a", "a")
-    assert any("(organization_id)" in index for index in indexes), indexes
-    assert any("gist (geog)" in index for index in indexes), indexes
+    expected = {
+        "ix_reports_organization_id": "(organization_id)",
+        "ix_reports_zone_id": "(zone_id)",
+        # File de modération : par Statut, puis dans l'ordre de réception.
+        "ix_reports_status_received_at": "(status, received_at)",
+        "ix_reports_geog": "gist (geog)",
+    }
+    for name, columns in expected.items():
+        assert columns in indexes.get(name, ""), (name, indexes)
 
 
 def test_app_role_has_dml_on_the_new_tables(app_engine: Engine) -> None:

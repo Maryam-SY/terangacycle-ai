@@ -3,14 +3,14 @@ de Position imprécise, étiquette de démonstration, Organisation plateforme, m
 
 import importlib.util
 import re
-from collections.abc import Iterator
+from collections.abc import Callable
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 
 from app.core import demo
-from app.core.config import get_settings
+from app.core.config import Settings
 from app.core.enums import (
     HeapSize,
     OrganizationStatus,
@@ -56,21 +56,14 @@ def test_imprecise_position_flag_is_strictly_above_the_threshold(
     assert is_imprecise(accuracy_m, 50) is flagged
 
 
-@pytest.fixture
-def settings_cache() -> Iterator[None]:
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
-
-
-@pytest.mark.parametrize(("demo_mode", "expected"), [("true", True), ("false", False)])
-def test_demo_flag_follows_demo_mode(
-    demo_mode: str, expected: bool, monkeypatch: pytest.MonkeyPatch, settings_cache: None
+@pytest.mark.parametrize("demo_mode", [True, False])
+def test_demo_flag_follows_the_given_settings(
+    demo_mode: bool, make_settings: Callable[..., Settings]
 ) -> None:
-    monkeypatch.setenv("DEMO_MODE", demo_mode)
-    assert demo.flag() is expected
+    settings = make_settings(demo_mode=demo_mode)
+    assert demo.flag(settings) is demo_mode
     # Un parent étiqueté démo étiquette aussi l'enfant.
-    assert demo.flag(parent_is_demo=True) is True
+    assert demo.flag(settings, parent_is_demo=True) is True
 
 
 def test_platform_organization_id_matches_the_migration() -> None:

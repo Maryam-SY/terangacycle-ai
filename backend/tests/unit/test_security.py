@@ -3,32 +3,31 @@
 import base64
 import hashlib
 import hmac
-from collections.abc import Iterator
+from types import SimpleNamespace
 
 import pytest
 from pydantic import SecretStr
 from starlette.requests import Request
 
 from app.core import security
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
 from app.core.errors import DomainError, ErrorCode
 from tests.reports import TEST_PEPPER, new_device_id
 
 
-@pytest.fixture(autouse=True)
-def pepper(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    monkeypatch.setenv("DEVICE_ID_PEPPER", TEST_PEPPER)
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
+def _app(pepper: str = TEST_PEPPER) -> SimpleNamespace:
+    """Application minimale : les réglages avec lesquels elle a été construite."""
+    settings = Settings.model_construct(device_id_pepper=SecretStr(pepper))
+    return SimpleNamespace(state=SimpleNamespace(settings=settings))
 
 
-def _request(*headers: tuple[str, str]) -> Request:
+def _request(*headers: tuple[str, str], app: SimpleNamespace | None = None) -> Request:
     scope = {
         "type": "http",
         "method": "POST",
         "path": "/v1/reports",
         "headers": [(name.lower().encode(), value.encode("latin-1")) for name, value in headers],
+        "app": app or _app(),
     }
     return Request(scope)
 
@@ -56,8 +55,9 @@ def test_hash_is_stable_and_depends_on_the_pepper() -> None:
     again = security.principal(_request(("X-Device-Id", device_id)))
     other = security.principal(_request(("X-Device-Id", new_device_id())))
     assert first.device_hash == again.device_hash != other.device_hash
-    key = base64.b64encode(b"une-autre-cle-de-32-octets......").decode()
-    assert security.device_principal(device_id, base64.b64decode(key)) != first
+    other_pepper = base64.b64encode(b"une-autre-cle-de-32-octets......").decode()
+    elsewhere = security.principal(_request(("X-Device-Id", device_id), app=_app(other_pepper)))
+    assert elsewhere.device_hash != first.device_hash
 
 
 def test_identity_is_absent_from_the_repr() -> None:
@@ -134,8 +134,34 @@ def test_malformed_pepper_is_refused_without_its_value(value: str | None) -> Non
         assert value not in str(exc_info.value)
 
 
+def test_key_comes_from_the_app_settings_and_is_decoded_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    calls: list[Settings] = []
+    original = security.device_id_key
+
+    def counting(settings: Settings) -> bytes:
+        calls.append(settings)
+        return original(settings)
+
+    monkeypatch.setattr(security, "device_id_key", counting)
+    for _ in range(3):
+        security.principal(_request(("X-Device-Id", new_device_id()), app=app))
+    assert calls == [app.state.settings]
+    assert app.state.device_id_key == base64.b64decode(TEST_PEPPER)
+    # Clé posée au démarrage (lifespan) : jamais redécodée.
+    started = _app()
+    started.state.device_id_key = b"k" * 32
+    device_id = new_device_id()
+    found = security.principal(_request(("X-Device-Id", device_id), app=started))
+    assert found.device_hash == hmac.new(b"k" * 32, device_id.encode(), hashlib.sha256).hexdigest()
+    assert len(calls) == 1
+
+
 def test_pepper_of_32_bytes_is_the_hmac_key() -> None:
-    assert security.device_id_key() == base64.b64decode(TEST_PEPPER)
+    settings = Settings.model_construct(device_id_pepper=SecretStr(TEST_PEPPER))
+    assert security.device_id_key(settings) == base64.b64decode(TEST_PEPPER)
     # Fin de ligne d'un fichier de secret : ignorée.
     padded = Settings.model_construct(device_id_pepper=SecretStr(TEST_PEPPER + "\n"))
     assert security.device_id_key(padded) == base64.b64decode(TEST_PEPPER)

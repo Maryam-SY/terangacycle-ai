@@ -17,6 +17,9 @@ PLATEAU = (14.6708, -17.4381)  # Place de l'Indépendance, commune de Dakar-Plat
 THIES = (14.7910, -16.9359)  # Thiès, à 60 km : hors de la Zone active
 # DEVICE_ID_PEPPER des tests : 32 octets en base64.
 TEST_PEPPER = base64.b64encode(b"tc-test-device-id-pepper-1.11...").decode("ascii")
+# Heure de l'appareil par défaut : passée pour toutes les horloges des tests (réelle, 2026,
+# 2027, 2032), dans les bornes de `meta.captured_at`.
+CAPTURED_AT = "2026-06-01T08:29:30+00:00"
 # Valeur « absente » pour `report_meta()` : la clé est retirée.
 MISSING: Any = object()
 PATH = "/v1/reports"
@@ -37,7 +40,7 @@ def report_meta(**overrides: Any) -> dict[str, Any]:
         "heap_size": "medium",
         "comment": "Tas de sacs près du marché",
         "waste_type": "plastic",
-        "captured_at": "2032-05-10T08:29:30+00:00",
+        "captured_at": CAPTURED_AT,
         "consent": {"terms": True, "training": False},
     }
     meta.update(overrides)

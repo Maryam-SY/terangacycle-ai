@@ -2,7 +2,7 @@
 title: 'Story 1.11 — Recevoir un Signalement anonyme et attribuer son Numéro de suivi'
 type: 'feature'
 created: '2026-11-25'
-status: 'in-review'
+status: 'done'
 baseline_commit: 'a4711fd51c9b971bcadc5dcc6499a340e0fa9dce'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -142,15 +142,40 @@ La story crée aussi :
 - **`HeapSize` :** l'énumération `PileSize` existante (mêmes valeurs, aucun usage) est renommée `HeapSize`, pour rester définie une seule fois sous le nom du champ `heap_size`.
 - **Consentement :** `consent` absent, `consent.terms` absent ou faux → 422 `consent_required` ; quand `consent` est présent, `consent.training` est exigé (AD-24) et son absence donne 422 `validation_error` (`meta.consent.training`).
 - **Champ nommé :** le message des 422 `validation_error` nomme les champs (`meta.lat`, `photo`), jamais leur valeur ; le gestionnaire global de FastAPI fait de même (noms assainis, 5 au plus).
-- **DEVICE_ID_PEPPER :** vérifié au démarrage (32 octets en base64, sinon `startup_refused`) et à chaque principal ; les secrets factices des tests (`tests/support.py`) suivent ce format.
+- **Réglages de l'application :** la clé DEVICE_ID_PEPPER est décodée une fois au démarrage (32 octets en base64, sinon `startup_refused`, quel que soit `ENV`) depuis `app.state.settings` ; `principal()`, `demo_mode`, `report_accuracy_flag_m` et la Zone active lisent ces mêmes réglages (`request.app.state`), jamais `get_settings()`. Les secrets factices des tests (`tests/support.py`) suivent ce format.
 - **Photo :** `report_photos.id` est l'`<uuid>` de la clé `report/<aaaa>/<mm>/<uuid>.jpg` (AD-13).
-- **Organisation responsable :** `core.geo.zones_covering()` ordonne les Zones (quartier, commune d'arrondissement, ville) ; `orgs.repository` choisit, par Zone, l'Organisation `active` commune ou opérateur la plus ancienne.
-- **Caddyfile inchangé :** aucune limite de corps n'y est posée aujourd'hui (`MAX_BODY_BYTES` appartient à une story ultérieure), donc une photo de 1 Mo plus `meta` passe.
+- **Zones et Organisation responsable :** le service lit une fois `core.geo.zones_covering()` (quartier, commune d'arrondissement, ville ; même ordre que `zone_of`) : la première Zone devient `zone_id`, et la liste est passée à `orgs.service.responsible_org(zones)`, qui choisit par Zone l'Organisation `active` commune ou opérateur la plus ancienne.
+- **Horloge :** `received_at` est lu une fois et passé à `ingest_photo(..., at=received_at)` : le Numéro et la clé de la photo ont la même année et le même mois.
+- **Corps borné avant lecture :** Caddy refuse tout corps de `/v1/reports` au-delà de 2 Mo (`request_body`) ; dans l'API, la garde `ReportUploadGuard` refuse, sur les seuls en-têtes, `X-Device-Id` absent ou invalide (400), puis `Authorization` (401), puis `Content-Length` au-delà de 2 Mio (413 `photo_too_large`).
+- **Commentaire et heure de l'appareil :** commentaire sans blancs de bord, vide → NULL, 280 points de code après retrait ; `captured_at` entre le 01/01/2000 et maintenant + 1 jour.
 - **Règles pures** (`format_tracking_number`, `is_imprecise`) dans `reports/rules.py` ; un test d'architecture exige `@transactional` sur toute fonction publique d'un `service.py`.
 
 ## Spec Change Log
 
 ## Review Triage Log
+
+Passe 1 (25/11/2026). Couches : Blind Hunter (B), Edge Case Hunter (E), Verification Gap (V). CI du premier commit verte (dont l'envoi d'un Signalement à travers Caddy et l'audit de `python-multipart`).
+
+| # | Constat | Verdict | Preuve | Route |
+|---|---|---|---|---|
+| B1 / E3 / E4 / E11 | Corps multipart lu (et écrit sur disque) avant tout contrôle ; sans `X-Device-Id`, un corps malformé donne 400 `validation_error` | high | FastAPI lit le formulaire avant les dépendances ; aucune limite dans Caddy | patch (limite Caddy 2 Mo + contrôle avant lecture du corps) |
+| B2 | Le démarrage valide le pepper d'un objet de réglages, les requêtes en lisent un autre | medium | `app.state.settings` contre `get_settings()` ; clé redécodée à chaque requête | patch |
+| B5 | Zone du Signalement et Zone de l'Organisation choisies par deux requêtes d'ordre différent | medium | `zone_of` et `zones_covering` trient différemment | patch (une seule requête) |
+| E5 | Mois ou année de la clé de photo et `received_at` lus par deux appels à l'horloge | low | Deux `clock.now()` ; correction directe | patch |
+| B6 / E9 | Pas d'index sur `reports.zone_id` ni pour la file de modération ; Organisation plateforme suspendable | medium | Migration 0003 | patch |
+| B13 / E8 | Commentaire vide stocké tel quel ; `captured_at` sans bornes | low | Aucune normalisation ; dates proches de l'an 1 ou 9999 | patch |
+| B9 | Contrat d'erreur absent de l'OpenAPI et du README | medium | `responses=` absent ; la story 1.13 génère le client depuis l'OpenAPI | patch |
+| B3 / E7 | README faux sur le pepper en `dev` ; empreintes qui changent à chaque redémarrage en `dev` | low | Le contrôle de démarrage vaut pour tous les ENV | patch (documentation) |
+| B8 | Docstring de `principal()` contraire à la priorité 400 avant 401 | low | Test qui fixe l'ordre inverse de la docstring | patch |
+| B12 | Messages français du backend différents de `fr.json` | low | `invalid_device_id`, `outside_active_zone` | patch |
+| B10 | Le Signalement du test de bout en bout reste en base ; `is_demo` non vérifié | low | Ligne permanente | patch (vérifier `is_demo`, documenter le retrait par `demo purge`) |
+| V1 / V2 / V3 | Non testés : arrondissement prioritaire sur la ville ; plus ancienne Organisation éligible ; message `body` pour un JSON illisible | medium | Inverser le tri ne fait échouer aucun test | patch |
+| B4 / E6 | Marge de 50 m côté PWA seulement : refus serveur dans la bande | low | Choix de la story 1.8 : la PWA tolère, le serveur tranche exactement | rejeté |
+| E1 / B7 | Compteur saturé au millionième Signalement de l'année : erreur 500 | low | Volume hors de portée du pilote | rejeté |
+| E2 | Renvoi du même `client_uuid` crée un doublon | low | Objet de la story 1.12 | rejeté (story 1.12) |
+| B8b | `devices` sans `last_seen_at` | low | Colonnes fixées par les critères d'acceptation | rejeté |
+| B11 | `wo.json` copie de `fr.json` | false | Interface wolof hors objectifs du hackathon | rejeté |
+| E10 | Pas de `router.py` dans `orgs` | low | Couches facultatives dans le contrat `layers` ; aucune route `orgs` avant l'Epic 2 | rejeté |
 
 ## Verification
 

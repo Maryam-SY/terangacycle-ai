@@ -1,8 +1,10 @@
 """Enveloppe d'erreur unique, codes énumérés et `request_id` (AD-11)."""
 
 import json
+import re
 import uuid
 from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -126,7 +128,10 @@ def test_malformed_json_is_validation_error(app: FastAPI) -> None:
         body=b"{pas du json",
         headers={"content-type": "application/json"},
     )
-    _assert_envelope(response, 422, ErrorCode.VALIDATION_ERROR)
+    error = _assert_envelope(response, 422, ErrorCode.VALIDATION_ERROR)
+    # JSON illisible : le corps est nommé, jamais une position dans le corps.
+    assert "body" in error["message"]
+    assert not re.search(r"[0-9]", error["message"]), error["message"]
 
 
 def test_valid_body_passes(app: FastAPI) -> None:
@@ -233,9 +238,24 @@ def test_every_code_has_a_default_message() -> None:
 
 
 def test_outside_active_zone_message_is_the_story_text() -> None:
-    assert DEFAULT_MESSAGES[ErrorCode.OUTSIDE_ACTIVE_ZONE] == (
+    assert DEFAULT_MESSAGES[ErrorCode.OUTSIDE_ACTIVE_ZONE].startswith(
         "TerangaCycle n'est pas encore actif ici."
     )
+
+
+@pytest.mark.parametrize(
+    "code",
+    [
+        ErrorCode.INVALID_DEVICE_ID,
+        ErrorCode.INVALID_TOKEN,
+        ErrorCode.CONSENT_REQUIRED,
+        ErrorCode.OUTSIDE_ACTIVE_ZONE,
+    ],
+)
+def test_story_1_11_messages_match_the_french_catalog(code: ErrorCode) -> None:
+    fr = Path(__file__).resolve().parents[3] / "web" / "src" / "i18n" / "fr.json"
+    catalog = json.loads(fr.read_text(encoding="utf-8"))
+    assert DEFAULT_MESSAGES[code] == catalog["errors"][code.value]
 
 
 def test_error_codes_are_exported_in_openapi(app: FastAPI) -> None:

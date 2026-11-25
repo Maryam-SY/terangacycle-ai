@@ -6,7 +6,8 @@ parent), ses communes d'arrondissement, puis les quartiers (parent : une commune
 
 Règles :
   - appartenance : `ST_Covers` sur `geography`, limite incluse ;
-  - Zone d'un point : le plus petit quartier qui le couvre, sinon la plus petite commune ;
+  - Zone d'un point : la plus précise qui le couvre (quartier, puis commune
+    d'arrondissement, puis ville), même ordre pour `zone_of` et `zones_covering` ;
   - la PWA reçoit la Zone active simplifiée et élargie de 50 m (`load_active_zone`) : elle
     juge de façon tolérante, le serveur tranche exactement.
 
@@ -125,37 +126,22 @@ def in_active_zone(session: Session, lat: float, lng: float) -> bool:
     return in_zone(session, get_settings().active_zone_id, lat, lng)
 
 
-def zone_of(session: Session, lat: float, lng: float) -> Zone | None:
-    """Le plus petit quartier qui couvre le point, sinon la plus petite commune ; None
-    hors de toute Zone. Deux quartiers qui se chevauchent : le plus petit l'emporte."""
-    params = _point_params(lat, lng)
-    row = session.execute(
-        text(
-            f"""
-            SELECT id, name, kind, parent_id FROM zones
-            WHERE ST_Covers(geog, {_POINT})
-            ORDER BY kind = 'quartier' DESC, ST_Area(geog) ASC, id
-            LIMIT 1
-            """  # noqa: S608
-        ),
-        params,
-    ).one_or_none()
-    if row is None:
-        return None
-    return Zone(id=row.id, name=row.name, kind=ZoneKind(row.kind), parent_id=row.parent_id)
+# Ordre de précision, seule source de vérité de `zone_of` et `zones_covering` : quartiers,
+# puis communes d'arrondissement, puis la ville (commune sans parent) ; à niveau égal, la
+# plus petite d'abord, puis l'identifiant.
+_PRECISION_ORDER = "kind = 'quartier' DESC, parent_id IS NULL, ST_Area(geog) ASC, id"
 
 
-def zones_covering(session: Session, lat: float, lng: float) -> list[Zone]:
-    """Toutes les Zones qui couvrent le point, de la plus précise à la moins précise :
-    quartiers, puis communes d'arrondissement, puis la ville (commune sans parent) ; à
-    niveau égal, la plus petite d'abord. Liste vide hors de toute Zone."""
+def _covering(session: Session, lat: float, lng: float, limit: int | None) -> list[Zone]:
     params = _point_params(lat, lng)
+    limit_clause = f"LIMIT {int(limit)}" if limit is not None else ""
     rows = session.execute(
         text(
             f"""
             SELECT id, name, kind, parent_id FROM zones
             WHERE ST_Covers(geog, {_POINT})
-            ORDER BY kind = 'quartier' DESC, parent_id IS NULL, ST_Area(geog) ASC, id
+            ORDER BY {_PRECISION_ORDER}
+            {limit_clause}
             """  # noqa: S608
         ),
         params,
@@ -164,6 +150,20 @@ def zones_covering(session: Session, lat: float, lng: float) -> list[Zone]:
         Zone(id=row.id, name=row.name, kind=ZoneKind(row.kind), parent_id=row.parent_id)
         for row in rows
     ]
+
+
+def zone_of(session: Session, lat: float, lng: float) -> Zone | None:
+    """La Zone la plus précise qui couvre le point (premier élément de `zones_covering`) ;
+    None hors de toute Zone. Deux quartiers qui se chevauchent : le plus petit l'emporte."""
+    zones = _covering(session, lat, lng, limit=1)
+    return zones[0] if zones else None
+
+
+def zones_covering(session: Session, lat: float, lng: float) -> list[Zone]:
+    """Toutes les Zones qui couvrent le point, de la plus précise à la moins précise :
+    quartiers, puis communes d'arrondissement, puis la ville (commune sans parent) ; à
+    niveau égal, la plus petite d'abord. Liste vide hors de toute Zone."""
+    return _covering(session, lat, lng, limit=None)
 
 
 def load_active_zone(session: Session, zone_id: str) -> ActiveZone:

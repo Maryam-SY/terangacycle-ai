@@ -18,6 +18,13 @@ http://{$APP_HOST}, http://{$MEDIA_HOST} {
 		respond 404
 	}
 
+	# Signalement (story 1.11) : photo d'au plus 1 Mo plus `meta` ; tout corps au-delà de
+	# 2 Mo est refusé (413) avant d'atteindre l'API.
+	@reports path /v1/reports
+	request_body @reports {
+		max_size 2MB
+	}
+
 	@api path /v1/* /healthz /readyz
 	handle @api {
 		reverse_proxy api:8000

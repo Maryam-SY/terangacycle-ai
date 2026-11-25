@@ -12,7 +12,7 @@ import re
 import threading
 import warnings
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Any
 
 import pytest
@@ -335,6 +335,20 @@ def test_ingest_stores_under_kind_year_month_uuid(
     assert (stored.width, stored.height) == (300, 400)
     assert list(bucket.objects) == [stored.object_key]
     assert bucket.deleted == []
+
+
+def test_key_is_dated_by_the_given_instant_not_the_clock(
+    bucket: FakeBucket, uow: None, fixed_clock: datetime
+) -> None:
+    """Story 1.11 : l'appelant passe l'instant de réception qu'il a déjà lu ; la clé ne
+    relit pas l'horloge (février 2031 ici), même à cheval sur un mois ou une année."""
+    received_at = datetime(2030, 12, 31, 23, 59, 59, 999999, tzinfo=UTC)
+    with db.unit_of_work():
+        stored = storage.ingest_photo(PhotoKind.REPORT, photos.encoded("JPEG"), at=received_at)
+    assert stored.object_key.startswith("report/2030/12/")
+    # Instant d'un autre fuseau : année et mois UTC.
+    paris = datetime(2031, 1, 1, 0, 30, tzinfo=timezone(timedelta(hours=1)))
+    assert storage.object_key_for(PhotoKind.REPORT, paris).startswith("report/2030/12/")
 
 
 def test_two_photos_get_two_keys(bucket: FakeBucket, uow: None) -> None:

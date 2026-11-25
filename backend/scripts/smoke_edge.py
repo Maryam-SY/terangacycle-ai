@@ -18,8 +18,10 @@ local (CA interne de Caddy) :
     Thiès) et le seuil de précision (`REPORT_ACCURACY_FLAG_M`) ;
   - Signalement (story 1.11) : `POST /v1/reports` en multipart à travers Caddy (photo PNG
     générée, Position au Plateau, nouvel Identifiant d'appareil) → 201 avec un Numéro de
-    suivi `TC-AAAA-NNNNNN` ; sans `X-Device-Id` → 400 `invalid_device_id`. Vérifié pour
-    la Zone active par défaut seulement ; le Signalement créé reste dans la base ;
+    suivi `TC-AAAA-NNNNNN` et `is_demo` vrai (le test tourne sur le profil `demo`) ; sans
+    `X-Device-Id` → 400 `invalid_device_id`. Vérifié pour la Zone active par défaut
+    seulement. Le Signalement créé reste dans la base, étiqueté Données de démonstration :
+    `demo purge` le retire (story 1.17) ;
   - surfaces internes : `/metrics`, `/v1/ai/x` (et variantes) → 404 ;
   - photos : `GET`/`HEAD MEDIA_HOST/<bucket>/<clé>` relayé vers Garage → 403 sans
     signature ; tout autre chemin → 404, toute autre méthode → 405, sans atteindre Garage ;
@@ -391,6 +393,8 @@ def check_report(edge: Edge) -> None:
     _expect(bool(TRACKING_NUMBER.fullmatch(number)), f"Numéro de suivi {number!r}")
     _expect(created["status"] == "pending_review", f"statut {created['status']!r}")
     _expect(created["received_at"].endswith("Z"), f"received_at {created['received_at']!r}")
+    # Profil `demo` (DEMO_MODE) : la ligne laissée par le test est étiquetée démonstration.
+    _expect(created["is_demo"] is True, f"is_demo {created['is_demo']!r}, attendu True")
 
 
 def check_internal(edge: Edge) -> None:

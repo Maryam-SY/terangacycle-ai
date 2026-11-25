@@ -2,12 +2,12 @@
 
 Toute ligne métier porte `is_demo`, calculé ici et nulle part ailleurs : vrai en Mode
 démonstration (`DEMO_MODE`, interdit en production), ou si son parent est lui-même
-étiqueté.
+étiqueté. Les réglages sont ceux avec lesquels l'application a été construite.
 """
 
-from app.core.config import get_settings
+from app.core.config import Settings
 
 
-def flag(parent_is_demo: bool = False) -> bool:
+def flag(settings: Settings, parent_is_demo: bool = False) -> bool:
     """Valeur de `is_demo` pour une ligne créée maintenant."""
-    return get_settings().demo_mode or parent_is_demo
+    return settings.demo_mode or parent_is_demo

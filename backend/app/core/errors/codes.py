@@ -41,14 +41,18 @@ DEFAULT_MESSAGES: dict[ErrorCode, str] = {
     ),
     ErrorCode.PHOTO_UNREADABLE: "Photo illisible ou abîmée. Reprenez la photo.",
     ErrorCode.STORAGE_UNAVAILABLE: "Stockage des photos indisponible. Réessayez plus tard.",
+    # Story 1.11 : même texte que `errors.<code>` de web/src/i18n/fr.json (test).
     ErrorCode.INVALID_DEVICE_ID: (
-        "Identifiant d'appareil absent ou invalide. Rechargez l'application puis réessayez."
+        "Votre appareil n'a pas pu être reconnu. Fermez puis rouvrez l'application, et réessayez."
     ),
-    ErrorCode.INVALID_TOKEN: "Session invalide ou expirée. Reconnectez-vous puis réessayez.",
+    ErrorCode.INVALID_TOKEN: "Votre session n'est plus valide. Reconnectez-vous puis réessayez.",
     ErrorCode.CONSENT_REQUIRED: (
-        "Acceptez les conditions d'utilisation pour envoyer un signalement."
+        "Pour envoyer un signalement, acceptez d'abord les conditions d'utilisation."
     ),
-    ErrorCode.OUTSIDE_ACTIVE_ZONE: "TerangaCycle n'est pas encore actif ici.",
+    ErrorCode.OUTSIDE_ACTIVE_ZONE: (
+        "TerangaCycle n'est pas encore actif ici. Merci de votre aide : vous pourrez signaler "
+        "un dépôt dès que vous serez dans la zone couverte."
+    ),
 }
 
 

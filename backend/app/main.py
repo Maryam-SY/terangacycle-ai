@@ -99,7 +99,8 @@ def load_active_zone_or_exit(settings: Settings) -> ActiveZone:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     try:
-        security.device_id_key(settings)
+        # Décodée une fois : `principal()` lit cette clé, jamais la configuration globale.
+        app.state.device_id_key = security.device_id_key(settings)
     except security.InvalidPepperError as exc:
         # Le message nomme le secret, jamais sa valeur.
         refuse_startup(str(exc))
@@ -129,6 +130,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
 
     install_error_handlers(app)
+    # Ajoutée avant le middleware de requête, donc exécutée après lui (`request_id` posé).
+    app.add_middleware(reports_router.ReportUploadGuard)
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
     app.include_router(public.router)

@@ -1,10 +1,12 @@
 """Schéma `meta` de `POST /v1/reports` (story 1.11) : champs, bornes, commentaire."""
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 
+from app.core import clock
 from app.core.enums import HeapSize, WasteType
 from app.core.errors import DomainError, ErrorCode
 from app.modules.reports.schemas import COMMENT_MAX_CHARS, ReportCreated, parse_meta
@@ -139,3 +141,44 @@ def test_created_response_has_exactly_the_public_fields() -> None:
         "received_at",
         "is_demo",
     }
+
+
+@pytest.mark.parametrize(
+    ("comment", "stored"),
+    [("", None), ("   ", None), ("\n\t ", None), ("  Sacs  ", "Sacs"), ("a  b", "a  b")],
+    ids=["vide", "espaces", "blancs", "bords", "interieur"],
+)
+def test_blank_comment_is_none_and_edges_are_stripped(comment: str, stored: str | None) -> None:
+    assert parse_meta(json.dumps(report_meta(comment=comment))).comment == stored
+
+
+def test_comment_limit_applies_after_stripping() -> None:
+    at_limit = "x" * COMMENT_MAX_CHARS
+    meta = parse_meta(json.dumps(report_meta(comment=f"   {at_limit}\n")))
+    assert meta.comment == at_limit
+    error = _refused(report_meta(comment=f" {at_limit}y "))
+    assert "meta.comment" in error.message
+
+
+@pytest.mark.parametrize(
+    ("captured_at", "accepted"),
+    [
+        ("2000-01-01T00:00:00+00:00", True),
+        ("1999-12-31T23:59:59+00:00", False),
+        ("0001-01-01T00:00:00+00:00", False),
+        ("2032-05-11T08:30:00+00:00", True),  # maintenant + 1 jour
+        ("2032-05-11T08:30:01+00:00", False),
+        ("9999-12-31T23:59:59+00:00", False),
+        ("2032-05-11T09:30:00+01:00", True),  # même instant, autre fuseau
+    ],
+    ids=["2000", "1999", "an-1", "plus-1-jour", "au-dela", "an-9999", "fuseau"],
+)
+def test_captured_at_is_bounded(
+    captured_at: str, accepted: bool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(clock, "now", lambda: datetime(2032, 5, 10, 8, 30, tzinfo=UTC))
+    raw = json.dumps(report_meta(captured_at=captured_at))
+    if accepted:
+        assert parse_meta(raw).captured_at == datetime.fromisoformat(captured_at)
+    else:
+        assert "meta.captured_at" in _refused(raw).message

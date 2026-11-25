@@ -7,9 +7,12 @@ il écrit, dans l'unité de travail en cours : appareil (`auth.service.touch_dev
 Numéro de suivi, Signalement et photo. Une exception après le stockage annule tout et
 supprime l'objet (`after_rollback`, story 1.10).
 
-Calculés par le serveur (AD-6) : `received_at` et l'année du Numéro (`core.clock`, UTC),
-Zone (`core.geo.zone_of`), Organisation responsable (`orgs.service.responsible_org`),
-drapeau de Position imprécise, `is_demo` (`core.demo.flag`), Statut `pending_review`.
+Calculés par le serveur (AD-6) : `received_at`, lu une fois (`core.clock`, UTC), qui donne
+l'année du Numéro et l'année et le mois de la clé de la photo ; Zones qui couvrent la
+Position, lues une fois (`core.geo.zones_covering`) : la plus précise devient `zone_id`, et
+la liste choisit l'Organisation responsable (`orgs.service.responsible_org`) ; drapeau de
+Position imprécise et `is_demo` (`core.demo.flag`), d'après les réglages de l'application ;
+Statut `pending_review`.
 
 Journaux : l'`id` et le Numéro de suivi seulement, jamais une Position, un Identifiant
 d'appareil, une empreinte ni `owner_key`.
@@ -20,7 +23,7 @@ from pathlib import PurePosixPath
 from uuid import UUID, uuid4
 
 from app.core import clock, demo, geo, storage
-from app.core.config import get_settings
+from app.core.config import Settings
 from app.core.db import after_commit, current_session, transactional
 from app.core.enums import PhotoKind, ReportStatus
 from app.core.errors import DomainError, ErrorCode
@@ -45,24 +48,29 @@ def _log_created(report_id: UUID, tracking_number: str) -> None:
 
 
 @transactional
-def create_report(principal: Principal, meta: ReportMeta, photo: bytes) -> ReportCreated:
-    """Enregistre un Signalement anonyme et lui attribue son Numéro de suivi."""
+def create_report(
+    principal: Principal, meta: ReportMeta, photo: bytes, settings: Settings
+) -> ReportCreated:
+    """Enregistre un Signalement anonyme et lui attribue son Numéro de suivi.
+
+    `settings` : les réglages avec lesquels l'application a été construite.
+    """
+    received_at = clock.now().astimezone(UTC)
     consent = meta.consent
     if consent is None or consent.terms is not True:
         raise DomainError(ErrorCode.CONSENT_REQUIRED, 422)
 
     session = current_session()
-    if not geo.in_active_zone(session, meta.lat, meta.lng):
+    if not geo.in_zone(session, settings.active_zone_id, meta.lat, meta.lng):
         raise DomainError(ErrorCode.OUTSIDE_ACTIVE_ZONE, 422)
     # Dans la Zone active, une Zone au moins couvre le point (la Zone active elle-même).
-    zone = geo.zone_of(session, meta.lat, meta.lng)
-    if zone is None:
+    zones = geo.zones_covering(session, meta.lat, meta.lng)
+    if not zones:
         raise DomainError(ErrorCode.OUTSIDE_ACTIVE_ZONE, 422)
 
-    stored = storage.ingest_photo(PhotoKind.REPORT, photo)
+    stored = storage.ingest_photo(PhotoKind.REPORT, photo, at=received_at)
 
-    received_at = clock.now().astimezone(UTC)
-    organization_id = orgs_service.responsible_org(meta.lat, meta.lng)
+    organization_id = orgs_service.responsible_org(zones)
     auth_service.touch_device(
         principal.device_hash, training_consent=consent.training, seen_at=received_at
     )
@@ -70,7 +78,7 @@ def create_report(principal: Principal, meta: ReportMeta, photo: bytes) -> Repor
     sequence = repository.next_tracking_sequence(received_at.year)
     tracking_number = format_tracking_number(received_at.year, sequence)
     report_id = uuid4()
-    is_demo = demo.flag()
+    is_demo = demo.flag(settings)
     repository.insert_report(
         repository.NewReport(
             id=report_id,
@@ -85,12 +93,10 @@ def create_report(principal: Principal, meta: ReportMeta, photo: bytes) -> Repor
             heap_size=meta.heap_size.value,
             comment=meta.comment,
             citizen_type=meta.waste_type.value if meta.waste_type else None,
-            zone_id=zone.id,
+            zone_id=zones[0].id,
             received_at=received_at,
             client_captured_at=meta.captured_at,
-            flag_imprecise_position=is_imprecise(
-                meta.accuracy_m, get_settings().report_accuracy_flag_m
-            ),
+            flag_imprecise_position=is_imprecise(meta.accuracy_m, settings.report_accuracy_flag_m),
             training_consent=consent.training,
             is_demo=is_demo,
         )

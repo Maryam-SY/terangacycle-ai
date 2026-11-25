@@ -17,6 +17,7 @@ from fastapi import FastAPI
 from sqlalchemy.exc import DBAPIError
 
 from app import main
+from app.core import security
 from app.core.config import ConfigError, Settings, load_settings
 from app.core.geo import ActiveZone, UnknownZoneError
 from app.main import create_app
@@ -104,6 +105,8 @@ def test_lifespan_loads_the_active_zone_once(
     asyncio.run(_start(app))
     assert calls == ["dakar"]
     assert app.state.active_zone == sample_active_zone()
+    # Clé de DEVICE_ID_PEPPER décodée une fois, depuis les réglages de l'application.
+    assert app.state.device_id_key == security.device_id_key(app.state.settings)
     # La route lit la Zone gardée en mémoire, sans nouvelle lecture.
     assert request(app, "GET", "/v1/config").json()["active_zone"]["id"] == "dakar"
     assert calls == ["dakar"]

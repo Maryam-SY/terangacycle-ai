@@ -24,6 +24,7 @@ import uuid
 import warnings
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from functools import lru_cache
 from typing import Any
 
@@ -291,14 +292,19 @@ def _register(register: Callable[..., None], fn: Callable[..., None], *args: Any
 # --- API du module ------------------------------------------------------------------
 
 
-def object_key_for(kind: PhotoKind) -> str:
-    """Clé neuve `<kind>/<aaaa>/<mm>/<uuid4>.jpg`, année et mois UTC de `core.clock`."""
-    moment = clock.now()
+def object_key_for(kind: PhotoKind, at: datetime | None = None) -> str:
+    """Clé neuve `<kind>/<aaaa>/<mm>/<uuid4>.jpg`, année et mois UTC de `at`, sinon de
+    `core.clock`."""
+    moment = (at or clock.now()).astimezone(UTC)
     return f"{PhotoKind(kind).value}/{moment:%Y}/{moment:%m}/{uuid.uuid4()}.jpg"
 
 
-def ingest_photo(kind: PhotoKind, data: bytes) -> StoredPhoto:
+def ingest_photo(kind: PhotoKind, data: bytes, at: datetime | None = None) -> StoredPhoto:
     """Contrôle, nettoie et stocke une photo reçue, dans l'unité de travail en cours.
+
+    `at` : instant de réception déjà lu par l'appelant (`core.clock`), qui date la clé ;
+    sans lui, `core.clock.now()`. Un seul instant évite une clé d'un autre mois ou d'une
+    autre année que la ligne qui la référence.
 
     Lève `DomainError` si la photo est refusée (413, 415, 422 ; aucun objet n'est alors
     écrit) ou si le stockage échoue (503 `storage_unavailable`), et `RuntimeError` hors
@@ -310,7 +316,7 @@ def ingest_photo(kind: PhotoKind, data: bytes) -> StoredPhoto:
     kind = PhotoKind(kind)
     body, width, height = reencode(data)
     digest = hashlib.sha256(data).hexdigest()
-    object_key = object_key_for(kind)
+    object_key = object_key_for(kind, at)
     # Nettoyage enregistré avant l'écriture : une écriture faite mais signalée en échec
     # (délai dépassé) ne laisse pas d'objet orphelin si l'unité est annulée.
     _register(after_rollback, _delete_all, (object_key,), "photo_rollback_deleted")
@@ -325,12 +331,14 @@ def ingest_photo(kind: PhotoKind, data: bytes) -> StoredPhoto:
     return StoredPhoto(object_key=object_key, sha256=digest, width=width, height=height)
 
 
-async def ingest_photo_async(kind: PhotoKind, data: bytes) -> StoredPhoto:
+async def ingest_photo_async(
+    kind: PhotoKind, data: bytes, at: datetime | None = None
+) -> StoredPhoto:
     """`ingest_photo` dans le pool de threads, pour une unité de travail asynchrone.
 
     Le contexte (donc l'unité de travail en cours) est copié dans le thread.
     """
-    return await asyncio.to_thread(ingest_photo, kind, data)
+    return await asyncio.to_thread(ingest_photo, kind, data, at)
 
 
 def purge(object_keys: Iterable[str]) -> None:

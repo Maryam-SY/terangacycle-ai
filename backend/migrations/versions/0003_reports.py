@@ -76,7 +76,9 @@ def upgrade() -> None:
             CONSTRAINT ck_organizations_commune_has_zone
                 CHECK (type <> 'commune' OR zone_id IS NOT NULL),
             CONSTRAINT ck_organizations_platform_is_system
-                CHECK (type <> 'platform' OR (zone_id IS NULL AND NOT is_demo))
+                CHECK (type <> 'platform' OR (zone_id IS NULL AND NOT is_demo)),
+            CONSTRAINT ck_organizations_platform_is_active
+                CHECK (type <> 'platform' OR status = 'active')
         )
         """
     )
@@ -148,9 +150,12 @@ def upgrade() -> None:
         )
         """
     )
-    # AD-31 : Organisation responsable indexée ; Position indexée pour les recherches de
-    # proximité (Doublons, story 1.14) ; drapeau indexé (AD-19).
+    # AD-31 : Organisation responsable indexée ; Zone ; file de modération (Statut, puis
+    # ordre de réception) ; Position indexée pour les recherches de proximité (Doublons,
+    # story 1.14) ; drapeau indexé (AD-19).
     op.execute("CREATE INDEX ix_reports_organization_id ON reports (organization_id)")
+    op.execute("CREATE INDEX ix_reports_zone_id ON reports (zone_id)")
+    op.execute("CREATE INDEX ix_reports_status_received_at ON reports (status, received_at)")
     op.execute("CREATE INDEX ix_reports_geog ON reports USING gist (geog)")
     op.execute(
         "CREATE INDEX ix_reports_flag_imprecise_position ON reports (flag_imprecise_position) "

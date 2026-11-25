@@ -5,17 +5,22 @@
 `validation_error` qui nomme le champ, jamais sa valeur.
 """
 
-from datetime import datetime
-from typing import Annotated
+from datetime import UTC, datetime, timedelta
+from typing import Annotated, Any
 from uuid import UUID
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from app.core import clock
 from app.core.enums import HeapSize, ReportStatus, WasteType
 from app.core.errors import field_of, validation_error
 
-# Commentaire du Citoyen : 280 caractères au plus, comptés en points de code Unicode.
+# Commentaire du Citoyen : 280 caractères au plus après retrait des blancs de bord, comptés
+# en points de code Unicode ; vide ou blanc → aucun commentaire (NULL).
 COMMENT_MAX_CHARS = 280
+# Heure de l'appareil : bornée pour rester lisible et comparable (ni an 1, ni an 9999).
+CAPTURED_AT_MIN = datetime(2000, 1, 1, tzinfo=UTC)
+CAPTURED_AT_MAX_AHEAD = timedelta(days=1)
 META_FIELD = "meta"
 
 
@@ -46,6 +51,22 @@ class ReportMeta(BaseModel):
     waste_type: WasteType | None = None
     captured_at: AwareDatetime
     consent: ReportConsent | None = None
+
+    @field_validator("comment", mode="before")
+    @classmethod
+    def _strip_comment(cls, value: Any) -> Any:
+        # Avant la limite de 280 : elle s'applique au texte sans ses blancs de bord.
+        if isinstance(value, str):
+            return value.strip() or None
+        return value
+
+    @field_validator("captured_at")
+    @classmethod
+    def _plausible_capture_time(cls, value: datetime) -> datetime:
+        # Bornes larges : l'heure de l'appareil n'est jamais utilisée pour décider.
+        if not CAPTURED_AT_MIN <= value <= clock.now() + CAPTURED_AT_MAX_AHEAD:
+            raise ValueError("heure de prise de vue hors bornes")
+        return value
 
     @field_validator("comment")
     @classmethod
