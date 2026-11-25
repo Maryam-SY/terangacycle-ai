@@ -19,3 +19,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-9-photographier-le-depot-en-version-legere-et-sans-metadonnees.md`
   summary: Prévenir le Citoyen quand Android décharge la page pendant la prise de vue (photo et Position perdues sans explication).
   evidence: Non vérifié sur appareil ; demande de mémoriser un état « photo attendue » avant d'ouvrir l'appareil photo et d'afficher un message au retour (à traiter avec l'Epic 6 ou 8, sur téléphone réel).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-10-stocker-une-photo-sans-metadonnees-dans-le-bucket-prive.md`
+  summary: Ajouter à `check_repo_hygiene.py` une règle qui exige que tout port publié dans `infra/docker-compose.yml` (hors 80/443 de Caddy) commence par `127.0.0.1:`.
+  evidence: Les ports de la base et de Garage sont publiés sur 127.0.0.1, mais rien ne détecte en CI une liaison sur toutes les interfaces.

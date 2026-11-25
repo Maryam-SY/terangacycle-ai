@@ -93,9 +93,19 @@ jobs:
           migrator_pw="$(cat .env.secrets/db_migrator_password)"
           echo "::add-mask::${app_pw}"
           echo "::add-mask::${migrator_pw}"
+          s3_port="$(sed -n 's/^GARAGE_LOCAL_PORT=//p' .env)"
+          s3_port="${s3_port:-3900}"
+          s3_bucket="$(sed -n 's/^S3_BUCKET=//p' .env)"
+          s3_secret="$(cat .env.secrets/s3_secret_access_key)"
+          echo "::add-mask::${s3_secret}"
           {
             echo "TEST_APP_DATABASE_URL=postgresql://teranga_app:${app_pw}@127.0.0.1:${port}/${db_name}"
             echo "TEST_MIGRATOR_DATABASE_URL=postgresql://teranga_migrator:${migrator_pw}@127.0.0.1:${port}/${db_name}"
+            # Garage (core.storage, story 1.10) : API S3 publiée sur 127.0.0.1.
+            echo "TEST_S3_ENDPOINT=http://127.0.0.1:${s3_port}"
+            echo "TEST_S3_ACCESS_KEY_ID=$(cat .env.secrets/s3_access_key_id)"
+            echo "TEST_S3_SECRET_ACCESS_KEY=${s3_secret}"
+            echo "TEST_S3_BUCKET=${s3_bucket:-terangacycle-photos}"
           } >> "$GITHUB_ENV"
 
       - name: pytest et couverture

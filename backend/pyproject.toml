@@ -21,6 +21,8 @@ dependencies = [
     "structlog==26.1.0",
     "prometheus-client==0.26.0",
     "boto3==1.44.10",
+    # Contrôle et ré-encodage des photos reçues (core.storage, story 1.10).
+    "pillow==13.0.0",
 ]
 
 [dependency-groups]
@@ -67,6 +69,8 @@ fail_under = 60
 # pouvoir importer n'importe quel module.
 [tool.importlinter]
 root_package = "app"
+# Paquets externes dans le graphe : nécessaire au contrat `s3_access`.
+include_external_packages = true
 
 # Dans chaque module : router → service → repository, jamais l'inverse. Les couches
 # sont facultatives (entre parenthèses) tant que les stories ne les ont pas créées.
@@ -118,4 +122,21 @@ ignore_imports = [
     "app.modules.notifications.** -> app.modules.auth.service",
 ]
 # Les flèches n'existent pas encore toutes : ne pas exiger qu'elles soient présentes.
+unmatched_ignore_imports_alerting = "none"
+
+# S3 (boto3, botocore) : seul `app.core.storage` en parle, plus la sonde `/readyz`
+# (`app.core.health`) avec son propre client (story 1.10).
+[[tool.importlinter.contracts]]
+id = "s3_access"
+name = "Seul core.storage (et la sonde) parle S3"
+type = "forbidden"
+source_modules = ["app"]
+forbidden_modules = ["boto3", "botocore"]
+ignore_imports = [
+    "app.core.storage -> boto3",
+    "app.core.storage -> botocore",
+    "app.core.health -> boto3",
+    "app.core.health -> botocore",
+]
+# Les paquets témoins des tests d'architecture n'ont pas forcément ces imports.
 unmatched_ignore_imports_alerting = "none"

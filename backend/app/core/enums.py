@@ -40,6 +40,13 @@ class ReportStatus(StrEnum):
     REJECTED = "rejected"
 
 
+class PhotoKind(StrEnum):
+    """Nature d'une photo stockée : premier segment de sa clé dans le bucket (AD-13)."""
+
+    REPORT = "report"
+    PROOF = "proof"
+
+
 class MissionStatus(StrEnum):
     ACTIVE = "active"
     COMPLETED = "completed"

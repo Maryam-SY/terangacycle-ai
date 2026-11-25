@@ -14,6 +14,12 @@ class ErrorCode(StrEnum):
     METHOD_NOT_ALLOWED = "method_not_allowed"
     VALIDATION_ERROR = "validation_error"
     INTERNAL_ERROR = "internal_error"
+    # Photo reçue (core.storage, story 1.10).
+    UNSUPPORTED_MEDIA_TYPE = "unsupported_media_type"
+    PHOTO_TOO_LARGE = "photo_too_large"
+    PHOTO_TOO_MANY_PIXELS = "photo_too_many_pixels"
+    PHOTO_UNREADABLE = "photo_unreadable"
+    STORAGE_UNAVAILABLE = "storage_unavailable"
 
 
 DEFAULT_MESSAGES: dict[ErrorCode, str] = {
@@ -21,6 +27,15 @@ DEFAULT_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.METHOD_NOT_ALLOWED: "Méthode non autorisée pour cette ressource.",
     ErrorCode.VALIDATION_ERROR: "La requête est invalide. Vérifiez les champs envoyés.",
     ErrorCode.INTERNAL_ERROR: "Erreur interne. Réessayez dans quelques instants.",
+    ErrorCode.UNSUPPORTED_MEDIA_TYPE: (
+        "Format de photo non pris en charge (JPEG, PNG ou WebP seulement). Reprenez la photo."
+    ),
+    ErrorCode.PHOTO_TOO_LARGE: "Photo trop lourde (1 Mo au plus). Reprenez la photo.",
+    ErrorCode.PHOTO_TOO_MANY_PIXELS: (
+        "Photo trop grande (12 mégapixels au plus). Reprenez la photo."
+    ),
+    ErrorCode.PHOTO_UNREADABLE: "Photo illisible ou abîmée. Reprenez la photo.",
+    ErrorCode.STORAGE_UNAVAILABLE: "Stockage des photos indisponible. Réessayez plus tard.",
 }
 
 
