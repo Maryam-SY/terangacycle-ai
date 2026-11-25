@@ -1,0 +1,63 @@
+# Mises à jour des dépendances (story 1.5) : chaque semaine, mises à jour mineures et
+# correctifs groupés en une PR par écosystème ; une version majeure arrive seule.
+# Délai de 3 jours après une publication avant de la proposer (version retirée ou piégée).
+# Les PR de Dependabot passent par la même CI que les autres (aucun secret requis).
+version: 2
+
+updates:
+  # Backend (dépendances Python) : écosystème `uv` plutôt que `pip`, pour que uv.lock
+  # soit mis à jour avec pyproject.toml (la CI exige `uv sync --locked`).
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      python-mineures-et-correctifs:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      npm-mineures-et-correctifs:
+        update-types: [minor, patch]
+
+  # Images de base des Dockerfiles, épinglées par empreinte (tag@sha256).
+  - package-ecosystem: docker
+    directories:
+      - /backend
+      - /infra/caddy
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      docker-mineures-et-correctifs:
+        update-types: [minor, patch]
+
+  # Images de la pile Compose (postgis, valkey, garage), épinglées par empreinte.
+  - package-ecosystem: docker-compose
+    directory: /infra
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      compose-mineures-et-correctifs:
+        update-types: [minor, patch]
+
+  # Actions épinglées par SHA de commit (le tag en commentaire est mis à jour aussi).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 3
+    groups:
+      actions-mineures-et-correctifs:
+        update-types: [minor, patch]

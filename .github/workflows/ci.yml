@@ -1,12 +1,19 @@
-# CI de qualité (story 1.4) : bloquante sur chaque pull request vers main et chaque push sur main.
+# CI de qualité (stories 1.4 et 1.5) : bloquante sur chaque pull request vers main et chaque
+# push sur main.
 #
 #   backend : ruff (lint, format), import-linter, pytest avec couverture ≥ 60 % sur la pile
 #             Docker Compose réelle (tests d'intégration obligatoires : REQUIRE_INTEGRATION=1) ;
 #   web     : oxlint, Vitest, construction ;
-#   edge    : image Caddy construite, tests de fumée du bord et de /readyz.
+#   edge    : image Caddy construite, tests de fumée du bord et de /readyz ;
+#   hygiene : Gitleaks (secrets, adresses Figma), épinglage des images et des actions,
+#             fichiers suivis, .gitignore, LICENSE, exceptions d'audit non expirées ;
+#   audit   : pip-audit, npm audit et Trivy (images api et caddy), exceptions datées de
+#             security/audit-exceptions.toml. Relancé seul chaque lundi (schedule) : une
+#             faille publiée après la fusion est vue même si main ne change pas.
 #
 # Aucun secret GitHub : les secrets de la pile sont générés à chaque exécution par
-# infra/gen-dev-secrets.py. Actions épinglées par SHA de commit (tag en commentaire).
+# infra/gen-dev-secrets.py. Actions épinglées par SHA de commit (tag en commentaire) ;
+# binaires téléchargés (Gitleaks, Trivy) épinglés par version et vérifiés par SHA-256.
 
 name: CI
 
@@ -15,18 +22,25 @@ on:
     branches: [main]
   push:
     branches: [main]
+  # Audit hebdomadaire du main inchangé (lundi 06:00 UTC) ; lancement manuel possible.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 # Une nouvelle exécution sur la même PR annule l'exécution obsolète ; sur main, chaque
-# push garde son exécution jusqu'au bout.
+# push garde son exécution jusqu'au bout. L'évènement fait partie du groupe : un audit
+# planifié ne remplace jamais un push de main en attente.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   backend:
+    # Sur schedule, seul le job audit tourne.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     defaults:
@@ -50,6 +64,11 @@ jobs:
 
       - name: ruff format --check
         run: uv run ruff format --check .
+
+      - name: ruff sur scripts/ci (configuration du backend)
+        run: |
+          uv run ruff check --config pyproject.toml ../scripts/ci
+          uv run ruff format --config pyproject.toml --check ../scripts/ci
 
       - name: Contrats d'import (import-linter)
         run: uv run lint-imports
@@ -97,6 +116,8 @@ jobs:
         run: docker compose --profile demo down -v
 
   web:
+    # Sur schedule, seul le job audit tourne.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     defaults:
@@ -128,6 +149,8 @@ jobs:
 
   edge:
     needs: [backend, web]
+    # Sur schedule, seul le job audit tourne.
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -156,3 +179,132 @@ jobs:
       - name: Arrêter la pile
         if: always()
         run: docker compose --profile demo down -v
+
+  hygiene:
+    # Sur schedule, seul le job audit tourne.
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Historique complet : Gitleaks lit les commits, pas seulement l'arbre courant.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Installer Gitleaks 8.30.1 (somme SHA-256 vérifiée)
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
+          echo "${GITLEAKS_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --strict -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/bin" gitleaks
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Auto-test de .gitleaks.toml (adresse Figma fabriquée détectée)
+        run: |
+          dir="$RUNNER_TEMP/gitleaks-selftest"
+          mkdir -p "$dir"
+          # Clé de 22 caractères tirée au hasard à chaque exécution : jamais une vraie clé.
+          key="$(python3 -c 'import secrets, string; a = string.ascii_letters + string.digits; print("".join(secrets.choice(a) for _ in range(22)))')"
+          echo "Maquettes : https://www.figma.com/design/${key}/Fabrique" > "$dir/figma.md"
+          status=0
+          gitleaks dir --no-banner --redact --config .gitleaks.toml "$dir" || status=$?
+          if [ "$status" -ne 1 ]; then
+            echo "::error::Gitleaks n'a pas détecté l'adresse Figma fabriquée (code $status, 1 attendu)."
+            exit 1
+          fi
+
+      - name: Gitleaks (commits de la PR, tout l'historique sur main)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          log_opts=""
+          if [ -n "$BASE_SHA" ]; then
+            log_opts="${BASE_SHA}..${HEAD_SHA}"
+          fi
+          # --redact : le dépôt est public, une fuite ne doit pas finir dans le journal.
+          gitleaks git --no-banner --redact --verbose --exit-code 1 \
+            --config .gitleaks.toml ${log_opts:+"--log-opts=$log_opts"} .
+
+      - name: Épinglage des images et des actions
+        run: python3 scripts/ci/check_pinning.py
+
+      - name: Hygiène du dépôt (fichiers suivis, .gitignore, LICENSE, exceptions d'audit)
+        run: python3 scripts/ci/check_repo_hygiene.py
+
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Exceptions d'audit (aucune expirée)
+        run: python3 scripts/ci/audit_exceptions.py check
+
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          python-version: "3.12"
+          working-directory: backend
+
+      - name: pip-audit 2.10.1 (dépendances d'exécution du backend)
+        working-directory: backend
+        run: |
+          uv export --locked --no-dev --no-emit-project --format requirements-txt \
+            -o "$RUNNER_TEMP/requirements.txt"
+          ignore="$(python3 ../scripts/ci/audit_exceptions.py pip-audit-args)"
+          # Fichier figé et haché par uv : pip-audit le lit sans rien résoudre. $ignore est
+          # volontairement non cité : une option --ignore-vuln=<id> par mot.
+          # shellcheck disable=SC2086
+          uvx pip-audit==2.10.1 --disable-pip --strict --progress-spinner off \
+            -r "$RUNNER_TEMP/requirements.txt" $ignore
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26.13.1"
+
+      - name: npm audit (dépendances d'exécution du web, gravité high ou plus)
+        working-directory: web
+        run: |
+          # Équivaut à `npm audit --omit=dev --audit-level=high`, exceptions datées en plus :
+          # le rapport JSON est filtré par audit_exceptions.py (échec s'il reste une faille,
+          # ou si npm audit n'a pas pu interroger le registre).
+          npm audit --omit=dev --json > "$RUNNER_TEMP/npm-audit.json" || true
+          python3 ../scripts/ci/audit_exceptions.py npm-audit "$RUNNER_TEMP/npm-audit.json" \
+            --audit-level high
+
+      - name: Construire les images api et caddy
+        run: |
+          docker build -t terangacycle-api:ci backend
+          docker build -t terangacycle-caddy:ci -f infra/caddy/Dockerfile .
+
+      - name: Installer Trivy 0.76.2 (somme SHA-256 vérifiée)
+        env:
+          TRIVY_VERSION: 0.76.2
+          TRIVY_SHA256: bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
+        run: |
+          archive="trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/${archive}"
+          echo "${TRIVY_SHA256}  $RUNNER_TEMP/$archive" | sha256sum --check --strict -
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP/bin" trivy
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Trivy (failles HIGH et CRITICAL corrigeables, secrets dans les images)
+        run: |
+          python3 scripts/ci/audit_exceptions.py trivyignore "$RUNNER_TEMP/.trivyignore"
+          status=0
+          for image in terangacycle-api:ci terangacycle-caddy:ci; do
+            trivy image --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed \
+              --exit-code 1 --no-progress --ignorefile "$RUNNER_TEMP/.trivyignore" \
+              --cache-dir "$RUNNER_TEMP/trivy-cache" "$image" || status=1
+          done
+          exit "$status"
