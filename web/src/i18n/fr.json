@@ -3,8 +3,42 @@
     "name": "TerangaCycle AI"
   },
   "home": {
-    "title": "Ensemble, gardons Dakar propre",
-    "subtitle": "Bientôt, vous pourrez signaler un dépôt sauvage en une photo et suivre sa collecte."
+    "tagline": "Ensemble, gardons Dakar propre",
+    "report": "Signaler un dépôt",
+    "reportHint": "Photo et position en moins de 30 secondes"
+  },
+  "consent": {
+    "title": "Avant votre premier signalement",
+    "intro": "Merci de nous aider à garder Dakar propre. Voici ce que l'application fera de votre position et de vos photos.",
+    "location": {
+      "title": "Votre position",
+      "body": "Au moment de la photo, l'application demandera la position de votre téléphone. Elle sert à situer le dépôt pour les équipes de collecte."
+    },
+    "photo": {
+      "title": "Votre photo",
+      "body": "La photo du dépôt est envoyée à TerangaCycle avec sa position. Elle est allégée et nettoyée de ses informations cachées avant l'envoi."
+    },
+    "people": {
+      "title": "Ni personne ni plaque",
+      "body": "Photographiez seulement le dépôt : aucun visage, aucune personne, aucune plaque d'immatriculation."
+    },
+    "device": {
+      "title": "Votre appareil",
+      "body": "Un identifiant anonyme, créé sur ce téléphone, relie vos signalements à cet appareil. Il ne contient ni votre nom ni votre numéro."
+    },
+    "training": {
+      "label": "Mes photos et corrections peuvent servir à améliorer le Modèle",
+      "hint": "Facultatif : vous pouvez signaler sans cocher cette case."
+    },
+    "reinstall": "Sans compte, la liste de vos signalements reste sur ce téléphone. Elle sera perdue si vous réinstallez l'application, si vous effacez ses données, ou si le navigateur les efface.",
+    "accept": "J'accepte",
+    "decline": "Pas maintenant",
+    "saveError": "Votre choix n'a pas pu être enregistré sur ce téléphone. Réessayez."
+  },
+  "capture": {
+    "title": "Photographier le dépôt",
+    "soon": "Merci ! La prise de photo arrive très bientôt dans l'application.",
+    "back": "Retour à l'accueil"
   },
   "notFound": {
     "title": "Cette page est introuvable",

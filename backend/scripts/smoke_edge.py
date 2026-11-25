@@ -10,7 +10,9 @@ local (CA interne de Caddy) :
     bundle contenant le titre de `fr.json`, police Inter servie localement), avec
     `Cache-Control` (`no-cache` pour la coquille, immuable pour `/assets/`) ; un fichier
     absent (`/assets/inexistant.js`) reçoit 404, pas index.html ;
-  - route profonde : `/n-importe-quoi` sert aussi index.html ;
+  - route profonde : `/n-importe-quoi` et les liens directs `/signaler/…` servent aussi
+    index.html (`no-cache`) ; manifeste nommé, icônes 192, 512 et 512 maskable ;
+    coquille et bundle compressés (gzip ou zstd) quand le client l'accepte ;
   - API : `/v1/config`, `/healthz`, `/readyz` relayés vers l'API ;
   - surfaces internes : `/metrics`, `/v1/ai/x` (et variantes) → 404 ;
   - photos : `GET`/`HEAD MEDIA_HOST/<bucket>/<clé>` relayé vers Garage → 403 sans
@@ -97,10 +99,16 @@ class Edge:
     http_port: int
     https_port: int
 
-    def https(self, host: str, path: str, method: str = "GET") -> Response:
+    def https(
+        self,
+        host: str,
+        path: str,
+        method: str = "GET",
+        headers: dict[str, str] | None = None,
+    ) -> Response:
         conn = _SniHTTPSConnection(self.address, self.https_port, host)
         host_header = host if self.https_port == 443 else f"{host}:{self.https_port}"
-        return _send(conn, method, host_header, path)
+        return _send(conn, method, host_header, path, headers)
 
     def http(self, host: str, path: str) -> Response:
         conn = http.client.HTTPConnection(self.address, self.http_port, timeout=10)
@@ -108,9 +116,15 @@ class Edge:
         return _send(conn, "GET", host_header, path)
 
 
-def _send(conn: http.client.HTTPConnection, method: str, host_header: str, path: str) -> Response:
+def _send(
+    conn: http.client.HTTPConnection,
+    method: str,
+    host_header: str,
+    path: str,
+    headers: dict[str, str] | None = None,
+) -> Response:
     try:
-        conn.request(method, path, headers={"Host": host_header})
+        conn.request(method, path, headers={"Host": host_header, **(headers or {})})
         resp = conn.getresponse()
         return Response(resp.status, {k.lower(): v for k, v in resp.getheaders()}, resp.read())
     finally:
@@ -158,8 +172,13 @@ def check_shell(edge: Edge) -> None:
         _expect_cache(resp, NO_CACHE, path)
     manifest = json.loads(edge.https(edge.app_host, "/manifest.webmanifest").body)
     _expect(manifest.get("display") == "standalone", "manifeste : display != standalone")
+    _expect(manifest.get("name") == "TerangaCycle AI", f"manifeste : nom {manifest.get('name')!r}")
+    icons = {(icon.get("sizes"), icon.get("purpose", "any")) for icon in manifest.get("icons", [])}
+    for sizes, purpose in (("192x192", "any"), ("512x512", "any"), ("512x512", "maskable")):
+        _expect((sizes, purpose) in icons, f"manifeste : icône {sizes} {purpose} absente")
 
-    # Texte traduit : le titre de fr.json figure dans le bundle chargé par index.html.
+    # Texte traduit : les textes de l'accueil (fr.json) figurent dans le bundle chargé par
+    # index.html.
     fr = json.loads((REPO / "web" / "src" / "i18n" / "fr.json").read_text(encoding="utf-8"))
     scripts = re.findall(r'<script[^>]+src="(/assets/[^"]+\.js)"', index.text)
     _expect(bool(scripts), "aucun bundle JS dans index.html")
@@ -168,8 +187,15 @@ def check_shell(edge: Edge) -> None:
         _expect(resp.status == 200, f"{src} : statut {resp.status}")
         _expect_cache(resp, IMMUTABLE, src)
     bundle = "".join(resp.text for resp in responses)
-    for key in ("title", "subtitle"):
+    for key in ("tagline", "report", "reportHint"):
         _expect(_in_bundle(fr["home"][key], bundle), f"home.{key} de fr.json absent du bundle")
+
+    # Compression (base du budget de poids, web/scripts/check-size.mjs) : la coquille et
+    # le bundle sont servis compressés à un client qui l'accepte.
+    for path in ("/", scripts[0]):
+        resp = edge.https(edge.app_host, path, headers={"Accept-Encoding": "gzip, zstd"})
+        encoding = resp.headers.get("content-encoding")
+        _expect(encoding in ("gzip", "zstd"), f"{path} : Content-Encoding {encoding!r}")
 
     # Fichier absent : un vrai 404, jamais index.html (ni mis en cache pour un an).
     for path in ("/assets/inexistant.js", "/assets/inexistant", "/inexistant.png"):
@@ -194,6 +220,11 @@ def check_shell(edge: Edge) -> None:
 def check_deep_route(edge: Edge) -> None:
     _is_pwa_index(edge.https(edge.app_host, "/n-importe-quoi"))
     _is_pwa_index(edge.https(edge.app_host, "/un/chemin/profond"))
+    # Liens directs du parcours de signalement : index.html, toujours revalidé.
+    for path in ("/signaler", "/signaler/consentement", "/signaler/capture"):
+        resp = edge.https(edge.app_host, path)
+        _is_pwa_index(resp)
+        _expect_cache(resp, NO_CACHE, path)
 
 
 def check_api(edge: Edge) -> None:

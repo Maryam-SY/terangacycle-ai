@@ -25,3 +25,9 @@ dist-ssr
 
 # vite-plugin-pwa (service worker du serveur de développement)
 dev-dist
+
+# Playwright (rapports et traces)
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/

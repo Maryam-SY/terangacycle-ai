@@ -5,8 +5,11 @@ import { MemoryRouter, matchRoutes } from 'react-router'
 import { describe, expect, it } from 'vitest'
 
 import { routes } from './routes.tsx'
+import { ConsentPage } from './features/consent/ConsentPage.tsx'
 import { HomePage } from './features/home/HomePage.tsx'
 import { NotFoundPage } from './features/not-found/NotFoundPage.tsx'
+import { CapturePage } from './features/report/CapturePage.tsx'
+import { ReportEntry } from './features/report/ReportEntry.tsx'
 import fr from './i18n/fr.json'
 import i18n from './i18n/index.ts'
 
@@ -35,6 +38,12 @@ describe('routes', () => {
     expect(matchedComponent('/')).toBe(HomePage)
   })
 
+  it('le parcours de signalement a ses trois routes', () => {
+    expect(matchedComponent('/signaler')).toBe(ReportEntry)
+    expect(matchedComponent('/signaler/consentement')).toBe(ConsentPage)
+    expect(matchedComponent('/signaler/capture')).toBe(CapturePage)
+  })
+
   it('une route inconnue affiche la page introuvable', () => {
     expect(matchedComponent('/n-importe-quoi')).toBe(NotFoundPage)
     expect(matchedComponent('/un/chemin/profond')).toBe(NotFoundPage)
@@ -46,10 +55,46 @@ describe('rendu en français', () => {
     expect(i18n.language).toBe('fr')
   })
 
-  it('l’accueil affiche le titre et le sous-titre de fr.json', () => {
+  it('l’accueil affiche le nom, l’accroche et le bouton « Signaler un dépôt » vers /signaler', () => {
     const html = render(<HomePage />)
-    expect(html).toContain(escaped(fr.home.title))
-    expect(html).toContain(escaped(fr.home.subtitle))
+    expect(html).toMatch(new RegExp(`<h1[^>]*>${escaped(fr.app.name)}</h1>`))
+    expect(html).toContain(escaped(fr.home.tagline))
+    expect(html).toMatch(/<a [^>]*href="\/signaler"/)
+    expect(html).toContain(escaped(fr.home.report))
+    expect(html).toContain(escaped(fr.home.reportHint))
+    // Pictogramme décoratif : le libellé visible suffit.
+    expect(html).toMatch(/<svg [^>]*aria-hidden="true"/)
+  })
+
+  it('le consentement présente chaque point, la case non cochée et les deux boutons', () => {
+    const html = render(<ConsentPage />)
+    for (const text of [
+      fr.consent.title,
+      fr.consent.location.title,
+      fr.consent.location.body,
+      fr.consent.photo.title,
+      fr.consent.photo.body,
+      fr.consent.people.title,
+      fr.consent.people.body,
+      fr.consent.device.title,
+      fr.consent.device.body,
+      fr.consent.reinstall,
+      fr.consent.training.label,
+      fr.consent.training.hint,
+      fr.consent.accept,
+      fr.consent.decline,
+    ]) {
+      expect(html).toContain(escaped(text))
+    }
+    const checkbox = html.match(/<input [^>]*type="checkbox"[^>]*>/)?.[0] ?? ''
+    expect(checkbox).not.toBe('')
+    expect(checkbox).not.toMatch(/\bchecked\b/)
+    expect(html).not.toContain(escaped(fr.consent.saveError))
+  })
+
+  it('la capture n’affiche rien avant d’avoir lu le consentement', () => {
+    expect(render(<CapturePage />)).toBe('')
+    expect(render(<ReportEntry />)).toBe('')
   })
 
   it('la page introuvable affiche son titre et un lien vers /', () => {

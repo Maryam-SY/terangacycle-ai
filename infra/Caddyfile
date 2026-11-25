@@ -27,6 +27,10 @@ http://{$APP_HOST}, http://{$MEDIA_HOST} {
 	handle {
 		root * /srv/pwa
 
+		# Compression du HTML, du JS et du CSS : le budget de l'accueil (NFR-5, 500 Ko hors
+		# images et Modèle) est mesuré compressé par web/scripts/check-size.mjs.
+		encode zstd gzip
+
 		# Routage client : un chemin sans extension, hors /assets/, qui ne correspond à
 		# aucun fichier reçoit index.html. Un fichier absent (/assets/…, *.js, *.png…)
 		# reçoit un vrai 404, jamais du HTML.
