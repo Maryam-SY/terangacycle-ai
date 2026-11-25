@@ -103,7 +103,7 @@ Si les ports 80, 443 ou 5432 sont déjà pris sur la machine, changer `HTTP_PORT
 | `migrate` | `alembic upgrade head` avec le rôle `teranga_migrator`, puis s'arrête ; `api` et `worker` attendent sa réussite |
 | `db` | PostgreSQL 16 + PostGIS, port publié sur `127.0.0.1` seulement |
 | `valkey` | Valkey en AOF (file arq, limites de débit) |
-| `garage` | Stockage objet S3, un nœud, bucket privé par défaut |
+| `garage` | Stockage objet S3, un nœud, bucket privé par défaut ; API S3 publiée sur `127.0.0.1` seulement (`GARAGE_LOCAL_PORT`) |
 
 Les rôles `teranga_migrator` et `teranga_app` sont créés par `infra/db/initdb/20-roles.sh` à la création du volume de la base. Après un changement de secret de base, recréer les volumes : `docker compose --profile demo down -v`.
 
@@ -122,6 +122,10 @@ Tests d'intégration, pile démarrée : mots de passe dans `.env.secrets/`, port
 DB_LOCAL_PORT="$(sed -n 's/^DB_LOCAL_PORT=//p' ../.env)"; DB_LOCAL_PORT="${DB_LOCAL_PORT:-5432}"
 export TEST_APP_DATABASE_URL="postgresql://teranga_app:$(cat ../.env.secrets/db_app_password)@localhost:${DB_LOCAL_PORT}/terangacycle"
 export TEST_MIGRATOR_DATABASE_URL="postgresql://teranga_migrator:$(cat ../.env.secrets/db_migrator_password)@localhost:${DB_LOCAL_PORT}/terangacycle"
+# Garage (core.storage) : API S3 publiée sur 127.0.0.1:GARAGE_LOCAL_PORT (3900 par défaut).
+export TEST_S3_ENDPOINT="http://127.0.0.1:3900"
+export TEST_S3_ACCESS_KEY_ID="$(cat ../.env.secrets/s3_access_key_id)"
+export TEST_S3_SECRET_ACCESS_KEY="$(cat ../.env.secrets/s3_secret_access_key)"
 uv run pytest tests/integration
 ```
 
@@ -133,6 +137,9 @@ $appPw = (Get-Content ..\.env.secrets\db_app_password -Raw).Trim()
 $migratorPw = (Get-Content ..\.env.secrets\db_migrator_password -Raw).Trim()
 $env:TEST_APP_DATABASE_URL = "postgresql://teranga_app:${appPw}@localhost:${port}/terangacycle"
 $env:TEST_MIGRATOR_DATABASE_URL = "postgresql://teranga_migrator:${migratorPw}@localhost:${port}/terangacycle"
+$env:TEST_S3_ENDPOINT = "http://127.0.0.1:3900"
+$env:TEST_S3_ACCESS_KEY_ID = (Get-Content ..\.env.secrets\s3_access_key_id -Raw).Trim()
+$env:TEST_S3_SECRET_ACCESS_KEY = (Get-Content ..\.env.secrets\s3_secret_access_key -Raw).Trim()
 uv run pytest tests/integration
 ```
 
@@ -164,10 +171,11 @@ Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tourne sur ch
 - `layers` : dans chaque module, `router` → `service` → `repository`, jamais l'inverse ;
 - `acyclic_siblings` : aucun cycle entre les modules de `app.modules` ;
 - `protected` : un module n'importe d'un autre que son `service`, et seulement selon les flèches permises (`missions` → `reports`, `auth` ; `reports` → `ai`, `auth` ; `lots` → `missions`, `auth` ; `notifications` → `auth`) ; `app.core` n'importe aucun module. `app.main`, `app.worker` et `app.reactions`, racines de composition, en sont exclus.
+- `s3_access` : seul `app.core.storage` importe `boto3`/`botocore`, plus la sonde `/readyz` (`app.core.health`) avec son propre client.
 
 Dans le web, `fetch` est interdit hors de `web/src/api/` et `web/src/offline/` (règle `no-restricted-globals` d'oxlint, `web/.oxlintrc.json`).
 
-**Tests d'intégration obligatoires.** Avec `REQUIRE_INTEGRATION=1` (posé par la CI), un test marqué `integration` qui serait ignoré faute de `TEST_APP_DATABASE_URL` ou `TEST_MIGRATOR_DATABASE_URL` échoue. Sans la variable, il est ignoré comme avant.
+**Tests d'intégration obligatoires.** Avec `REQUIRE_INTEGRATION=1` (posé par la CI), un test marqué `integration` qui serait ignoré faute de `TEST_APP_DATABASE_URL`, `TEST_MIGRATOR_DATABASE_URL` ou des variables `TEST_S3_*` (Garage) échoue. Sans la variable, il est ignoré comme avant.
 
 **Reproduire la CI en local**, depuis la racine du dépôt :
 

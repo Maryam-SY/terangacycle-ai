@@ -159,6 +159,10 @@ def test_every_code_has_a_default_message() -> None:
         "method_not_allowed",
         "validation_error",
         "internal_error",
+        "unsupported_media_type",
+        "photo_too_large",
+        "photo_too_many_pixels",
+        "photo_unreadable",
     }
 
 

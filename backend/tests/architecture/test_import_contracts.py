@@ -123,7 +123,7 @@ def test_protected_arrows_are_the_spine() -> None:
 
 
 def test_repository_keeps_all_contracts() -> None:
-    assert set(CONTRACTS) == {"layers", "acyclic_siblings", "protected"}
+    assert set(CONTRACTS) == {"layers", "acyclic_siblings", "protected", "s3_access"}
     result = run_lint_imports(BACKEND)
     assert result.returncode == 0, result.stdout + result.stderr
     for contract_id in CONTRACTS:
@@ -235,6 +235,24 @@ def test_every_other_arrow_breaks_protected(tmp_path: Path) -> None:
             },
             set(),
             id="racine-de-composition",
+        ),
+        pytest.param(
+            {
+                "app/core/storage.py": "import boto3\nfrom botocore.config import Config\n",
+                "app/core/health.py": "import boto3\nfrom botocore.config import Config\n",
+            },
+            set(),
+            id="s3-dans-core-storage-et-la-sonde",
+        ),
+        pytest.param(
+            {"app/modules/reports/service.py": "import boto3\n"},
+            {"s3_access"},
+            id="s3-dans-un-module",
+        ),
+        pytest.param(
+            {"app/core/geo.py": "from botocore.exceptions import ClientError\n"},
+            {"s3_access"},
+            id="s3-ailleurs-dans-core",
         ),
     ],
 )
