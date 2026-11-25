@@ -9,6 +9,7 @@ import { ConsentPage } from './features/consent/ConsentPage.tsx'
 import { HomePage } from './features/home/HomePage.tsx'
 import { NotFoundPage } from './features/not-found/NotFoundPage.tsx'
 import { CapturePage } from './features/report/CapturePage.tsx'
+import { DetailsPage } from './features/report/DetailsPage.tsx'
 import { ReportEntry } from './features/report/ReportEntry.tsx'
 import fr from './i18n/fr.json'
 import i18n from './i18n/index.ts'
@@ -38,10 +39,11 @@ describe('routes', () => {
     expect(matchedComponent('/')).toBe(HomePage)
   })
 
-  it('le parcours de signalement a ses trois routes', () => {
+  it('le parcours de signalement a ses quatre routes', () => {
     expect(matchedComponent('/signaler')).toBe(ReportEntry)
     expect(matchedComponent('/signaler/consentement')).toBe(ConsentPage)
     expect(matchedComponent('/signaler/capture')).toBe(CapturePage)
+    expect(matchedComponent('/signaler/details')).toBe(DetailsPage)
   })
 
   it('une route inconnue affiche la page introuvable', () => {
@@ -95,6 +97,10 @@ describe('rendu en français', () => {
   it('la capture n’affiche rien avant d’avoir lu le consentement', () => {
     expect(render(<CapturePage />)).toBe('')
     expect(render(<ReportEntry />)).toBe('')
+  })
+
+  it('l’écran 3 n’affiche rien avant d’avoir lu le brouillon', () => {
+    expect(render(<DetailsPage />)).toBe('')
   })
 
   it('la page introuvable affiche son titre et un lien vers /', () => {

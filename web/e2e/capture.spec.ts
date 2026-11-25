@@ -1,11 +1,14 @@
-// Story 1.8 : vérifier la Position et la Zone active avant la photo (écran 2 · Capture).
-// Une ligne de la matrice I/O de la spec par test, en 390×844 sur la PWA construite.
+// Stories 1.8 et 1.9 : écran 2 · Capture. Position et Zone active avant la photo (1.8),
+// puis photo prise, allégée et nettoyée sur l'appareil, gardée en brouillon (1.9).
+// Une ligne des matrices I/O des specs par test, en 390×844 sur la PWA construite.
 // Géolocalisation simulée (pilotée par le test), GET /v1/config intercepté (Zone de
-// test, pas les données OSM), audit axe à chaque état et aucune coordonnée en console.
+// test, pas les données OSM), audit axe à chaque état, aucune coordonnée en console et
+// aucune requête hors de la coquille et de /v1/config.
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 
 import AxeBuilder from '@axe-core/playwright'
-import { test as base, expect, type Page, type Route } from '@playwright/test'
+import { test as base, expect, type Locator, type Page, type Route } from '@playwright/test'
 
 declare global {
   interface Window {
@@ -36,8 +39,18 @@ interface Texts {
     zone: { outside: string; firstConnection: string }
     retry: string
     trigger: string
-    photoSoon: string
+    rule: { title: string; body: string }
+    photo: {
+      unreadable: string
+      stale: string
+      position: string
+      alt: string
+      retake: string
+      continue: string
+      saveError: string
+    }
   }
+  details: { title: string; photoAlt: string; position: string; back: string }
 }
 
 const fr = JSON.parse(
@@ -149,7 +162,8 @@ const test = base.extend<{ capture: Capture }>({
             },
           },
         })
-        // Appareil photo : jamais demandé dans cette story (story 1.9).
+        // Viseur dans la page (getUserMedia) : jamais demandé, la prise de vue passe par
+        // l'appareil photo natif (story 1.9).
         let cameraCalls = 0
         Object.defineProperty(window, '__cameraCalls', { get: () => cameraCalls })
         if (navigator.mediaDevices) {
@@ -280,9 +294,11 @@ test('position bonne (± 12 m) : « Position détectée, précision ± 12 m », 
   expect(overflow).toBeLessThanOrEqual(0)
   await expectNoSeriousViolations(page)
 
-  // Le déclencheur annonce seulement l'étape suivante : ni appareil photo ni envoi.
+  // Le déclencheur ouvre le sélecteur de prise de vue (un seul fichier), jamais
+  // getUserMedia.
+  const chooser = page.waitForEvent('filechooser')
   await trigger(page).click()
-  await expect(page.getByText(fr.capture.photoSoon)).toBeVisible()
+  expect((await chooser).isMultiple()).toBe(false)
   expect(await page.evaluate(() => window.__cameraCalls)).toBe(0)
 })
 
@@ -483,4 +499,558 @@ test('quitter l’écran arrête le suivi de la Position', async ({ page }) => {
   await openCapture(page)
   await page.getByRole('link', { name: /accueil/i }).click()
   await expect.poll(() => page.evaluate(() => window.__geo?.watchers() ?? -1)).toBe(0)
+})
+
+// ---------------------------------------------------------------------------------------
+// Story 1.9 : photographier le dépôt en version légère et sans métadonnées.
+// ---------------------------------------------------------------------------------------
+
+const DETAILS_URL = /\/signaler\/details$/
+const MAX_PHOTO_BYTES = 307_200
+const MAX_EDGE_PX = 1600
+// Seconde mesure, reçue pendant la prise de vue : c'est elle qui est gardée.
+const PLATEAU_LATER = { lat: 14.6712, lng: -17.4377 }
+
+interface PhotoFile {
+  name: string
+  mimeType: string
+  buffer: Buffer
+}
+
+/** Image fabriquée par un canevas du navigateur, rendue au test. `noisy` : dégradé et
+ *  bruit, pour un poids proche d'une vraie photo de téléphone. */
+async function canvasImage(
+  page: Page,
+  options: { width: number; height: number; type: 'image/jpeg' | 'image/png'; noisy: boolean },
+): Promise<Buffer> {
+  const base64 = await page.evaluate(async ({ width, height, type, noisy }) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = width
+    canvas.height = height
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('canevas indisponible')
+    const image = context.createImageData(width, height)
+    const { data } = image
+    let seed = 7
+    for (let pixel = 0; pixel < width * height; pixel += 1) {
+      const x = pixel % width
+      const y = Math.floor(pixel / width)
+      let noise = 0
+      if (noisy) {
+        seed = (seed * 1103515245 + 12345) & 0x7fffffff
+        noise = (seed >> 16) & 0x1f
+      }
+      const at = pixel * 4
+      data[at] = Math.min(255, Math.round((x / width) * 200) + noise)
+      data[at + 1] = Math.min(255, Math.round((y / height) * 200) + noise)
+      data[at + 2] = Math.min(255, 90 + noise)
+      data[at + 3] = 255
+    }
+    context.putImageData(image, 0, 0)
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, 0.92))
+    if (!blob) throw new Error('encodage impossible')
+    canvas.width = 0
+    canvas.height = 0
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onerror = () => reject(reader.error)
+      reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+      reader.readAsDataURL(blob)
+    })
+  }, options)
+  return Buffer.from(base64, 'base64')
+}
+
+/** Segment APP1 Exif construit à la main (TIFF gros-boutiste) : Orientation = 6 (pivoter
+ *  de 90° dans le sens horaire) et GPS (14°40'15" N, 17°26'17" O). */
+function exifApp1(): Buffer {
+  const tiff = Buffer.alloc(140)
+  tiff.write('MM', 0, 'latin1')
+  tiff.writeUInt16BE(42, 2)
+  tiff.writeUInt32BE(8, 4)
+  const entry = (at: number, tag: number, type: number, count: number, value: Buffer) => {
+    tiff.writeUInt16BE(tag, at)
+    tiff.writeUInt16BE(type, at + 2)
+    tiff.writeUInt32BE(count, at + 4)
+    value.copy(tiff, at + 8)
+  }
+  const u32 = (value: number) => {
+    const buffer = Buffer.alloc(4)
+    buffer.writeUInt32BE(value)
+    return buffer
+  }
+  // IFD0 (offset 8) : Orientation, pointeur vers l'IFD GPS (offset 38).
+  tiff.writeUInt16BE(2, 8)
+  entry(10, 0x0112, 3, 1, Buffer.from([0, 6, 0, 0]))
+  entry(22, 0x8825, 4, 1, u32(38))
+  tiff.writeUInt32BE(0, 34)
+  // IFD GPS (offset 38) : références et rationnels (données à 92 et 116).
+  tiff.writeUInt16BE(4, 38)
+  entry(40, 0x0001, 2, 2, Buffer.from('N\0', 'latin1'))
+  entry(52, 0x0002, 5, 3, u32(92))
+  entry(64, 0x0003, 2, 2, Buffer.from('W\0', 'latin1'))
+  entry(76, 0x0004, 5, 3, u32(116))
+  tiff.writeUInt32BE(0, 88)
+  ;[14, 1, 40, 1, 15, 1, 17, 1, 26, 1, 17, 1].forEach((value, index) =>
+    tiff.writeUInt32BE(value, 92 + index * 4),
+  )
+  const payload = Buffer.concat([Buffer.from('Exif\0\0', 'latin1'), tiff])
+  const header = Buffer.alloc(4)
+  header.writeUInt16BE(0xffe1, 0)
+  header.writeUInt16BE(payload.length + 2, 2)
+  return Buffer.concat([header, payload])
+}
+
+/** Photo « de téléphone » : JPEG de 4000 × 3000 (12 Mpx), paysage tel qu'encodé, avec un
+ *  APP1 Exif (orientation 6 et GPS) placé juste après SOI. */
+async function cameraPhoto(page: Page): Promise<Buffer> {
+  const jpeg = await canvasImage(page, { width: 4000, height: 3000, type: 'image/jpeg', noisy: true })
+  return Buffer.concat([jpeg.subarray(0, 2), exifApp1(), jpeg.subarray(2)])
+}
+
+/** Codes des marqueurs d'en-tête d'un JPEG, de SOI à SOS (parcours indépendant de l'app). */
+function headerMarkers(bytes: Buffer): number[] {
+  expect(bytes.readUInt16BE(0)).toBe(0xffd8)
+  expect(bytes.readUInt16BE(bytes.length - 2)).toBe(0xffd9)
+  const markers: number[] = []
+  let offset = 2
+  for (;;) {
+    expect(bytes[offset]).toBe(0xff)
+    const marker = bytes[offset + 1]
+    markers.push(marker)
+    if (marker === 0xda) return markers
+    offset += 2 + bytes.readUInt16BE(offset + 2)
+    expect(offset).toBeLessThan(bytes.length)
+  }
+}
+
+function sha256(bytes: Buffer): string {
+  return createHash('sha256').update(bytes).digest('hex')
+}
+
+function rule(page: Page) {
+  return page.getByRole('heading', { level: 2, name: fr.capture.rule.title })
+}
+
+function preview(page: Page) {
+  return page.getByRole('img', { name: fr.capture.photo.alt })
+}
+
+function fileInput(page: Page) {
+  return page.locator('input[type="file"]')
+}
+
+/** Déclencheur, puis le fichier remis par le sélecteur de prise de vue. */
+async function takePhoto(page: Page, file: PhotoFile) {
+  const chooser = page.waitForEvent('filechooser')
+  await trigger(page).click()
+  await (await chooser).setFiles(file)
+}
+
+/** Fichier remis directement à l'`<input>`, avec la date de modification voulue (le
+ *  sélecteur de Playwright date toujours le fichier de l'instant). */
+async function dropFile(page: Page, file: PhotoFile, lastModified: number) {
+  await fileInput(page).evaluate(
+    (input: HTMLInputElement, { base64, name, type, lastModified }) => {
+      const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0))
+      const transfer = new DataTransfer()
+      transfer.items.add(new File([bytes], name, { type, lastModified }))
+      input.files = transfer.files
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    },
+    { base64: file.buffer.toString('base64'), name: file.name, type: file.mimeType, lastModified },
+  )
+}
+
+/** Octets (base64) et dimensions de l'image affichée par `<img>`. */
+function imageBytes(image: Locator) {
+  return image.evaluate(async (element: HTMLImageElement) => {
+    await element.decode()
+    // Octets de l'URL blob: de l'aperçu (XHR : `fetch` est réservé à src/api et src/offline).
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      const request = new XMLHttpRequest()
+      request.responseType = 'blob'
+      request.onload = () => resolve(request.response as Blob)
+      request.onerror = () => reject(new Error('aperçu illisible'))
+      request.open('GET', element.src)
+      request.send()
+    })
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onerror = () => reject(reader.error)
+      reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+      reader.readAsDataURL(blob)
+    })
+    return { base64, width: element.naturalWidth, height: element.naturalHeight }
+  })
+}
+
+interface StoredDraft {
+  base64: string
+  type: string
+  width: number
+  height: number
+  lat: unknown
+  lng: unknown
+  accuracy: unknown
+  capturedAt: unknown
+}
+
+/** `meta.draft` lu sans Dexie ; `null` s'il n'existe pas. */
+function readDraft(page: Page): Promise<StoredDraft | null> {
+  return page.evaluate(async (name) => {
+    const databases = await indexedDB.databases()
+    if (!databases.some((database) => database.name === name)) return null
+    const row = await new Promise<{ value?: Record<string, unknown> } | undefined>(
+      (resolve, reject) => {
+        const open = indexedDB.open(name)
+        open.onerror = () => reject(open.error)
+        open.onsuccess = () => {
+          const database = open.result
+          const request = database.transaction('meta', 'readonly').objectStore('meta').get('draft')
+          request.onsuccess = () => {
+            database.close()
+            resolve(request.result as { value?: Record<string, unknown> } | undefined)
+          }
+          request.onerror = () => {
+            database.close()
+            reject(request.error)
+          }
+        }
+      },
+    )
+    if (!row?.value) return null
+    const { photo, lat, lng, accuracy, capturedAt } = row.value
+    if (!(photo instanceof Blob)) throw new Error('photo du brouillon : pas un Blob')
+    const bitmap = await createImageBitmap(photo)
+    const size = { width: bitmap.width, height: bitmap.height }
+    bitmap.close()
+    const base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onerror = () => reject(reader.error)
+      reader.onload = () => resolve(String(reader.result).split(',')[1] ?? '')
+      reader.readAsDataURL(photo)
+    })
+    return { base64, type: photo.type, ...size, lat, lng, accuracy, capturedAt }
+  }, 'terangacycle')
+}
+
+/** Écran 2 prêt : consentement, Position bonne dans la Zone. */
+async function readyToShoot(page: Page) {
+  await openCapture(page)
+  await emit(page, PLATEAU, 12)
+  await expect(trigger(page)).toBeEnabled()
+}
+
+test('déclencheur : <input accept="image/*" capture="environment">, cible ≥ 44 px, consigne visible', async ({
+  page,
+}) => {
+  await readyToShoot(page)
+  await expect(fileInput(page)).toHaveAttribute('accept', 'image/*')
+  await expect(fileInput(page)).toHaveAttribute('capture', 'environment')
+  await expect(fileInput(page)).not.toHaveAttribute('multiple')
+  await expect(fileInput(page)).toBeEnabled()
+  const box = await trigger(page).boundingBox()
+  expect(box?.height).toBeGreaterThanOrEqual(44)
+  expect(box?.width).toBeGreaterThanOrEqual(44)
+  // Pictogramme et libellé.
+  await expect(trigger(page).locator('svg')).toHaveCount(1)
+  await expect(rule(page)).toBeVisible()
+  await expect(page.getByText(fr.capture.rule.body)).toBeVisible()
+  await expectNoSeriousViolations(page)
+})
+
+test('photo normale (12 Mpx, Exif avec GPS, orientation 6) : aperçu portrait, JPEG ≤ 300 Ko sans APP1, brouillon identique', async ({
+  page,
+}) => {
+  await readyToShoot(page)
+  const photo = await cameraPhoto(page)
+  expect(photo.length).toBeGreaterThan(1_000_000)
+  expect(photo.includes('Exif')).toBe(true)
+
+  const chooser = page.waitForEvent('filechooser')
+  await trigger(page).click()
+  // La Position change pendant la prise de vue : la dernière mesure est gardée.
+  await emit(page, PLATEAU_LATER, 9)
+  const before = Date.now()
+  await (await chooser).setFiles({ name: 'IMG_0001.jpg', mimeType: 'image/jpeg', buffer: photo })
+
+  await expect(preview(page)).toBeVisible({ timeout: 20_000 })
+  await expect(preview(page)).toBeFocused()
+  await expect(rule(page)).toHaveCount(0)
+  await expect(trigger(page)).toHaveCount(0)
+  const shown = await imageBytes(preview(page))
+  // Orientation 6 appliquée : le paysage de 4000 × 3000 devient un portrait.
+  expect(shown.height).toBeGreaterThan(shown.width)
+  expect(shown.height).toBeLessThanOrEqual(MAX_EDGE_PX)
+  const shownBytes = Buffer.from(shown.base64, 'base64')
+  expect(shownBytes.length).toBeLessThanOrEqual(MAX_PHOTO_BYTES)
+  expect(headerMarkers(shownBytes)).not.toContain(0xe1)
+  await expectNoSeriousViolations(page)
+  // Rien n'est gardé avant « Continuer ».
+  expect(await readDraft(page)).toBeNull()
+
+  await page.getByRole('button', { name: fr.capture.photo.continue }).click()
+  await expect(page).toHaveURL(DETAILS_URL)
+  await expect(page.getByRole('heading', { level: 1, name: fr.details.title })).toBeVisible()
+  await expect(page.getByRole('img', { name: fr.details.photoAlt })).toBeVisible()
+  await expect(page.getByText(fr.details.position.replace('{{accuracy}}', '9'))).toBeVisible()
+
+  const draft = await readDraft(page)
+  expect(draft).not.toBeNull()
+  const stored = Buffer.from(draft?.base64 ?? '', 'base64')
+  expect(draft?.type).toBe('image/jpeg')
+  expect(stored.length).toBeLessThanOrEqual(MAX_PHOTO_BYTES)
+  // Aucun segment APP1 (Exif, XMP), aucune trace de l'Exif d'origine.
+  expect(headerMarkers(stored)).not.toContain(0xe1)
+  expect(stored.includes('Exif')).toBe(false)
+  expect(stored.includes('http://ns.adobe.com/xap')).toBe(false)
+  // Les octets gardés sont exactement ceux de l'aperçu.
+  expect(sha256(stored)).toBe(sha256(shownBytes))
+  expect(draft?.height).toBeGreaterThan(draft?.width ?? Infinity)
+  expect(Math.max(draft?.width ?? 0, draft?.height ?? 0)).toBeLessThanOrEqual(MAX_EDGE_PX)
+  // Position, précision et heure de la prise.
+  expect(draft).toMatchObject({ lat: PLATEAU_LATER.lat, lng: PLATEAU_LATER.lng, accuracy: 9 })
+  const capturedAt = Date.parse(String(draft?.capturedAt))
+  expect(capturedAt).toBeGreaterThanOrEqual(before - 1000)
+  expect(capturedAt).toBeLessThanOrEqual(Date.now() + 1000)
+  expect(String(draft?.capturedAt)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
+  await expectNoSeriousViolations(page)
+
+  // Retour à la capture : nouvelle prise possible.
+  await page.getByRole('link', { name: fr.details.back }).click()
+  await expect(page).toHaveURL(CAPTURE_URL)
+})
+
+test('image lisible non JPEG (comme un HEIC lu par le navigateur) : convertie en JPEG', async ({
+  page,
+}) => {
+  await readyToShoot(page)
+  const png = await canvasImage(page, { width: 1200, height: 900, type: 'image/png', noisy: false })
+  await takePhoto(page, { name: 'photo.png', mimeType: 'image/png', buffer: png })
+  await expect(preview(page)).toBeVisible()
+  const shown = await imageBytes(preview(page))
+  const bytes = Buffer.from(shown.base64, 'base64')
+  expect(headerMarkers(bytes)).not.toContain(0xe1)
+  expect({ width: shown.width, height: shown.height }).toEqual({ width: 1200, height: 900 })
+
+  await page.getByRole('button', { name: fr.capture.photo.continue }).click()
+  await expect(page).toHaveURL(DETAILS_URL)
+  const draft = await readDraft(page)
+  expect(draft?.type).toBe('image/jpeg')
+  expect(sha256(Buffer.from(draft?.base64 ?? '', 'base64'))).toBe(sha256(bytes))
+})
+
+for (const [label, file] of [
+  [
+    'octets corrompus',
+    {
+      name: 'IMG_0002.jpg',
+      mimeType: 'image/jpeg',
+      buffer: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(4096, 0x5a)]),
+    },
+  ],
+  [
+    'HEIC non pris en charge',
+    {
+      name: 'IMG_0003.HEIC',
+      mimeType: 'image/heic',
+      buffer: Buffer.concat([
+        Buffer.from([0, 0, 0, 0x18]),
+        Buffer.from('ftypheic\0\0\0\0mif1heic', 'latin1'),
+        Buffer.alloc(4096, 0x11),
+      ]),
+    },
+  ],
+] as const) {
+  test(`fichier illisible (${label}) : « Cette photo n’a pas pu être lue. Reprenez-la. », aucun brouillon`, async ({
+    page,
+  }) => {
+    await readyToShoot(page)
+    await takePhoto(page, { ...file, buffer: Buffer.from(file.buffer) })
+    await expect(page.getByText(fr.capture.photo.unreadable)).toBeVisible()
+    // Le message est lu : le focus y est placé (le déclencheur, désactivé pendant le
+    // traitement, ne le garde pas).
+    await expect(page.getByText(fr.capture.photo.unreadable)).toBeFocused()
+    await expect(preview(page)).toHaveCount(0)
+    expect(await readDraft(page)).toBeNull()
+    // On peut reprendre la photo tout de suite, consigne visible.
+    await expect(trigger(page)).toBeEnabled()
+    await expect(rule(page)).toBeVisible()
+    await expectNoSeriousViolations(page)
+  })
+}
+
+test('photo ancienne (plus de 10 minutes) : refusée avec un message, aucun brouillon', async ({
+  page,
+}) => {
+  await readyToShoot(page)
+  const jpeg = await canvasImage(page, { width: 800, height: 600, type: 'image/jpeg', noisy: false })
+  await dropFile(
+    page,
+    { name: 'galerie.jpg', mimeType: 'image/jpeg', buffer: jpeg },
+    Date.now() - 11 * 60_000,
+  )
+  await expect(page.getByText(fr.capture.photo.stale)).toBeVisible()
+  await expect(preview(page)).toHaveCount(0)
+  expect(await readDraft(page)).toBeNull()
+  await expect(trigger(page)).toBeEnabled()
+  await expectNoSeriousViolations(page)
+
+  // La même image, prise à l'instant : acceptée.
+  await dropFile(page, { name: 'photo.jpg', mimeType: 'image/jpeg', buffer: jpeg }, Date.now())
+  await expect(preview(page)).toBeVisible()
+  await expect(page.getByText(fr.capture.photo.stale)).toHaveCount(0)
+})
+
+test('reprise : « Reprendre la photo » efface l’aperçu, la consigne revient, déclencheur actif', async ({
+  page,
+}) => {
+  await readyToShoot(page)
+  const jpeg = await canvasImage(page, { width: 800, height: 600, type: 'image/jpeg', noisy: false })
+  await takePhoto(page, { name: 'photo.jpg', mimeType: 'image/jpeg', buffer: jpeg })
+  await expect(preview(page)).toBeVisible()
+  await expect(rule(page)).toHaveCount(0)
+
+  await page.getByRole('button', { name: fr.capture.photo.retake }).click()
+  await expect(preview(page)).toHaveCount(0)
+  await expect(rule(page)).toBeVisible()
+  await expect(trigger(page)).toBeEnabled()
+  await expect(trigger(page)).toBeFocused()
+  expect(await readDraft(page)).toBeNull()
+  await expectNoSeriousViolations(page)
+
+  // Seconde prise : nouvel aperçu.
+  await takePhoto(page, { name: 'photo-2.jpg', mimeType: 'image/jpeg', buffer: jpeg })
+  await expect(preview(page)).toBeVisible()
+})
+
+test('lien direct /signaler/details sans brouillon : redirection vers la capture', async ({
+  page,
+}) => {
+  await openCapture(page)
+  await page.goto('/signaler/details')
+  await expect(page).toHaveURL(CAPTURE_URL)
+  await expect(page.getByRole('heading', { level: 1, name: fr.capture.title })).toBeVisible()
+})
+
+test('déclencheur inactif (hors Zone, imprécise) : aucune prise de vue possible', async ({
+  page,
+}) => {
+  await openCapture(page)
+  await emit(page, THIES, 10)
+  await expect(page.getByText(fr.capture.zone.outside)).toBeVisible()
+  await expect(trigger(page)).toBeDisabled()
+  await expect(rule(page)).toBeVisible()
+
+  await emit(page, PLATEAU, 80)
+  await expect(page.getByText(fr.capture.position.wait)).toBeVisible()
+  await expect(trigger(page)).toBeDisabled()
+  await expectNoSeriousViolations(page)
+  // Le déclencheur désactivé n'ouvre pas le sélecteur, même cliqué de force.
+  let opened = false
+  page.on('filechooser', () => {
+    opened = true
+  })
+  await trigger(page).click({ force: true })
+  await page.waitForTimeout(300)
+  expect(opened).toBe(false)
+})
+
+test('Position imprécise au retour de l’appareil photo : photo acceptée avec cette précision', async ({
+  page,
+}) => {
+  await readyToShoot(page)
+  const jpeg = await canvasImage(page, { width: 800, height: 600, type: 'image/jpeg', noisy: false })
+  const chooser = page.waitForEvent('filechooser')
+  await trigger(page).click()
+  await emit(page, PLATEAU, 80)
+  await (await chooser).setFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: jpeg })
+  await expect(preview(page)).toBeVisible()
+  await page.getByRole('button', { name: fr.capture.photo.continue }).click()
+  await expect(page).toHaveURL(DETAILS_URL)
+  expect(await readDraft(page)).toMatchObject({ accuracy: 80 })
+})
+
+test('Position sortie de la Zone pendant la prise de vue : photo refusée, aucun brouillon', async ({
+  page,
+}) => {
+  await readyToShoot(page)
+  const jpeg = await canvasImage(page, { width: 800, height: 600, type: 'image/jpeg', noisy: false })
+  const chooser = page.waitForEvent('filechooser')
+  await trigger(page).click()
+  await emit(page, THIES, 10)
+  await (await chooser).setFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: jpeg })
+  await expect(page.getByText(fr.capture.photo.position)).toBeVisible()
+  await expect(preview(page)).toHaveCount(0)
+  expect(await readDraft(page)).toBeNull()
+  await expectNoSeriousViolations(page)
+})
+
+test('Position mesurée il y a plus de 2 minutes à l’arrivée du fichier : photo refusée, aucun brouillon', async ({
+  page,
+}) => {
+  await page.clock.install()
+  await readyToShoot(page)
+  const jpeg = await canvasImage(page, { width: 800, height: 600, type: 'image/jpeg', noisy: false })
+  const chooser = page.waitForEvent('filechooser')
+  await trigger(page).click()
+  // Le suivi de la Position s'est arrêté pendant que l'appareil photo était ouvert.
+  await page.clock.fastForward('02:01')
+  await (await chooser).setFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: jpeg })
+  await expect(page.getByText(fr.capture.photo.position)).toBeVisible()
+  await expect(page.getByText(fr.capture.photo.position)).toBeFocused()
+  await expect(preview(page)).toHaveCount(0)
+  expect(await readDraft(page)).toBeNull()
+})
+
+test('une nouvelle photo efface l’ancien brouillon, même refusée', async ({ page }) => {
+  await readyToShoot(page)
+  const jpeg = await canvasImage(page, { width: 800, height: 600, type: 'image/jpeg', noisy: false })
+  await takePhoto(page, { name: 'photo.jpg', mimeType: 'image/jpeg', buffer: jpeg })
+  await expect(preview(page)).toBeVisible()
+  await page.getByRole('button', { name: fr.capture.photo.continue }).click()
+  await expect(page).toHaveURL(DETAILS_URL)
+  expect(await readDraft(page)).not.toBeNull()
+
+  await page.getByRole('link', { name: fr.details.back }).click()
+  await expect(page).toHaveURL(CAPTURE_URL)
+  await expectWatching(page)
+  await emit(page, PLATEAU, 12)
+  await expect(trigger(page)).toBeEnabled()
+  await dropFile(
+    page,
+    { name: 'galerie.jpg', mimeType: 'image/jpeg', buffer: jpeg },
+    Date.now() - 11 * 60_000,
+  )
+  await expect(page.getByText(fr.capture.photo.stale)).toBeVisible()
+  await expect.poll(() => readDraft(page)).toBeNull()
+
+  await page.goto('/signaler/details')
+  await expect(page).toHaveURL(CAPTURE_URL)
+})
+
+test('« Continuer » quand le brouillon ne peut pas être gardé : message, on reste sur la capture', async ({
+  page,
+}) => {
+  await readyToShoot(page)
+  const jpeg = await canvasImage(page, { width: 800, height: 600, type: 'image/jpeg', noisy: false })
+  await takePhoto(page, { name: 'photo.jpg', mimeType: 'image/jpeg', buffer: jpeg })
+  await expect(preview(page)).toBeVisible()
+
+  await page.evaluate(() => {
+    IDBObjectStore.prototype.put = () => {
+      throw new DOMException('espace saturé (test)', 'QuotaExceededError')
+    }
+  })
+  const keep = page.getByRole('button', { name: fr.capture.photo.continue })
+  await keep.click()
+
+  await expect(page.getByText(fr.capture.photo.saveError)).toBeVisible()
+  await expect(page.getByText(fr.capture.photo.saveError)).toBeFocused()
+  await expect(page).toHaveURL(CAPTURE_URL)
+  await expect(keep).toBeEnabled()
+  await expect(preview(page)).toBeVisible()
+  expect(await readDraft(page)).toBeNull()
+  await expectNoSeriousViolations(page)
 })
