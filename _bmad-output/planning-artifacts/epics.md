@@ -16,8 +16,10 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 
 > **Notes de lecture.**
 > - Vocabulaire obligatoire : Glossaire du PRD (§3). Priorité des sources : PRD > épine d'architecture > addendum (l'épine remplace l'addendum pour les noms et formes qu'elle fixe).
-> - Pas de document `bmad-ux` : décision de Mia. La référence UX est la maquette Figma figée (7 écrans, nœuds listés dans l'addendum §G, sans clé de fichier), les jetons de design (PRD §6.3 et §7, épine AD-16) et les exigences d'accessibilité et d'inclusion du PRD (NFR-12, NFR-13).
-> - Portes du plan de 72 h (PRD §9) : **H24**, **H48**, **H60** = démo du hackathon ; **opt. H48** = seulement si la porte H48 est atteinte en avance ; **pilote** = avant le pilote, hors des portes du hackathon ; **extension** = Lots de matière, après H48.
+> - Pas de document `bmad-ux` : décision de la responsable produit. La référence UX est la maquette Figma figée (7 écrans, nœuds listés dans l'addendum §G, sans clé de fichier), les jetons de design (PRD §6.3 et §7, épine AD-16) et les exigences d'accessibilité et d'inclusion du PRD (NFR-12, NFR-13).
+> - Portes du plan de 72 h (PRD §9.1) : **H24**, **H48**, **H60** = démo du hackathon ; **opt. H48** = seulement si la porte H48 est atteinte en avance ; **pilote** = avant le pilote, hors des portes du hackathon.
+> - **Version 2.0 (25/11/2026).** Chaque epic et chaque story portent une **Priorité** (PRD §9.0), qui est l'axe de planification : **P0** (en cours), **piste hackathon** (IA minimale et hors-ligne), **P1** (MVP opérationnel), **P2** (MVP commercial), **P3** (place de marché), **P4** (automatisation), **post-pilote**. Les portes ne servent plus qu'à la démo. Les blocs « Amendement v2.0 » priment sur les critères qui les précèdent dans la même story. Source : `sprint-change-proposal-2026-11-25.md`.
+> - « Administrateur d'organisation » devient **Administrateur d'organisation** (commune, opérateur ou groupement de collecteurs) ; le rôle `org_admin` devient `org_admin`.
 
 ## Requirements Inventory
 
@@ -27,11 +29,11 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 
 - FR-1 : Un utilisateur se connecte avec son numéro de téléphone (numéros sénégalais +221 seulement) et un code OTP reçu par SMS ; le code expire après 5 min, sert une seule fois, est invalidé après 5 essais erronés et n'est jamais stocké en clair ; au plus 5 demandes/h par numéro, 5/h par Identifiant d'appareil et 20/h par IP (sinon 429 avec délai d'attente) ; un plafond quotidien de SMS configurable coupe l'envoi (503 + alerte d'équipe). — **H24**
 - FR-2 : Un utilisateur connecté garde sa session 30 jours d'activité sans ressaisir de code et peut se déconnecter ; jeton d'accès ≤ 15 min ; déconnexion et révocation invalident la session côté serveur (renouvellement refusé en 401) ; la réutilisation d'un jeton de renouvellement déjà utilisé révoque toute la session ; aucun jeton dans `localStorage`, `sessionStorage` ni IndexedDB ; un jeton d'algorithme hors liste blanche, d'émetteur/audience incorrects, expiré ou de clé inconnue est refusé (401, un test par cas). — **H24**
-- FR-3 : Le système applique les rôles Citoyen, Collecteur, Recycleur, Modérateur et Administrateur commune sur chaque action et vérifie la propriété de chaque objet (un Citoyen ne voit que ses Signalements ; un Citoyen anonyme ne possède que ceux créés avec son Identifiant d'appareil ; jamais d'accès par le seul Numéro de suivi ; un Collecteur ne voit jamais l'auteur) ; un test automatisé appelle chaque route × chaque rôle et sans jeton, tout accès non prévu échoue (401/403). — **H24**
+- FR-3 : **(v2.0 : rôles portés par les Appartenances et cloisonnement par Organisation, FR-45 et FR-46 ; test d'isolement NFR-18.)** Le système applique les rôles Citoyen, Collecteur, Recycleur, Modérateur et Administrateur d'organisation sur chaque action et vérifie la propriété de chaque objet (un Citoyen ne voit que ses Signalements ; un Citoyen anonyme ne possède que ceux créés avec son Identifiant d'appareil ; jamais d'accès par le seul Numéro de suivi ; un Collecteur ne voit jamais l'auteur) ; un test automatisé appelle chaque route × chaque rôle et sans jeton, tout accès non prévu échoue (401/403). — **H24**
 - FR-4 : Avant la première capture, le Citoyen voit un écran de consentement (géolocalisation, envoi de la photo, usage des photos et Corrections pour le Modèle, consigne « ni personne ni plaque ») ; rien n'est envoyé sans acceptation ; acceptation horodatée (compte) ou mémorisée sur l'appareil (anonyme) ; le refus du réentraînement ne bloque pas le signalement ; le choix est copié sur chaque Signalement ; il est révocable à tout moment (profil ou réglages), un retrait exclut les Signalements passés et futurs des exports suivants. — **H24**
 - FR-5 : Un utilisateur connecté consulte son profil et ses Signalements, change sa langue et son nom affiché, et supprime son compte : numéro effacé, requête suivante refusée (401), purge complète sous 30 jours ; photos et Positions des Signalements `en attente de modération` ou `rejeté` supprimées, Signalements ayant atteint `validé` conservés avec auteur anonymisé ; un Citoyen anonyme peut retirer depuis l'appareil d'origine un Signalement encore `en attente de modération`. — **H60**
 - FR-6 : Le Mode démonstration affiche le code OTP à l'écran ; le service refuse de démarrer si le Mode démonstration est actif en configuration de production ; un bandeau « Mode démonstration » est visible sur tous les écrans tant qu'il est actif. — **H24**
-- FR-43 : Un Modérateur ou un Administrateur commune se connecte avec l'OTP et un Second facteur (application d'authentification) ; sans Second facteur valide, les fonctions du Personnel sont refusées (403) ; activation et réinitialisation inscrites au Journal d'audit. — **pilote (Must avant le pilote, hors portes du hackathon)**
+- FR-43 : Un Modérateur ou un Administrateur d'organisation se connecte avec l'OTP et un Second facteur (application d'authentification) ; sans Second facteur valide, les fonctions du Personnel sont refusées (403) ; activation et réinitialisation inscrites au Journal d'audit. — **pilote (Must avant le pilote, hors portes du hackathon)**
 
 **4.2 Signalement citoyen**
 
@@ -69,9 +71,9 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 
 - FR-24 : Un Collecteur vérifié voit les Signalements `validé` dans un rayon de 1 à 10 km (5 km par défaut ; hors bornes → 422), triés par distance, sur carte et en liste, filtrables par Type de déchet, avec Type de déchet retenu, distance, Poids estimé, Score de confiance serveur (ou « Type confirmé par un humain » si le retenu diffère) et miniature ≤ 30 Ko (photo complète à l'ouverture) ; aucune information sur l'auteur ; avant acceptation, Position arrondie à 3 décimales et distance à 100 m près (jamais plus de 3 décimales pour un Collecteur hors Mission) ; Position précise après acceptation. — **H48**
 - FR-25 : Un Collecteur vérifié accepte une Mission et le Signalement passe à `assigné` ; acceptations simultanées : une seule réussit, l'autre reçoit « Mission déjà prise » (409) ; Collecteur non vérifié → 403 ; Signalement non `validé` → 409 ; renvoi de la même acceptation par le même Collecteur → Mission existante sans erreur. — **H48**
-- FR-26 : Le Collecteur annule sa Mission `active`, ou un Administrateur commune annule une Mission `active` : Mission `annulée`, Signalement de retour à `validé` ; annuler une Mission `terminée`, `annulée` ou `expirée` → 409 ; annulation auditée avec son auteur. — **H48**
+- FR-26 : Le Collecteur annule sa Mission `active`, ou un Administrateur d'organisation annule une Mission `active` : Mission `annulée`, Signalement de retour à `validé` ; annuler une Mission `terminée`, `annulée` ou `expirée` → 409 ; annulation auditée avec son auteur. — **H48**
 - FR-27 : Depuis une Mission `active`, son Collecteur (et lui seul) ouvre l'application de cartes du téléphone centrée sur la Position précise du Signalement. — **Should, opt. H48**
-- FR-28 : Un Administrateur commune assigne un Signalement `validé` à un Collecteur vérifié : Mission `active`, Signalement `assigné`, Collecteur notifié et voyant la Mission ≤ 15 s après (application ouverte) ; chaque assignation auditée. — **Should, opt. H48**
+- FR-28 : Un Administrateur d'organisation assigne un Signalement `validé` à un Collecteur vérifié : Mission `active`, Signalement `assigné`, Collecteur notifié et voyant la Mission ≤ 15 s après (application ouverte) ; chaque assignation auditée. — **Should, opt. H48**
 - FR-42 : Une Mission `active` sans Preuve de collecte 48 h (configurable) après son acceptation passe à `expirée` et le Signalement revient à `validé`, de nouveau visible des Collecteurs du rayon ; expiration auditée ; test à horloge simulée (48 h 01 min). — **Should, pilote**
 
 **4.8 Preuve de collecte**
@@ -82,25 +84,71 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 
 **4.9 Tableau de bord commune**
 
-- FR-31 : L'Administrateur commune voit, sur une période choisie et pour la Cohorte de cette période (horodatage serveur de réception) : Nombre de Signalements (dont ayant atteint `validé`, dont `rejeté`) ; Délai médian réception → acceptation de la Preuve (avec le nombre de Signalements encore ouverts) ; Taux de traitement (`collecté` ÷ ayant atteint `validé`, lu dans l'historique des Statuts ; jeu d'essai 6/10 → 60 %) ; Kg collectés (Preuves acceptées pendant la période, hors `contestée`, total et par Type de déchet, avec part `pesé`) ; Collecteurs vérifiés actifs ; répartition de la Cohorte par Type de déchet retenu ; un Signalement créé hors-ligne entre dans la Cohorte de sa date de réception serveur. — **H60**
-- FR-32 : L'Administrateur commune voit la Carte de chaleur filtrable par période, Type de déchet et Statut, affichée en < 2 s pour 5 000 Signalements. — **H60**
-- FR-33 : L'Administrateur commune télécharge un Export agrégé CSV et GeoJSON sans numéro, nom ni identifiant d'auteur, Positions arrondies à 3 décimales. — **H60**
+- FR-31 : L'Administrateur d'organisation voit, sur une période choisie et pour la Cohorte de cette période (horodatage serveur de réception) : Nombre de Signalements (dont ayant atteint `validé`, dont `rejeté`) ; Délai médian réception → acceptation de la Preuve (avec le nombre de Signalements encore ouverts) ; Taux de traitement (`collecté` ÷ ayant atteint `validé`, lu dans l'historique des Statuts ; jeu d'essai 6/10 → 60 %) ; Kg collectés (Preuves acceptées pendant la période, hors `contestée`, total et par Type de déchet, avec part `pesé`) ; Collecteurs vérifiés actifs ; répartition de la Cohorte par Type de déchet retenu ; un Signalement créé hors-ligne entre dans la Cohorte de sa date de réception serveur. — **H60**
+- FR-32 : L'Administrateur d'organisation voit la Carte de chaleur filtrable par période, Type de déchet et Statut, affichée en < 2 s pour 5 000 Signalements. — **H60**
+- FR-33 : L'Administrateur d'organisation télécharge un Export agrégé CSV et GeoJSON sans numéro, nom ni identifiant d'auteur, Positions arrondies à 3 décimales. — **H60**
 - FR-34 : Tout Visiteur voit une carte publique agrégée par cellule (≥ 500 m de côté, masquée sous 3 Signalements) ou par Zone, jamais un point précis ; aucune réponse publique ne contient de coordonnées de Signalement ; tant que FR-34 n'est pas livrée, aucune carte n'est accessible sans connexion. — **Should, opt. H48**
 
 **4.10 Administration des comptes**
 
-- FR-35 : Un Administrateur commune crée, vérifie et suspend un compte Collecteur et change le rôle d'un utilisateur ; chaque action auditée ; la requête suivante d'un compte suspendu est refusée (401). — **H60**
-- FR-36 : Le système inscrit au Journal d'audit (acteur, objet, état avant/après, horodatage serveur), en ajout seul, toute transition de Statut et de Statut de Mission (expiration comprise), toute décision de modération, Correction par un Modérateur et Revue de Preuve, toute assignation manuelle, toute création/vérification/suspension/suppression de compte et tout changement de rôle, toute activation/réinitialisation du Second facteur, tout Export agrégé et export des Corrections, toute connexion du Personnel ; un test par action ; aucune route ni le rôle applicatif ne peut modifier ou supprimer une entrée. Consultation par l'Administrateur commune filtrable par action et période (Should) ; historique des Statuts visible du Personnel dans le détail d'un Signalement. — **H48 (inscription) ; consultation : Should, opt. H48**
+- FR-35 : Un Administrateur d'organisation crée, vérifie et suspend un compte Collecteur et change le rôle d'un utilisateur ; chaque action auditée ; la requête suivante d'un compte suspendu est refusée (401). — **H60**
+- FR-36 : Le système inscrit au Journal d'audit (acteur, objet, état avant/après, horodatage serveur), en ajout seul, toute transition de Statut et de Statut de Mission (expiration comprise), toute décision de modération, Correction par un Modérateur et Revue de Preuve, toute assignation manuelle, toute création/vérification/suspension/suppression de compte et tout changement de rôle, toute activation/réinitialisation du Second facteur, tout Export agrégé et export des Corrections, toute connexion du Personnel ; un test par action ; aucune route ni le rôle applicatif ne peut modifier ou supprimer une entrée. Consultation par l'Administrateur d'organisation filtrable par action et période (Should) ; historique des Statuts visible du Personnel dans le détail d'un Signalement. — **H48 (inscription) ; consultation : Should, opt. H48**
 
 **4.11 Données de démonstration**
 
-- FR-37 : Un jeu de Données de démonstration (Zones de Dakar, comptes de test de chaque rôle dont au moins un Collecteur vérifié, un Modérateur et un Administrateur commune, Signalements à divers Statuts) se charge et se retire en une commande ; tout écran affichant des Données de démonstration porte l'étiquette « Données de démonstration » ; en Mode démonstration, tout Signalement, Mission et Preuve créés sont automatiquement étiquetés. — **H24**
+- FR-37 : **(v2.0 : ajoute au moins deux Organisations communes, une entreprise, un groupement de collecteurs, un recycleur et des comptes de chaque rôle ; montants de démonstration manifestement fictifs.)** Un jeu de Données de démonstration (Zones de Dakar, comptes de test de chaque rôle dont au moins un Collecteur vérifié, un Modérateur et un Administrateur d'organisation, Signalements à divers Statuts) se charge et se retire en une commande ; tout écran affichant des Données de démonstration porte l'étiquette « Données de démonstration » ; en Mode démonstration, tout Signalement, Mission et Preuve créés sont automatiquement étiquetés. — **H24**
 
-**4.12 Lots de matière (extension, après H48)**
+**4.12 Place de marché (lot P3, réécrite en v2.0)**
 
-- FR-38 : Un Collecteur déclare un Lot de matière (Type de déchet, poids > 0, Zone, photo ; sinon 422), créé au Statut de Lot `disponible`. — **Should, extension**
-- FR-39 : Un Recycleur consulte les Lots `disponible`, filtrés par Type de déchet, Zone et poids minimal ; aucune réponse de liste ne contient le numéro ni le nom du Collecteur ; contact donné seulement après une demande. — **Should, extension**
-- FR-40 : Un Recycleur réserve un Lot, qui passe à `réservé` (réserver un Lot déjà `réservé` → 409) ; le Collecteur voit la réservation ≤ 15 s après, application ouverte. — **Could, extension**
+- FR-38 : Le vendeur constitue un Lot (Type de déchet, Zone) à partir d'Éléments de lot (Preuve d'origine + kg prélevés). Le vendeur est l'ayant droit des kg fixé à l'acceptation de la Preuve : l'Organisation de la Mission si son Contrat la désigne, sinon le groupement de collecteurs du Collecteur s'il est autorisé par son Contrat, sinon **le Collecteur** ; un Collecteur ne vend que des kg qu'il a lui-même prouvés. Seuls des kg vérifiés, non contestés et non encore vendus entrent dans un Lot (règle vérifiée par la base) ; la somme prélevée sur une Preuve ne dépasse jamais son Poids déclaré. — **P3**
+- FR-39 : Un Recycleur vérifié consulte les Lots `disponible`, filtrés par Type de déchet, quantité minimale et Zone ; aucune réponse de liste ne contient l'identité ni le contact du vendeur ; Recycleur non vérifié → 403. — **P3**
+- FR-40 : Un Recycleur vérifié réserve un Lot `disponible` (`réservé` ; réservation concurrente → 409) ; le contact du vendeur n'est donné qu'après la réservation ; l'annulation remet le Lot `disponible`. — **P3**
+- FR-69 : Le Super Admin vérifie une Organisation recycleur ; sans vérification, ni consultation ni réservation. — **P3**
+- FR-70 : Le Recycleur confirme la réception, le vendeur confirme la vente (prix, date) ; la Commission, calculée depuis le paramètre du Contrat du Recycleur, est enregistrée sur la Vente, en état seulement ; un Lot `vendu` est immuable. — **P3**
+- FR-71 : Chaque kg vendu remonte à une Preuve ; une Preuve contestée après son entrée dans un Lot non vendu gèle l'Élément et retire le Lot ; sur un Lot vendu, elle ouvre un Litige. — **P3**
+
+**4.8 (complément v2.0) Fraude**
+
+- FR-68 : Une photo réutilisée, un Poids déclaré hors des bornes configurables ou une Preuve `contestée` crée une Alerte de fraude, visible du Personnel de l'Organisation et du Super Admin ; la Preuve est ajoutée à l'échantillon de FR-41. — **P1**
+
+**4.13 Organisations et appartenances (v2.0)**
+
+- FR-44 : Une Organisation a un type (commune, opérateur, groupement de collecteurs, entreprise, recycleur, plateforme), un nom et un statut ; une commune ou un opérateur est rattaché à une Zone ; une seule Organisation plateforme ; une Organisation `suspendue` ne reçoit plus de Signalement, de Demande ni de Mission. — **P0 (table) / P1**
+- FR-45 : Un rôle est donné par une Appartenance (personne, Organisation, rôle, statut, vérification) ; plusieurs Appartenances possibles ; rôle incompatible avec le type d'Organisation refusé ; rôle lu en base, jamais dans le jeton. — **P1**
+- FR-46 : Chaque objet métier appartient à une Organisation ; toute lecture, liste ou modification est limitée à la Portée d'organisation ; objet d'une autre Organisation → 404 ; le Super Admin fait exception, chaque accès audité. — **P1**
+- FR-47 : L'Organisation responsable d'un Signalement est la commune ou l'opérateur `active` dont la Zone couvre la Position (la plus précise), sinon l'Organisation plateforme ; fixée à la création, jamais renvoyée au Citoyen. — **P0**
+- FR-48 : Un Collecteur est vérifié par l'Organisation dont il est membre ; Recycleur, Gestionnaire d'entreprise et Administrateur initial sont vérifiés par la plateforme. — **P1**
+
+**4.14 Super Admin et plateforme (v2.0)**
+
+- FR-49 : Super Admin membre de l'Organisation plateforme, distinct de l'Administrateur d'organisation ; premier Super Admin créé par commande d'exploitation ; Second facteur obligatoire avec des données réelles ; accès à une autre Organisation audité. — **P1**
+- FR-50 : Le Super Admin crée, modifie, suspend et réactive une Organisation et nomme son premier Administrateur. — **P1 (création) / P2 (cycle de vie)**
+- FR-51 : Contrats et abonnements (offre, prix mensuel, dates, statut, paramètres commerciaux) saisis en base par le Super Admin ; aucune valeur dans le dépôt ; montants en entiers FCFA. — **P2**
+- FR-52 : Factures en états (`émise`, `payée`, `en retard`, référence) par Contrat et période ; aucun encaissement ; passage automatique `en retard` et alerte. — **P2**
+- FR-53 : Tableau de bord plateforme (SM-B1 à SM-B8) par période et par Organisation. — **P2**
+- FR-54 : Paramètres non commerciaux de la plateforme et Journal d'audit global filtrable. — **P2**
+
+**4.15 Espaces (v2.0)**
+
+- FR-55 : Une seule application, deux espaces chargés séparément : Espace mobile `/` (Citoyen, Collecteur) et Console web `/console` (Personnel, Gestionnaire d'entreprise, Recycleur, Super Admin) ; choix de l'Organisation active ; budget NFR-5 sur l'Espace mobile seul. — **P1**
+
+**4.16 Espace entreprise (v2.0)**
+
+- FR-56 : Sites de l'entreprise (nom, Position dans la Zone active, contact). — **P2**
+- FR-57 : Déchets déclarés par Site (Types, volume estimé par période). — **P2**
+- FR-58 : Demande de collecte ponctuelle → Mission d'Origine `collection_request`, ouverte aux Collecteurs vérifiés par la plateforme et par les opérateurs prestataires du Contrat. — **P2**
+- FR-59 : Programme de collecte régulier ; Demandes créées à échéance, sans doublon. — **P2**
+- FR-60 : Suivi des Demandes, du Collecteur (nom affiché, état vérifié, jamais le numéro), des Preuves et des kg vérifiés par Site. — **P2**
+- FR-61 : Rapports mensuels (entreprise ; commune ou opérateur), sans donnée personnelle. — **P2**
+
+**4.17 Finance terrain, sans détention de fonds (v2.0)**
+
+- FR-62 : Frais de coordination et Rémunération prévue figés sur la Mission à sa création, depuis le Contrat. — **P2**
+- FR-63 : Une Preuve acceptée crée un Montant dû (`dû`). — **P2**
+- FR-64 : Le payeur confirme le paiement (Référence de paiement, date, qui confirme) → `payé` ; aucun fonds reçu, détenu ni transféré ; transitions auditées. — **P2**
+- FR-65 : Le Collecteur voit ses Montants et en conteste un (motif) → Litige. — **P2**
+- FR-66 : Litiges (Preuve, Montant dû, Vente) : motif, statut, décision motivée du Super Admin ; un Montant `contesté` n'est ni dû ni payé tant que le Litige est ouvert. — **P2**
+- FR-67 : Suivi et export des Montants dus, payés et contestés (Organisation, Super Admin), sans Référence de paiement complète. — **P2**
 
 ### NonFunctional Requirements
 
@@ -110,11 +158,11 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 - NFR-2 : Performance — Lecture API p95 < 300 ms à 50 req/s (k6).
 - NFR-3 : Performance — Carte < 2 s pour 5 000 points (mesure manuelle et Lighthouse).
 - NFR-4 : Réseau faible — Photo envoyée ≤ 300 Ko (test automatique).
-- NFR-5 : Réseau faible — Page d'accueil ≤ 500 Ko hors images et Modèle ; Modèle ≤ 8 Mo, téléchargé une seule fois puis mis en cache (Lighthouse).
-- NFR-6 : Compatibilité — Android 8+ avec Chrome, 2 Go de RAM ; mobile 390×844, tableau de bord 1280×800 (test sur appareil réel).
+- NFR-5 : Réseau faible — **(v2.0 : Espace mobile seul ; console ni chargée ni précachée, contrôle CI du manifeste.)** Page d'accueil ≤ 500 Ko hors images et Modèle ; Modèle ≤ 8 Mo, téléchargé une seule fois puis mis en cache (Lighthouse).
+- NFR-6 : Compatibilité — Android 8+ avec Chrome, 2 Go de RAM ; mobile 390×844, tableau de bord et console 1280×800 (test sur appareil réel).
 - NFR-7 : Disponibilité (démo) — Service et portable de secours prêts ; vidéo de la démo complète avant H60 ; tuiles de la zone de démo disponibles sans réseau ; `/healthz` répond tant que le processus vit ; `/readyz` prêt seulement si base, stockage et Modèle disponibles, statut global seul ; hors Mode démonstration, `/docs` et `/openapi.json` non exposés (répétition ; test automatisé des sondes et de l'exposition).
 - NFR-8 : Sécurité (transport et en-têtes) — TLS 1.2 minimum, HSTS, redirection HTTP → HTTPS ; CSP avec `script-src 'self' 'wasm-unsafe-eval'` uniquement ; `X-Content-Type-Options: nosniff` ; `Referrer-Policy: no-referrer` ; CORS limité aux origines de la PWA ; photos servies depuis un domaine distinct de l'API (scan SSL, test des en-têtes).
-- NFR-9 : Sécurité (contrôle d'accès) — Toutes les routes `/v1` testées × chaque rôle et sans jeton, sauf liste blanche publique explicite (`/healthz`, `/readyz`, création anonyme d'un Signalement, carte publique agrégée) ; la CI échoue si une route n'est ni testée ni dans la liste blanche.
+- NFR-9 : Sécurité (contrôle d'accès) — Toutes les routes `/v1` testées × chaque rôle (v2.0 : tous les rôles du PRD §2.4, Collecteur et Recycleur vérifiés ou non) et sans jeton, sauf liste blanche publique explicite (`/healthz`, `/readyz`, création anonyme d'un Signalement, carte publique agrégée) ; la CI échoue si une route n'est ni testée ni dans la liste blanche.
 - NFR-10 : Sécurité (chaîne logicielle) — Aucun secret dans Git ; CI en échec sur toute vulnérabilité critique ou haute non justifiée dans un fichier d'exceptions daté ; images épinglées par empreinte, actions par SHA de commit (Gitleaks, pip-audit, npm audit, Trivy).
 - NFR-11 : Qualité — Couverture backend ≥ 60 %, lint sans erreur (CI).
 - NFR-12 : Accessibilité — WCAG 2.1 AA : contraste ≥ 4,5:1 pour le texte (3:1 pour le texte ≥ 18,66 px gras et les éléments non textuels) ; cibles tactiles ≥ 44 px ; libellés pour lecteurs d'écran ; pictogramme + libellé pour chaque Type de déchet, chaque étape de la Frise de suivi et chaque action principale ; navigation complète au clavier sur les écrans du Personnel (script CI calculant chaque paire texte/fond des jetons ; audit Lighthouse).
@@ -123,6 +171,7 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 - NFR-15 : Continuité (pilote) — Sauvegarde quotidienne chiffrée de la base et des photos hors du serveur hôte ; perte maximale 24 h ; restauration complète réussie avant toute donnée réelle ; disponibilité visée 99 %/mois (exercice de restauration ; supervision).
 - NFR-16 : Supervision (pilote) — Alerte sur le canal de l'équipe si taux de 5xx > 2 % sur 5 min, échec de sauvegarde, disque > 85 %, plafond SMS atteint (FR-1), file de Classification serveur pleine (FR-14) (déclenchement simulé de chaque alerte).
 - NFR-17 : Sécurité (données au repos et base) — Base, photos et sauvegardes chiffrées au repos (pilote) ; l'API se connecte avec un rôle qui ne peut ni modifier le schéma, ni modifier/supprimer une entrée du Journal d'audit ; aucune colonne ne contient le numéro de téléphone en clair (test CI : création de table et mise à jour du Journal refusées ; recherche du numéro en clair dans une copie de la base).
+- NFR-18 : Sécurité (isolement entre organisations, v2.0) — Pour chaque route qui manipule un objet d'Organisation, aucune lecture, liste ni écriture croisée entre deux Organisations (test généré à deux Organisations ; la CI échoue si une route n'est pas couverte).
 
 **Exigences transverses du PRD (§6 Confidentialité, sécurité, conformité, souveraineté)**
 
@@ -132,7 +181,7 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 - NFR-6.2 : Abus et fraude — Contrôles exigés : spam (FR-10, modération, Doublon probable), fausses preuves (FR-29, FR-41), fraude aux SMS (FR-1), fichier piégé (FR-8), accès indus (FR-3, FR-43), fuite par renvoi (FR-9), Mode démonstration oublié en production (FR-6).
 - NFR-6.3a : Conformité CDP (loi n° 2008-12) — Démo sur comptes de test et Données de démonstration uniquement ; déclaration ou autorisation CDP avant toute donnée réelle du pilote ; tout hébergement hors Sénégal traité comme transfert dans le dossier.
 - NFR-6.3b : Conformité WCAG / jetons — Vert `#187A50` (remplace `#1F8A5B` partout : fond sous texte blanc 5,33:1, texte sur Fond 5,06:1, pastilles sur Menthe 4,70:1) ; Rouge `#D9482B` réservé aux aplats, icônes, bordures ou texte ≥ 18,66 px gras, message d'erreur en Encre avec icône rouge ; Jaune `#F2B705` jamais en texte (fond sous Encre) ; avertissement textuel en Ambre `#7A5C00` sur `#FFF4CC`.
-- NFR-6.3c : Licence — Fichier `LICENSE` (MIT ou AGPL-3.0, choix de Mia, §11 Q1) à la racine avant la démo (H60).
+- NFR-6.3c : Licence — Fichier `LICENSE` (MIT ou AGPL-3.0, choix de la responsable produit, §11 Q1) à la racine avant la démo (H60).
 - NFR-6.3d : Licences des données — Licences de TrashNet, TACO et de chaque source listées dans la Fiche du Modèle.
 - NFR-6.4 : Souveraineté — Aucune API d'IA hébergée ; données exportables en formats ouverts ; déploiement par conteneurs portable ; plan de sortie vérifiable vers un hébergement au Sénégal (export complet base + photos, clés détenues par l'organisation, restauration complète sur un autre hôte avant la fin du pilote).
 
@@ -166,7 +215,7 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 **Architecture du backend**
 
 - AR-9 : **Frontières de module** — un module n'importe d'un autre que `app.modules.<x>.service`, selon les flèches autorisées ; routes → leur propre service ; seuls `reactions.py` et `worker.py` composent hors des flèches ; trois couches `router` → `service` → `repository` ; `core` sans règle métier. (AD-1)
-- AR-10 : **Propriété des tables** — un module propriétaire unique par table (`auth` : `users`, `collector_profiles`, `refresh_tokens`, `devices`, `staff_second_factors` ; `reports` : `reports`, `report_photos`, `classifications`, `corrections`, `report_status_events`, `tracking_counters`, `weight_estimates` ; `missions` : `missions`, `proofs`, `proof_reviews` ; `lots` : `material_lots`, `lot_requests` ; `notifications` : `notifications`, `push_subscriptions` ; `core` : `audit_logs`, `audit_log_ips`, `idempotency_records`, `zones`) ; `analytics` ne possède que des vues ; noms de l'épine font foi. (AD-2)
+- AR-10 : **Propriété des tables** — un module propriétaire unique par table (`auth` : `users`, ~~`collector_profiles`~~ (retirée en v2.0, AR-45), `refresh_tokens`, `devices`, `staff_second_factors` ; `reports` : `reports`, `report_photos`, `classifications`, `corrections`, `report_status_events`, `tracking_counters`, `weight_estimates` ; `missions` : `missions`, `proofs`, `proof_reviews` ; `lots` : `material_lots`, `lot_requests` ; `notifications` : `notifications`, `push_subscriptions` ; `core` : `audit_logs`, `audit_log_ips`, `idempotency_records`, `zones`) ; `analytics` ne possède que des vues ; noms de l'épine font foi. (AD-2)
 - AR-11 : **Base de données et migrations** — Alembic seul chemin de modification du schéma ; rôles `teranga_migrator` (propriétaire) et `teranga_app` (DML, sans `UPDATE`/`DELETE` sur `audit_logs`, `DELETE` permis sur `audit_log_ips`) ; migrations expand/contract compatibles N-1 ; `recreate_analytics_views()` après toute migration touchant une table d'une vue ; test CI de refus du DDL et de la mise à jour du Journal. (AD-15, NFR-17)
 - AR-12 : **Unité de travail** — une session/transaction par requête ou tâche (`contextvar`, `get_uow()`), services `@transactional` qui rejoignent la transaction, jamais de `commit`/`rollback`/`begin` dans un service ou repository ; tout effet externe (arq, push, suppression S3) par `after_commit`, abandonné au rollback ; test « exception après transition dans `accept()` → aucune écriture, tâche ni audit ». (AD-17)
 - AR-13 : **Porte unique des Statuts** — `reports.service.transition()` et `missions.service.transition()` seulement : `UPDATE … WHERE status = :from` (0 ligne → 409 `invalid_transition`), ligne `report_status_events` (historique unique, source de FR-21, FR-31, FR-36), audit, effets en `after_commit` ; ordre des verrous Mission puis Signalement ; table de transitions constante testée sur chaque couple ; retrait FR-5 par `withdraw()` (pas une transition). (AD-3)
@@ -180,7 +229,7 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 - AR-21 : **Client généré** — `export_openapi.py` → `web/src/api/openapi.json` → types `openapi-typescript` → une instance `openapi-fetch` enveloppée (jeton, `X-Device-Id`, `Idempotency-Key`, erreurs) ; fichiers versionnés, CI en échec si la régénération diffère ; ESLint interdit `fetch` hors `web/src/api/` et `web/src/offline/`. (AD-11)
 - AR-22 : **Travail asynchrone (arq)** — Classification serveur, miniatures, notifications, réactions en tâches arq via `after_commit` ; `job_id` normés (`classify:<report_id>:<model_version>`, `thumb:`, `notify:<status_event_id>`, `react:<event_id>`) ; effet idempotent dans le service ; `classification_status ∈ {pending, done, failed}` ; mise en file seulement sous `CLASSIFY_QUEUE_MAX` (500). (AD-8)
 - AR-23 : **Tâches planifiées (liste close, `cron_jobs` arq)** — `missions.expire_due` (1 min), `reports.requeue_pending_classifications` (1 min), `reports.purge_person_visible_photos` (1 h), `retention.sweep` (1 j), `auth.purge_deleted_accounts` (1 j), `missions.sample_proofs` (lundi, `secrets.SystemRandom`), `ops.health_sweep` (1 min) ; tout « maintenant » via `core.clock.now()` (horloge simulable) ; acteur d'audit `system:<tâche>` ; Numéro de suivi par compteur annuel `INSERT … ON CONFLICT`. (AD-18)
-- AR-24 : **Réactions et événements** — événements Pydantic autosuffisants (`ReportStatusChanged`, `MissionAssigned`, `AccountDeleted`, `TrainingConsentWithdrawn`, `CollectorSuspended`, `LotReserved`) émis sous `after_commit`, réactions idempotentes seulement dans `reactions.py` ; suppression de compte orchestrée (`delete_account` → `on_collector_deleted` → `detach_owner`) ; aucune FK `ON DELETE CASCADE/SET NULL` entre modules. (AD-21)
+- AR-24 : **Réactions et événements** — événements Pydantic autosuffisants (`ReportStatusChanged`, `MissionAssigned`, `AccountDeleted`, `TrainingConsentWithdrawn`, `CollectorSuspended` (remplacé en v2.0 par `MembershipSuspended`, AR-44), `LotReserved`) émis sous `after_commit`, réactions idempotentes seulement dans `reactions.py` ; suppression de compte orchestrée (`delete_account` → `on_collector_deleted` → `detach_owner`) ; aucune FK `ON DELETE CASCADE/SET NULL` entre modules. (AD-21)
 - AR-25 : **Classifications, Corrections, drapeaux** — colonnes `client_predicted_type/confidence/model_version` (+ `CHECK`), `citizen_type`, `device_type` générée ; table `classifications` unique `(report_id, model_version)` ; table `corrections` écrite à la création ou à la validation seulement ; `retained_type` seulement via `validate()` ; drapeaux en colonnes indexées (`flag_low_confidence`, `flag_imprecise_position`, `duplicate_of_report_id`, `flag_ai_disagreement` `NULL` si versions différentes). (AD-19)
 - AR-26 : **Limitation de débit** — dans l'API seulement, `core.ratelimit.limit(scope)` sur Valkey (fenêtre fixe, AOF) ; uvicorn `--proxy-headers --forwarded-allow-ips=<IP Caddy>` ; Caddy remplace `X-Forwarded-For` ; portées `otp:phone`, `otp:device`, `otp:ip`, `sms:daily`, `report:device`, `report:ip`, `report:user`, `user:any` ; 429 `rate_limited` + `Retry-After` ; OTP haché en Valkey (TTL 5 min, comparaison à temps constant). (AD-20)
 - AR-27 : **Port SMS** — seul `core.sms.SmsSender` envoie (`DemoSmsSender` avec `demo_otp` / `GatewaySmsSender`, selon `SMS_BACKEND`) ; plafond quotidien vérifié dans le port. (AD-14)
@@ -209,6 +258,17 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 
 - AR-42 : **Web Push** — module `notifications` (`notifications`, `push_subscriptions`), clé `VAPID_PRIVATE_KEY`, émission par réaction à `ReportStatusChanged`, idempotente sur `status_event_id`. (AD-8, AD-21, FR-21)
 
+**Version 2.0 (AD-31 à AD-36)**
+
+> Ces exigences amendent AR-10 (`collector_profiles` retirée, nouvelles tables), AR-14 (exclusivité par Origine), AR-17 et AR-18 (rôles par Appartenance), AR-24 (nouveaux événements), AR-29 (nouvelles actions d'audit) et AR-32 (`is_demo` sur les nouvelles tables).
+
+- AR-44 : **Organisations et cloisonnement** — `organization_id NOT NULL` sur chaque table métier (exceptions closes : `users`, `devices`, `refresh_tokens`, `staff_second_factors`, `zones`, `idempotency_records`, `push_subscriptions`) ; `OrgScope` calculée par `principal()` ; paramètre `scope` obligatoire dans chaque repository (test d'architecture) ; hors portée → 404 ; accès du Super Admin audité `superadmin.access` ; Organisation responsable par `orgs.service.responsible_org()` ; Organisation plateforme en ligne système. (AD-31, FR-44 à FR-47, NFR-18)
+- AR-45 : **Rôles par appartenance** — `memberships` (unique `(user_id, organization_id, role)`, `CHECK` rôle × type) ; port `MembershipLoader` ; `X-Org-Id` (400 `org_required`, 403 `org_not_member`) ; `require_membership(*roles)`. (AD-32)
+- AR-46 : **Deux espaces** — `web/src/mobile` et `web/src/console` (`React.lazy`), précache sans console, contrôle CI du paquet mobile ≤ 500 Ko, Caddy renvoie `/console/*` vers l'application. (AD-33, FR-55)
+- AR-47 : **États financiers** — `BIGINT` FCFA (`*_xof`), taux en `*_bps` ; aucune table de solde ni passerelle ; valeurs commerciales seulement dans `contracts`. (AD-34)
+- AR-48 : **kg traçables** — projection `lot_proof_balances` avec vendeur fixé à `ProofAccepted`, prélèvement conditionnel et `CHECK 0 ≤ kg_taken ≤ kg_total`. (AD-35)
+- AR-49 : **Origine des Missions** — `missions.origin`, `CHECK` d'exclusivité d'origine, deux index uniques partiels, machine à états de la Demande dans `enterprise`. (AD-36)
+
 **Points différés (ne pas planifier au MVP)**
 
 - AR-43 : Différés par l'épine — découpage en services, multi-commune, temps réel SSE/WebSocket, orchestrateur, chaîne de réentraînement automatisée, Preuve hors-ligne, Leaflet 2/MapLibre, remplacement d'arq, outbox d'événements transactionnelle (pilote), ORT multi-thread, rattachement des Signalements anonymes à un compte ; **à mesurer avant la démo** : budget de premier chargement (WASM ≈ 15 Mo + Modèle) en 3G.
@@ -232,7 +292,7 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 
 **Écrans de la maquette Figma**
 
-- UX-DR-11 : **Écran 1 · Accueil** (nœud 1:2) — bouton principal « Signaler un dépôt » ; entrées de rôle « Je suis collecteur » et « Espace commune » menant à la connexion OTP ; liste « Mes Signalements » (Numéro de suivi, Statut, Frise) ; compteur des Signalements en attente d'envoi avec bouton « Réessayer » ; changements de Statut depuis la dernière visite (FR-21) ; bandeau/étiquette démo si applicable.
+- UX-DR-11 : **Écran 1 · Accueil** (nœud 1:2) — bouton principal « Signaler un dépôt » ; entrées de rôle « Je suis collecteur » et « Espace professionnel » (v2.0, ex-« Espace commune ») menant à la connexion OTP ; liste « Mes Signalements » (Numéro de suivi, Statut, Frise) ; compteur des Signalements en attente d'envoi avec bouton « Réessayer » ; changements de Statut depuis la dernière visite (FR-21) ; bandeau/étiquette démo si applicable.
 - UX-DR-12 : **Écran 2 · Capture** (nœud 1:39) — viseur photo ; consigne « ni personne ni plaque » à chaque capture ; Position détectée avec précision en mètres ; invitation à patienter si précision > 50 m avec possibilité d'envoyer quand même ; message « TerangaCycle n'est pas encore actif ici » avant la photo si hors Zone active ; compression ≤ 300 Ko et conversion HEIC transparentes.
 - UX-DR-13 : **Écran 3 · Résultat IA** (nœud 1:57) — Type de déchet proposé avec pictogramme, couleur et Score de confiance en % ; présélection seulement si score ≥ 60 %, sinon aucun type présélectionné et consigne de choisir ; sélecteur des 5 types en un toucher (Correction) ; état « Modèle non disponible, choisissez le type » si le Modèle n'est pas en cache ; sélecteur de Taille de tas (UX-DR-14) ; commentaire optionnel 280 caractères avec compteur ; bouton d'envoi désactivé tant qu'un champ obligatoire manque.
 - UX-DR-14 : **Sélecteur de Taille de tas** (petit, moyen, grand) avec pictogramme + libellé, cibles ≥ 44 px, intégré à l'écran 3. [HORS MAQUETTE — à concevoir]
@@ -260,7 +320,10 @@ This document provides the complete epic and story breakdown for TerangaCycle AI
 - UX-DR-30 : **Historique du Collecteur (FR-30)** — Missions en cours et terminées (date, Type retenu, Poids déclaré, Statut de Mission, mention `contestée`), total des kg ; annulation de sa Mission `active`. [HORS MAQUETTE — à concevoir ; non listé au PRD §7]
 - UX-DR-31 : **Revue de Preuve par échantillon (FR-41, pilote)** — liste des Preuves tirées, photos avant/après, Poids, Position, actions `confirmée` / `contestée` (motif obligatoire). [HORS MAQUETTE — à concevoir ; non listé au PRD §7]
 - UX-DR-32 : **Carte publique agrégée (FR-34, Should)** — carte pour Visiteur par cellules ≥ 500 m ou par Zone, sans point précis. [HORS MAQUETTE — à concevoir ; non listé au PRD §7]
-- UX-DR-33 : **Lots de matière (FR-38 à FR-40, extension)** — déclaration d'un Lot par le Collecteur, liste filtrable pour le Recycleur, demande de contact et réservation. [HORS MAQUETTE — à concevoir ; non listé au PRD §7]
+- UX-DR-33 : **Place de marché (FR-38 à FR-40, FR-69 à FR-71, P3)** — constitution d'un Lot par le Collecteur vendeur dans l'Espace mobile (choix de ses kg vérifiés) ; liste filtrable, réservation et contact pour le Recycleur ; confirmation de réception et de vente ; suivi du Super Admin. [HORS MAQUETTE — à concevoir ; non listé au PRD §7]
+- UX-DR-34 : **Console web (v2.0, FR-55)** — gabarit 1280×800, navigation au clavier, sélecteur d'Organisation active, bandeau Mode démonstration ; entrée « Espace professionnel » sur l'écran 1 (remplace « Espace commune »). [HORS MAQUETTE — spécification UX légère avant P2]
+- UX-DR-35 : **Écrans de console v2.0** — Organisations (Super Admin), Membres d'une Organisation, Alertes de fraude, Sites, Demandes, Programmes et Rapports (entreprise), Contrats, Factures et Tableau de bord plateforme, Litiges. [HORS MAQUETTE]
+- UX-DR-36 : **Montants du Collecteur (mobile, FR-65)** — liste et totaux dû et payé, contestation avec motif. [HORS MAQUETTE]
 
 ### FR Coverage Map
 
@@ -301,80 +364,142 @@ FR-34 : Epic 7 (Tableau de bord de la commune)
 FR-35 : Epic 2 (Comptes, accès et journal d'audit)
 FR-36 : Epic 2 (Comptes, accès et journal d'audit)
 FR-37 : Epic 1 (Signaler un dépôt) — étendu par 2.5, 4.4, 5.3 et 5.6
-FR-38 : Epic 9 (Lots de matière (extension))
-FR-39 : Epic 9 (Lots de matière (extension))
-FR-40 : Epic 9 (Lots de matière (extension))
+FR-38 : Epic 9 (Place de marché de la matière)
+FR-39 : Epic 9 (Place de marché de la matière)
+FR-40 : Epic 9 (Place de marché de la matière)
 FR-41 : Epic 5 (Missions et preuve de collecte)
 FR-42 : Epic 5 (Missions et preuve de collecte)
 FR-43 : Epic 2 (Comptes, accès et journal d'audit)
+FR-44 : Epic 1 (table, 1.11) et Epic 2 (2.13, 2.14)
+FR-45 : Epic 2 (2.13)
+FR-46 : Epic 2 (2.13, 2.5) — appliqué par toutes les stories P1 et suivantes
+FR-47 : Epic 1 (1.11)
+FR-48 : Epic 2 (2.11, 2.13)
+FR-49 : Epic 2 (2.14)
+FR-50 : Epic 2 (2.14, création) et Epic 10 (10.1, cycle de vie)
+FR-51 : Epic 10 (10.2)
+FR-52 : Epic 10 (10.3, 10.4)
+FR-53 : Epic 10 (10.5)
+FR-54 : Epic 10 (10.6)
+FR-55 : Epic 2 (2.15)
+FR-56 : Epic 11 (11.1)
+FR-57 : Epic 11 (11.2)
+FR-58 : Epic 11 (11.3, 11.5)
+FR-59 : Epic 11 (11.4)
+FR-60 : Epic 11 (11.6)
+FR-61 : Epic 11 (11.7, 11.8)
+FR-62 : Epic 12 (12.1)
+FR-63 : Epic 12 (12.2)
+FR-64 : Epic 12 (12.3)
+FR-65 : Epic 12 (12.4)
+FR-66 : Epic 12 (12.5)
+FR-67 : Epic 12 (12.6)
+FR-68 : Epic 5 (5.16)
+FR-69 : Epic 9 (9.1)
+FR-70 : Epic 9 (9.6, 9.7)
+FR-71 : Epic 9 (9.2, 9.3, 9.8)
+NFR-18 : Epic 2 (2.5, générateur du test d'isolement)
 
 ## Epic List
 
 ### Epic 1 : Signaler un dépôt
 
-Un Citoyen anonyme donne son consentement, photographie un dépôt avec sa Position et reçoit un Numéro de suivi, sur une instance de démonstration étiquetée. Les stories 1.1 à 1.3 montent le squelette (Docker Compose, migrations, configuration, PWA vide), les stories 1.4 à 1.6 la CI.
+Un Citoyen anonyme donne son consentement, photographie un dépôt avec sa Position et reçoit un Numéro de suivi, sur une instance de démonstration étiquetée. Les stories 1.1 à 1.3 montent le squelette (Docker Compose, migrations, configuration, PWA vide), les stories 1.4 à 1.6 la CI. v2.0 : chaque Signalement est rattaché dès sa création à son Organisation responsable (1.11).
 
+**Priorité :** P0
 **Porte :** H24
-**FR couvertes :** FR-4, FR-7, FR-8, FR-9, FR-10, FR-37
+**FR couvertes :** FR-4, FR-7, FR-8, FR-9, FR-10, FR-37, FR-44 (table), FR-47
 
-### Epic 2 : Comptes, accès et journal d'audit
+### Epic 2 : Comptes, organisations, accès et journal d'audit
 
-Chacun se connecte par OTP avec son rôle (Mode démonstration au hackathon) ; l'Administrateur commune vérifie les Collecteurs ; chaque action sensible est tracée ; l'utilisateur peut supprimer son compte.
+Chacun se connecte par OTP ; ses rôles viennent de ses Appartenances à des Organisations, et chaque requête est cloisonnée à sa Portée d'organisation, ce que prouve un test d'isolement. Le Super Admin ouvre les Organisations ; l'Espace mobile et la console sont chargés séparément ; chaque action sensible est tracée ; l'utilisateur peut supprimer son compte ; le Personnel et le Super Admin ajoutent un Second facteur avant les données réelles.
 
-**Porte :** H24 → H60 (FR-43 : pilote)
-**FR couvertes :** FR-1, FR-2, FR-3, FR-5, FR-6, FR-35, FR-36, FR-43
+**Priorité :** P1
+**Porte :** H24 → H60
+**FR couvertes :** FR-1, FR-2, FR-3, FR-5, FR-6, FR-35, FR-36, FR-43, FR-44, FR-45, FR-46, FR-48, FR-49, FR-50 (création), FR-55 ; NFR-18
 
 ### Epic 3 : L'IA propose le type de déchet
 
-Le téléphone classe la photo hors-ligne en moins de 3 s ; sous 60 % le Citoyen choisit ; le serveur reclasse et signale les Désaccords IA. Inclut le pipeline ml/ (entraînement, export ONNX, Fiche du Modèle, test doré).
+Le téléphone classe la photo hors-ligne en moins de 3 s ; sous 60 % le Citoyen choisit ; la Correction est enregistrée. Le serveur reclasse et signale les Désaccords IA, et la chaîne `ml/` (entraînement, export ONNX, Fiche du Modèle, test doré) est outillée.
 
+**Priorité :** piste hackathon (3.1, 3.9, 3.11, 3.12 ; 3.8 fusionnée dans 3.12) ; P4 pour les autres stories
 **Porte :** H24 → H48
-**FR couvertes :** FR-11, FR-12, FR-13, FR-14, FR-15, FR-16
+**FR couvertes :** FR-11, FR-12, FR-13 (piste hackathon) ; FR-14, FR-15, FR-16 (P4)
 
 ### Epic 4 : Modérer et suivre un signalement
 
-Le Modérateur valide ou rejette dans la File de modération et fixe le Type de déchet retenu ; les Corrections validées et consenties sont exportées pour le réentraînement ; le Citoyen suit son Signalement sur la Frise de suivi et reçoit des notifications.
+Le Modérateur valide ou rejette, dans la File de modération de son Organisation, et fixe le Type de déchet retenu ; le Citoyen suit son Signalement sur la Frise de suivi et reçoit des notifications. Les Corrections validées et consenties sont exportées pour le réentraînement (P4).
 
-**Porte :** H48 → H60 (4.11 : pilote)
+**Priorité :** P1 (4.6 et 4.11 : P4)
+**Porte :** H48 → H60
 **FR couvertes :** FR-20, FR-21, FR-22, FR-23 ; FR-13 (export des Corrections) et FR-16 (réentraînement mensuel) en complément de l'Epic 3
 
 ### Epic 5 : Missions et preuve de collecte
 
-Le Collecteur vérifié voit les Missions proches, en accepte une sans conflit, prouve la collecte (photos, Poids déclaré, Position à 150 m) et garde un historique ; les Preuves sont contrôlées par échantillon et les Missions oubliées expirent.
+Le Collecteur vérifié par une Organisation voit les Missions de cette Organisation, en accepte une sans conflit, prouve la collecte (photos, Poids déclaré, Position à 150 m) et garde un historique ; les Preuves sont contrôlées par échantillon, les Missions oubliées expirent et les fraudes probables lèvent une alerte.
 
-**Porte :** H48 → H60 (FR-41, FR-42 : pilote)
-**FR couvertes :** FR-24, FR-25, FR-26, FR-27, FR-28, FR-29, FR-30, FR-41, FR-42 ; FR-5 en partie (story 5.11)
+**Priorité :** P1
+**Porte :** H48 → H60
+**FR couvertes :** FR-24, FR-25, FR-26, FR-27, FR-28, FR-29, FR-30, FR-41, FR-42, FR-68 ; FR-5 en partie (story 5.11)
 
 ### Epic 6 : Signaler sans réseau
 
 Un Signalement fait en mode avion est conservé dans la File hors-ligne puis envoyé tout seul au retour du réseau, sans doublon ni perte.
 
+**Priorité :** piste hackathon (décision du 25/11/2026)
 **Porte :** H48
 **FR couvertes :** FR-17, FR-18, FR-19
 
-### Epic 7 : Tableau de bord de la commune
+### Epic 7 : Tableau de bord des organisations
 
-L'Administrateur commune voit les Indicateurs, la Carte de chaleur et la répartition par Type de déchet, et exporte en CSV/GeoJSON sans donnée personnelle ; les Visiteurs voient une carte publique agrégée.
+L'Administrateur d'organisation voit, dans sa Portée, les Indicateurs, la Carte de chaleur et la répartition par quartier, Type de déchet et période, et exporte en CSV/GeoJSON sans donnée personnelle ; les Visiteurs voient une carte publique agrégée.
 
-**Porte :** H60 (7.1 et 7.6 : opt. H48 si 7.6 est tirée ; 7.7 : pilote)
+**Priorité :** P1
+**Porte :** H60 (7.1 et 7.6 : opt. H48 si 7.6 est tirée)
 **FR couvertes :** FR-31, FR-32, FR-33, FR-34
 
 ### Epic 8 : Démo fiable et service exploitable
 
-Le jury voit une démo qui tient (plan B, répétition) et la commune peut compter sur le service (test de charge, sauvegardes, alertes, déploiement avec retour arrière). Epic transverse d'exploitation assumé : il ne porte aucune FR.
+Le jury voit une démo qui tient (plan B, répétition) et l'organisation cliente peut compter sur le service (test de charge, sauvegardes, alertes, déploiement avec retour arrière). Epic transverse d'exploitation assumé : il ne porte aucune FR.
 
+**Priorité :** démo (8.1 à 8.9, avec la piste hackathon) ; avant données réelles, condition de sortie de P1 (8.10 à 8.15)
 **Porte :** H48 → H60 pour la démo (8.1 à 8.9) ; pilote (8.10 à 8.15)
 **FR couvertes :** aucune FR — NFR et exigences d’architecture (exploitation, démo)
 
-### Epic 9 : Lots de matière (extension)
+### Epic 9 : Place de marché de la matière
 
-Le Collecteur déclare un Lot de matière ; le Recycleur le consulte et le réserve.
+Le Collecteur (ou son groupement, ou une Organisation si son Contrat le prévoit) vend des Lots constitués de kg qu'il a prouvés, vérifiés, non contestés et non encore vendus ; un Recycleur vérifié consulte, réserve et achète ; la vente et la commission sont enregistrées en états.
 
-**Porte :** extension (après H48, hors démo)
-**FR couvertes :** FR-38, FR-39, FR-40
+**Priorité :** P3
+**FR couvertes :** FR-38, FR-39, FR-40, FR-69, FR-70, FR-71
 
+### Epic 10 : Organisations et contrats
 
-<!-- Repeat for each epic in epics_list (N = 1, 2, 3...) -->
+Le Super Admin gère les Organisations clientes, leurs Contrats et leurs Factures en états, et pilote la plateforme.
+
+**Priorité :** P2
+**FR couvertes :** FR-50 (cycle de vie), FR-51, FR-52, FR-53, FR-54
+
+### Epic 11 : Espace entreprise
+
+Le Gestionnaire d'entreprise gère ses Sites, déclare ses déchets, demande des collectes ponctuelles ou régulières et suit preuves et quantités jusqu'au rapport mensuel.
+
+**Priorité :** P2
+**FR couvertes :** FR-56, FR-57, FR-58, FR-59, FR-60, FR-61
+
+### Epic 12 : Finance terrain
+
+Chaque Mission porte ses frais et sa rémunération prévus ; chaque Preuve acceptée crée un Montant dû ; le payeur confirme le paiement mobile money ; le Collecteur voit et conteste ; les Litiges sont tranchés. TerangaCycle ne détient aucun fonds.
+
+**Priorité :** P2
+**FR couvertes :** FR-62, FR-63, FR-64, FR-65, FR-66, FR-67
+
+### Epic 13 : Données ouvertes et interopérabilité
+
+Les données agrégées sont publiées en formats standards documentés, et des partenaires (opérateurs, communes, bailleurs) les lisent par une API en lecture seule.
+
+**Priorité :** post-pilote (validé le 25/11/2026)
+**FR couvertes :** aucune nouvelle FR ; prolonge FR-33 et FR-61
 
 ## Règles de cohérence entre epics
 
@@ -386,7 +511,8 @@ Les stories ont été rédigées par epic, en parallèle. Les règles ci-dessous
 | `/metrics` interne (compteurs par route et code HTTP) | 1.2 | 8.4, 8.11 |
 | `core.storage.ingest_photo()` et `core.storage.purge()` | 1.10 | 1.11, 2.9, 2.10, 4.5, 5.6, 9.1 |
 | `core.security.principal()`, `core.demo.flag()` | 1.11 | 1.12, 1.15, 2.x, 4.x, 5.x, 9.x |
-| Tâche de miniature `thumb:<photo_id>`, colonne `report_photos.thumb_key` | 1.11 | 2.9, 4.1, 4.5, 5.1 |
+| Table `organizations`, ligne de l'Organisation plateforme, `orgs.service.responsible_org()` (v2.0) | 1.11 | 1.14, 1.17, 2.13, 2.14, 4.x, 5.x, 7.x, 10.x, 11.x |
+| Tâche de miniature `thumb:<photo_id>` (colonne `report_photos.thumb_key` créée par 1.11) | 1.18 (v2.0, au lieu de 1.11) | 2.9, 4.1, 4.5, 5.1 |
 | Composant Frise de suivi (4 étapes) | 1.13 | 4.7 (ajoute l'état rejeté, le motif, l'étape courante dynamique) |
 | Composant `WasteTypeBadge` / `WasteTypePicker` et jetons `--color-waste-*` | 1.13 | 3.8, 3.12, 4.1, 5.2, 7.3, 8.1 (valeurs définitives), 9.2 |
 | `core.idempotency` et table `idempotency_records` | 1.16 | 2.8 à 2.12, 4.3, 4.4, 4.9, 5.3, 5.5, 5.6, 5.9, 5.14, 9.x (`POST /v1/reports` en est exempté) |
@@ -395,20 +521,32 @@ Les stories ont été rédigées par epic, en parallèle. Les règles ci-dessous
 | `core.alerts` (liste close des alertes) | 2.2 | 3.13 (journal `classification_queue_full`), 8.11 (complète et teste) |
 | Table `users`, comptes de test par rôle (FR-37) | 2.3 / 2.5 | 1.17 (étendu), 4.x, 5.x |
 | Colonne `users.display_name` | 2.3 | 2.8, 2.11, 5.5, 5.9 |
-| Table `collector_profiles`, `is_verified_collector()` | 2.5 | 5.x, 9.x |
-| Table `corrections`, `prefilled_type()` | 3.11 / 3.14 | 4.1, 4.3, 4.6 |
-| `reports.service.get_for_staff()` | 3.14 | 4.1 (étend les champs), 4.2, 4.3 |
+| `memberships`, `OrgScope`, port `MembershipLoader`, `X-Org-Id`, `require_membership()` (v2.0) | 2.13 | 2.5, 2.11, 2.14 et toutes les stories P1 et suivantes |
+| `orgs.service.is_verified_collector(user_id, organization_id)` sur `memberships` (la table `collector_profiles` n'est plus créée) | 2.13 / 2.5 | 5.x, 9.x, 11.5 |
+| Générateur du test d'isolement entre organisations (v2.0) | 2.5 | toutes les stories qui ajoutent une route |
+| Coque de la console `/console`, sélecteur d'Organisation (v2.0) | 2.15 | 2.7, 2.11, 2.14, 4.1, 5.9, 7.3, 9.x, 10.x, 11.x, 12.x |
+| Table `corrections` | 3.11 | 4.1, 4.3, 4.6 |
+| `reports.service.prefilled_type()` | 4.1 (v2.0, au lieu de 3.14) | 4.3 ; 3.14 (P4) l'étend |
+| `reports.service.get_for_staff()` | 4.1 (v2.0, au lieu de 3.14) | 4.2, 4.3 ; 3.14 (P4) l'étend |
 | `core.storage.signed_url()` (5 min, `MEDIA_HOST`) | 4.1 | 4.5, 5.x, 8.4, 9.x |
 | `core.geo.expose()` (niveaux d'exposition des Positions) | 4.1 | 5.x, 7.x, 9.x |
-| Liste `GET /v1/staff/reports` et lecture de `GET /v1/moderation/reports/{id}` par l'Administrateur commune | 4.1 | 4.2 (historique), 5.5, 5.9 |
+| Liste `GET /v1/staff/reports` et lecture de `GET /v1/moderation/reports/{id}` par l'Administrateur d'organisation | 4.1 | 4.2 (historique), 5.5, 5.9 |
 | Table `report_status_events`, événement initial `NULL → pending_review` | 4.2 | 4.6, 4.8, 7.1, 7.2 |
 | Émission de `ReportStatusChanged` | 4.2 | 4.10, 5.3, 5.6 |
 | Table `weight_estimates`, `reports.service.estimated_weight()` | 5.1 | 5.2, 5.3, 7.1, 7.5 |
 | Tuiles `TILES_HOST` de la zone de démo | 5.2 | 7.4, 7.6, 8.7 |
 | Route `GET /v1/missions/staff` (Missions `active` pour le Personnel) | 5.5 | 5.9 |
-| `missions.service.on_collector_deleted()` et ses réactions (`AccountDeleted`, `CollectorSuspended`) | 5.11 | — |
+| `missions.service.on_collector_deleted()` et ses réactions (`AccountDeleted`, `MembershipSuspended`) | 5.11 | — |
 | `missions.service.photo_seen()` | 5.13 | — |
 | Table `proof_reviews` | 5.14 (pilote) | 7.1 : `review_status = unreviewed` tant qu'elle n'existe pas ; 7.7 la branche sur `v_mission_facts` |
+| Événements `ProofAccepted`, `MissionCompleted` (v2.0) | 5.6 | 9.2, 11.6, 12.2 |
+| Événement `ProofContested` (v2.0) | 5.14 | 9.2, 12.5 |
+| Table `fraud_alerts` (v2.0) | 5.16 | 10.5 |
+| Table `contracts` (paramètres commerciaux, v2.0) | 10.2 | 10.3, 12.1, 9.2, 9.7, 11.3 |
+| Tables `collection_requests`, colonne `missions.collection_request_id` (v2.0) | 11.3 | 11.4 à 11.6 |
+| Table `payouts` (v2.0) | 12.2 | 12.3, 12.4, 12.6, 10.5 |
+| Table `disputes` (v2.0) | 12.5 | 9.6, 11.6, 12.4 |
+| Projection `lot_proof_balances` (v2.0) | 9.2 | 9.3, 9.6 |
 
 **Extensions du jeu de démonstration (FR-37).** La commande de 1.17 est extensible : 2.5 ajoute les comptes de chaque rôle, 4.4 les Signalements `validé` et `rejeté`, 5.3 les Missions `active`, 5.6 les Missions `completed` avec leur Preuve.
 
@@ -425,7 +563,7 @@ Les stories ont été rédigées par epic, en parallèle. Les règles ci-dessous
 | En-têtes et CSP | 8.4 |
 | Trivy, pip-audit, npm audit (exceptions datées) | 8.5 |
 
-**Couleurs des Types de déchet (UX-DR-3).** La story 1.13 crée le composant `WasteTypeBadge` / `WasteTypePicker` et les jetons provisoires `--color-waste-*`. La story 8.1 (porte H48) leur donne leurs valeurs définitives après validation par Mia et vérifie leur contraste.
+**Couleurs des Types de déchet (UX-DR-3).** La story 1.13 crée le composant `WasteTypeBadge` / `WasteTypePicker` et les jetons provisoires `--color-waste-*`. La story 8.1 (porte H48) leur donne leurs valeurs définitives après validation par la responsable produit et vérifie leur contraste.
 
 **Porte de l'Epic 7.** Les stories 7.1 à 7.5 sont à H60 ; si la story 7.6 (Should) est tirée à opt. H48, la story 7.1 l'est avec elle (porte opt. H48), sinon les deux sont à H60 ; 7.7 est pour le pilote.
 
@@ -433,19 +571,22 @@ Les stories ont été rédigées par epic, en parallèle. Les règles ci-dessous
 
 ## Questions ouvertes issues de la rédaction des stories
 
-1. **Modèle sous les seuils de SM-2** (3.7, FR-16). La démo garde-t-elle le Modèle factice si le premier Modèle entraîné n'atteint pas F1 macro ≥ 0,80 ? Ou montre-t-on le Modèle entraîné avec ses vrais chiffres ? *Responsable : Mia.*
-2. **Sauvegarde planifiée et AD-18** (8.12). Tranchée par la story 8.12 : service planifié du profil `prod` de Docker Compose (AD-18 interdit le cron de l'hôte). À confirmer par Ahmadou à l'implémentation de 8.12. *Responsable : Ahmadou.*
-3. **Rôles PostgreSQL.** Ils sont créés par un script d'initialisation hors Alembic, car `teranga_migrator` ne peut pas créer de rôle (story 1.1). *Responsable : Ahmadou.*
-4. **Bibliothèque de routage de la PWA.** Elle est absente de la Stack (`react-router` 8 est proposé). Photos HEIC et import depuis la galerie : non prévus au MVP. *Responsable : Mia.*
-5. **Polygones des Zones de Dakar.** Source et licence à choisir (story 1.8). *Responsable : Ahmadou.*
+1. **Modèle sous les seuils de SM-2** (3.7, FR-16). La démo garde-t-elle le Modèle factice si le premier Modèle entraîné n'atteint pas F1 macro ≥ 0,80 ? Ou montre-t-on le Modèle entraîné avec ses vrais chiffres ? *Responsable : responsable produit.*
+2. **Sauvegarde planifiée et AD-18** (8.12). Tranchée par la story 8.12 : service planifié du profil `prod` de Docker Compose (AD-18 interdit le cron de l'hôte). À confirmer par le responsable technique à l'implémentation de 8.12. *Responsable : responsable technique.*
+3. **Rôles PostgreSQL.** Ils sont créés par un script d'initialisation hors Alembic, car `teranga_migrator` ne peut pas créer de rôle (story 1.1). *Responsable : responsable technique.*
+4. **Bibliothèque de routage de la PWA.** Elle est absente de la Stack (`react-router` 8 est proposé). Photos HEIC et import depuis la galerie : non prévus au MVP. *Responsable : responsable produit.*
+5. **Polygones des Zones de Dakar.** Source et licence à choisir (story 1.8). *Responsable : responsable technique.*
 6. **Noms de routes et codes d'erreur.** Ceux qui ont été proposés dans les stories sont figés par le client OpenAPI généré dès leur première implémentation. Ils sont à relire une fois.
 7. **Cas d'administration non spécifiés dans le PRD.** Ils sont différés au pilote :
-   - créer le premier Administrateur commune ;
+   - créer le premier Administrateur d'organisation ;
    - réinitialiser son propre Second facteur ;
    - réactiver un compte suspendu ;
    - empêcher un Administrateur de retirer son propre rôle.
-8. **Table de conversion du Poids estimé** (5.1, PRD §11 Q6). Les 15 valeurs `(Taille de tas, Type de déchet) → kg` chargées par la story 5.1 sont provisoires `[ASSUMPTION]` ; elles sont à fournir et à valider avec la commune avant le pilote. *Responsable : Mia.*
-9. **Stories lourdes pour un seul agent** (validation 2, M8). 1.11 (tables, route, compteur annuel, miniature, drapeaux, démo), 1.13 (client OpenAPI généré, écrans 3 et 4, deux composants partagés), 2.5 (rôles, générateur route × rôle, propriété, `collector_profiles`, comptes de démo, routage PWA par rôle) et 5.6 (Preuve, géorepérage, démo, rétention). Découpage suggéré : sortir de 1.11 la tâche `thumb:`, de 1.13 la génération du client OpenAPI, de 2.5 les comptes de démo et le routage PWA. Non appliqué : il renumérote de nouveau les Epics 1 et 2 ; à décider avant la planification du sprint. *Responsable : Ahmadou.*
+   v2.0 : « créer le premier Administrateur » est tranché par la story 2.14 (commande `superadmin create`, puis Administrateur initial nommé par le Super Admin).
+8. **Table de conversion du Poids estimé** (5.1, PRD §11 Q6). Les 15 valeurs `(Taille de tas, Type de déchet) → kg` chargées par la story 5.1 sont provisoires `[ASSUMPTION]` ; elles sont à fournir et à valider avec la commune avant le pilote. *Responsable : responsable produit.*
+9. **Stories lourdes pour un seul agent** (validation 2, M8). 1.11 (tables, route, compteur annuel, miniature, drapeaux, démo), 1.13 (client OpenAPI généré, écrans 3 et 4, deux composants partagés), 2.5 (rôles, générateur route × rôle, propriété, `collector_profiles`, comptes de démo, routage PWA par rôle) et 5.6 (Preuve, géorepérage, démo, rétention). Découpage suggéré : sortir de 1.11 la tâche `thumb:`, de 1.13 la génération du client OpenAPI, de 2.5 les comptes de démo et le routage PWA. Non appliqué : il renumérote de nouveau les Epics 1 et 2 ; à décider avant la planification du sprint. *Responsable : responsable technique.* v2.0 : en partie traité par la story 1.18 (miniature sortie de 1.11), la story 2.13 (Appartenances sorties de 2.5) et la story 2.15 (routage de la PWA sorti de 2.5).
+10. **Ayant droit des kg** (PRD §11, Q21) : règles fines entre Collecteur, groupement et Organisation de la Mission, au-delà de l'ordre fixé par FR-38 et AD-35. *Responsable : responsable produit.*
+11. **Spécification UX de la console** : à produire avant le début de P2 (UX-DR-34, UX-DR-35). *Responsable : responsable produit.*
 
 ## Epic 1 : Signaler un dépôt
 
@@ -482,6 +623,7 @@ Afin de livrer chaque story suivante sur une base commune et conforme.
 
 **Exigences :** NFR-17, NFR-6.4, AR-1, AR-3, AR-11, AR-35, AD-1, AD-2, AD-15
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.2 : Configuration, sondes et conventions d'API
 
@@ -537,6 +679,7 @@ Afin que chaque module suivant hérite des mêmes règles de démarrage, de tran
 
 **Exigences :** NFR-7, NFR-14, AR-5, AR-6, AR-12, AR-20, AR-22, AR-23, AR-33, AR-34, AD-8, AD-11, AD-14, AD-17, AD-18, AD-26, AD-27
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.3 : Coquille PWA et bord Caddy
 
@@ -562,6 +705,7 @@ Afin que chaque écran suivant parte des mêmes jetons, des mêmes textes i18n e
 
 **Exigences :** NFR-13, AR-1, AR-4, AR-36, UX-DR-1, UX-DR-8, AD-16, AD-23
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.4 : CI de qualité
 
@@ -588,6 +732,7 @@ Afin que chaque story suivante respecte les frontières et la qualité dès H24.
 
 **Exigences :** NFR-11, AR-8, AR-9, AR-21, AR-35, AD-1, AD-11
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.5 : Hygiène du dépôt public
 
@@ -620,13 +765,14 @@ Afin que la chaîne logicielle soit sûre dès H24.
 **Quand** l'équipe les vérifie (sortie de `gh api` jointe à la pull request)
 **Alors** `main` est protégée (pull request obligatoire, CI verte requise, pas de force push) et le secret scanning et la push protection sont activés.
 
-**Étant donné** l'arbitrage de Mia sur la licence (MIT ou AGPL-3.0, PRD §11 Q1)
+**Étant donné** l'arbitrage de la responsable produit sur la licence (MIT ou AGPL-3.0, PRD §11 Q1)
 **Quand** il est rendu
 **Alors** le fichier `LICENSE` correspondant est ajouté à la racine
 **Et** un contrôle CI échoue si `LICENSE` manque, au plus tard à la porte H60.
 
 **Exigences :** NFR-10, NFR-6.3c, AR-2, AR-8, AD-28
 **Porte :** H24 (fichier `LICENSE` : H60)
+**Priorité :** P0
 
 ### Story 1.6 : Contrôles de contrat en CI
 
@@ -652,6 +798,7 @@ Afin qu'aucune story suivante n'ajoute un jeton illisible, un code d'erreur sans
 
 **Exigences :** NFR-9, NFR-12, NFR-13, NFR-6.3b, AR-17, AR-20, UX-DR-2, AD-9, AD-11, AD-16
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.7 : Accueil et consentement avant la première capture
 
@@ -707,6 +854,7 @@ Afin de signaler en confiance, sans que rien ne parte sans mon accord.
 
 **Exigences :** FR-4, NFR-5, NFR-6, NFR-12, NFR-13, NFR-P1, NFR-6.1a, AR-36, AR-37, UX-DR-7, UX-DR-8, UX-DR-9, UX-DR-10, UX-DR-11, UX-DR-23, UX-DR-24, AD-9, AD-16, AD-24
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.8 : Vérifier la Position et la Zone active avant la photo
 
@@ -760,6 +908,7 @@ Afin de ne pas photographier un dépôt pour rien.
 
 **Exigences :** FR-7, NFR-6, NFR-12, NFR-13, NFR-6.1a, AR-5, AR-10, AR-16, AR-19, UX-DR-7, UX-DR-8, UX-DR-10, UX-DR-12, AD-2, AD-6, AD-10, AD-14
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.9 : Photographier le dépôt en version légère et sans métadonnées
 
@@ -797,6 +946,7 @@ Afin d'envoyer une photo légère, sans donnée cachée, même avec un petit for
 
 **Exigences :** FR-7, FR-8, NFR-4, NFR-6, NFR-12, NFR-13, UX-DR-7, UX-DR-8, UX-DR-10, UX-DR-12, AD-7, AD-12
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.10 : Stocker une photo sans métadonnées dans le bucket privé
 
@@ -833,6 +983,7 @@ Afin qu'aucune donnée cachée de ma photo ni aucun fichier piégé ne soit cons
 
 **Exigences :** FR-8, NFR-6.1a, NFR-6.1b, NFR-6.2, AR-12, AR-28, AR-35, UX-DR-10, AD-13, AD-17
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.11 : Recevoir un Signalement anonyme et attribuer son Numéro de suivi
 
@@ -844,7 +995,8 @@ Afin que mon signalement soit pris en compte par la commune.
 
 **Étant donné** une base sans tables de signalement
 **Quand** la migration Alembic de cette story s'applique
-**Alors** elle crée seulement `devices` (propriétaire `auth` ; `device_hash`, `training_consent`, `consent_at`, `first_seen_at`), `reports`, `report_photos` (dont `thumb_key` nullable) et `tracking_counters` (propriétaire `reports`)
+**Alors** elle crée seulement `organizations` (propriétaire `orgs`, nouveau module : `id`, `type` parmi `commune`, `operator`, `collector_group`, `enterprise`, `recycler`, `platform` (énumération `OrganizationType` de `core/enums.py`), `name`, `zone_id` nullable vers `zones` et obligatoire pour `commune` (`CHECK`), `status` parmi `active`, `suspended`, `is_demo`, horodatages), avec la ligne système de l'Organisation plateforme (UUID fixe, `is_demo = false`) ; `devices` (propriétaire `auth` ; `device_hash`, `training_consent`, `consent_at`, `first_seen_at`) ; `reports`, `report_photos` (dont `thumb_key` nullable) et `tracking_counters` (propriétaire `reports`)
+**Et** `reports` porte `organization_id NOT NULL`, indexé, avec une clé étrangère vers `organizations` sans `ON DELETE` (AD-31)
 **Et** `reports` porte `is_demo NOT NULL DEFAULT false`, un `CHECK` sur la Taille de tas (`small`, `medium`, `large`), un `CHECK` de 280 caractères au plus sur le commentaire, `citizen_type` nullable parmi les 5 Types de déchet et un Statut dont les valeurs viennent de `core/enums.py`.
 
 **Étant donné** un Citoyen anonyme qui présente un `X-Device-Id` valide, `consent.terms = true`, une Position dans la Zone active, une Taille de tas et une photo JPEG de moins de 1 Mo
@@ -881,10 +1033,14 @@ Afin que mon signalement soit pris en compte par la commune.
 **Quand** le Signalement est enregistré
 **Alors** la ligne `report_photos` garde l'`object_key` (`report/<yyyy>/<mm>/<uuid>.jpg`), le `sha256` des octets reçus, la largeur et la hauteur renvoyés par `ingest_photo()`.
 
-**Étant donné** une photo de Signalement stockée
-**Quand** la transaction est validée
-**Alors** la tâche arq `thumb:<photo_id>` est mise en file par `after_commit` et produit une miniature JPEG d'au plus 30 Ko sous `report_thumb/<yyyy>/<mm>/<uuid>.jpg`, dont la clé est gardée dans `report_photos.thumb_key` (test sur 10 photos de 1 Mo)
-**Et** rejouer la tâche ne crée pas de second objet.
+**Étant donné** deux Organisations `active` de type `commune` rattachées à deux communes d'arrondissement de la Zone active, et aucune sur une troisième
+**Quand** trois Signalements arrivent, un dans chaque commune
+**Alors** les deux premiers prennent l'`organization_id` de leur commune (`orgs.service.responsible_org()`, Zone la plus précise : quartier, puis commune, puis ville) et le troisième celui de l'Organisation plateforme
+**Et** `organization_id` est absent de la réponse au Citoyen, et aucune route ne permet de le modifier.
+
+**Étant donné** le nouveau module `orgs` (router, service, repository)
+**Quand** import-linter s'exécute
+**Alors** `app.modules.orgs` est un conteneur `layers`, et la seule flèche ajoutée est `reports → orgs.service`.
 
 **Étant donné** le compteur annuel `tracking_counters`
 **Quand** 20 Signalements sont créés simultanément
@@ -898,7 +1054,7 @@ Afin que mon signalement soit pris en compte par la commune.
 
 **Étant donné** une exception levée après le stockage de la photo et avant le commit
 **Quand** l'unité de travail se termine
-**Alors** aucune ligne n'est écrite, aucune tâche de miniature n'est mise en file et l'objet stocké est supprimé par `after_rollback`
+**Alors** aucune ligne n'est écrite et l'objet stocké est supprimé par `after_rollback`
 **Et** les services sont `@transactional` et aucun service ni repository n'appelle `commit`, `rollback` ou `begin`.
 
 **Étant donné** l'API en Mode démonstration (`DEMO_MODE = true`)
@@ -909,8 +1065,9 @@ Afin que mon signalement soit pris en compte par la commune.
 **Quand** la CI vérifie `fr.json`
 **Alors** chaque code a son message `errors.<code>`, rédigé pour dire au Citoyen quoi faire.
 
-**Exigences :** FR-4, FR-7, FR-8, FR-24 (miniature), FR-37, NFR-9, NFR-6.1a, NFR-6.1b, NFR-6.2, AR-10, AR-12, AR-16, AR-17, AR-19, AR-20, AR-22, AR-23, AR-28, AR-30, AR-32, AR-35, UX-DR-10, AD-2, AD-6, AD-8, AD-9, AD-11, AD-13, AD-14, AD-17, AD-18, AD-24
+**Exigences :** FR-4, FR-7, FR-8, FR-37, FR-44, FR-47, NFR-9, NFR-6.1a, NFR-6.1b, NFR-6.2, AR-10, AR-12, AR-16, AR-17, AR-19, AR-20, AR-22, AR-23, AR-28, AR-30, AR-32, AR-35, UX-DR-10, AD-2, AD-6, AD-8, AD-9, AD-11, AD-13, AD-14, AD-17, AD-18, AD-24, AD-31
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.12 : Renvoyer un Signalement sans doublon ni fuite
 
@@ -950,6 +1107,7 @@ Afin que la commune ne reçoive pas de doublon et que personne d'autre ne puisse
 
 **Exigences :** FR-9, NFR-6.2, NFR-SM-4, AR-15, AR-17, AD-5, AD-9, AD-17
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.13 : Compléter, envoyer et voir la confirmation
 
@@ -1015,6 +1173,7 @@ Afin de savoir que mon Signalement est bien arrivé.
 
 **Exigences :** FR-7, FR-9, FR-37, NFR-4, NFR-6, NFR-12, NFR-13, NFR-SM-3, NFR-P2, AR-20, AR-21, AR-36, UX-DR-2, UX-DR-3, UX-DR-4, UX-DR-6, UX-DR-7, UX-DR-8, UX-DR-9, UX-DR-10, UX-DR-13, UX-DR-14, UX-DR-15, AD-5, AD-11, AD-16
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.14 : Repérer les Doublons probables à la réception
 
@@ -1034,7 +1193,7 @@ Afin de ne pas envoyer deux fois un Collecteur sur le même dépôt.
 **Alors** il est créé normalement (201, `en attente de modération`) avec `duplicate_of_report_id` pointant vers le plus ancien Signalement portant cette photo.
 
 **Étant donné** un Signalement non terminal (ni `rejeté` ni `collecté`) reçu il y a moins de 72 h
-**Quand** un nouveau Signalement arrive à 49 m de lui (`ST_DWithin` sur `geography`, horloge `core.clock`)
+**Quand** un nouveau Signalement de la même `organization_id` arrive à 49 m de lui (`ST_DWithin` sur `geography`, horloge `core.clock` ; v2.0 : la recherche de proximité est limitée à la même Organisation, AD-31)
 **Alors** il est marqué Doublon probable du Signalement le plus proche
 **Et** à 51 m, ou pour un Signalement reçu il y a 72 h 01 min, ou pour un Signalement terminal, il n'est pas marqué
 **Et** si la photo est identique et la Position proche, c'est le Signalement à la photo identique qui est retenu comme origine.
@@ -1052,8 +1211,16 @@ Afin de ne pas envoyer deux fois un Collecteur sur le même dépôt.
 **Alors** il obtient la réponse sans lire les tables de `reports`
 **Et** la marque est calculée une seule fois à la création, stockée et jamais recalculée à la lecture.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** une photo strictement identique à celle d'un Signalement d'une autre Organisation
+**Quand** le nouveau Signalement arrive
+**Alors** il est marqué Doublon probable (la recherche par `sha256` reste globale : une photo réutilisée est un signal de fraude, quelle que soit l'Organisation)
+**Et** la réponse au Citoyen ne contient aucun champ supplémentaire.
+
 **Exigences :** FR-8, NFR-6.2, AR-25, AR-28, AD-6, AD-13, AD-14, AD-19
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.15 : Limiter les abus de signalement
 
@@ -1101,6 +1268,7 @@ Afin que la File de modération ne soit pas noyée sous le spam.
 
 **Exigences :** FR-10, NFR-6.2, NFR-12, NFR-13, AR-4, AR-26, UX-DR-10, AD-9, AD-20, AD-23
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.16 : Retirer son consentement au réentraînement
 
@@ -1152,6 +1320,7 @@ Afin que mes Signalements, passés et futurs, ne servent plus au réentraînemen
 
 **Exigences :** FR-4, NFR-12, NFR-13, NFR-6.3a, AR-12, AR-15, AR-17, AR-22, AR-23, AR-24, AR-30, UX-DR-7, UX-DR-8, UX-DR-10, UX-DR-29, AD-5, AD-8, AD-9, AD-17, AD-18, AD-21, AD-24
 **Porte :** H24
+**Priorité :** P0
 
 ### Story 1.17 : Charger et retirer les Données de démonstration en une commande
 
@@ -1187,16 +1356,47 @@ Afin de montrer une instance réaliste sans jamais présenter un chiffre de dém
 **Quand** un test d'architecture les parcourt
 **Alors** chaque schéma qui expose un Signalement porte le champ `is_demo`, afin que la PWA affiche l'étiquette « Données de démonstration » partout où ces données apparaissent.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** `demo load`
+**Quand** il s'exécute
+**Alors** il crée d'abord au moins deux Organisations de type `commune` `is_demo = true`, rattachées à deux communes d'arrondissement de Dakar, et les Signalements fictifs se répartissent entre elles par `orgs.service.responsible_org()`
+**Et** `demo purge` retire ces Organisations, et jamais l'Organisation plateforme.
+
 **Exigences :** FR-37, NFR-P2, NFR-6.3a, AR-32, UX-DR-6, AD-14, AD-15
 **Porte :** H24
+**Priorité :** P0
 
-## Epic 2 : Comptes, accès et journal d'audit
+### Story 1.18 : Produire la miniature d'une photo de Signalement
 
-Chacun se connecte par OTP avec son rôle (code affiché à l'écran en Mode démonstration au hackathon) et garde sa session 30 jours sans jeton exposé au navigateur ; chaque route applique le rôle et la propriété de l'objet, vérifiés par un test route × rôle ; chaque action sensible est inscrite au Journal d'audit, en ajout seul ; l'utilisateur gère son profil et peut supprimer son compte ; l'Administrateur commune crée, vérifie et suspend les Collecteurs ; avant le pilote, le Personnel ajoute un Second facteur.
+En tant que Collecteur ou membre du Personnel,
+Je veux que chaque photo de Signalement ait une miniature légère,
+Afin que les listes se chargent vite sur un réseau faible.
+
+**Critères d'acceptation :**
+
+**Étant donné** une photo de Signalement stockée par la story 1.11
+**Quand** la transaction est validée
+**Alors** la tâche arq `thumb:<photo_id>` est mise en file par `after_commit` et produit une miniature JPEG d'au plus 30 Ko sous `report_thumb/<yyyy>/<mm>/<uuid>.jpg`, dont la clé est gardée dans `report_photos.thumb_key` (test sur 10 photos de 1 Mo)
+**Et** rejouer la tâche ne crée pas de second objet.
+
+**Étant donné** une exception levée après le stockage de la photo et avant le commit
+**Quand** l'unité de travail se termine
+**Alors** aucune tâche de miniature n'est mise en file.
+
+**Exigences :** FR-24 (miniature), NFR-4, AR-22, AR-28, AD-8, AD-13, AD-17
+**Porte :** H24
+**Priorité :** P0 (story sortie de 1.11 le 25/11/2026)
+
+## Epic 2 : Comptes, organisations, accès et journal d'audit
+
+Chacun se connecte par OTP avec son rôle (code affiché à l'écran en Mode démonstration au hackathon) et garde sa session 30 jours sans jeton exposé au navigateur ; chaque route applique le rôle et la propriété de l'objet, vérifiés par un test route × rôle ; chaque action sensible est inscrite au Journal d'audit, en ajout seul ; l'utilisateur gère son profil et peut supprimer son compte ; l'Administrateur d'organisation crée, vérifie et suspend les Collecteurs ; avant le pilote, le Personnel ajoute un Second facteur.
 
 **Prérequis :** Epic 1 livré (squelette, `core.config.Settings`, `core.clock`, unité de travail `core.db` avec `after_commit`, `core.ratelimit` sur Valkey, `core.idempotency.require_key`, `core.security.principal()` pour l'Identifiant d'appareil, `POST /v1/reports` anonyme avec `owner_key = device:<hash>`, `GET /v1/config`, consentement, worker arq, `python -m app.cli demo load|purge`).
 
 **Ordre des portes :** stories 2.1 à 2.5 → **H24** ; 2.6 (inscription au Journal d'audit, nécessaire à l'Epic 4) → **H48** ; 2.7 (consultation du Journal) → **Should, opt. H48**, dont aucune autre story ne dépend ; 2.8 à 2.11 → **H60** ; 2.12 → **pilote**. Les stories H48 de l'Epic 4 ne dépendent que des stories 2.1 à 2.6.
+
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :** les rôles sont portés par les Appartenances à des Organisations (PRD FR-45), chaque requête est cloisonnée (FR-46), le Super Admin ouvre les Organisations (FR-49) et la console est chargée à part (FR-55). **Priorité :** P1. **Ordre d'exécution :** 2.1 → 2.2 → 2.3 → 2.4 → **2.13** → **2.15** → 2.5 → 2.6 → 2.7 → 2.8 → 2.9 → 2.10 → 2.11 → **2.14** → 2.12. Les stories 2.13 et 2.15 sont à H24, la 2.14 à H60.
 
 ### Story 2.1 : Mode démonstration visible et interdit en production
 
@@ -1225,6 +1425,7 @@ Afin de ne jamais confondre la démo avec le service réel ni exposer un code OT
 
 **Exigences :** FR-6, NFR-6.2, NFR-12, NFR-13, AR-5, AR-36, UX-DR-5, UX-DR-2, UX-DR-8, AD-14, AD-16
 **Porte :** H24
+**Priorité :** P1
 
 ### Story 2.2 : Demander un code de connexion par SMS
 
@@ -1273,6 +1474,7 @@ Afin de me connecter sans mot de passe.
 
 **Exigences :** FR-1, FR-6, NFR-6.1a, NFR-6.2, NFR-14, NFR-16, AR-20, AR-26, AR-27, AR-33, AR-34, UX-DR-25, UX-DR-11, UX-DR-7, UX-DR-10, AD-9, AD-14, AD-20, AD-27
 **Porte :** H24
+**Priorité :** P1
 
 ### Story 2.3 : Se connecter avec le code OTP
 
@@ -1284,12 +1486,12 @@ Afin d'agir selon mon rôle et de retrouver mes Signalements sur mon compte.
 
 **Étant donné** un code valide demandé il y a moins de 5 min
 **Quand** la PWA appelle `POST /v1/auth/otp/verify` (numéro, code)
-**Alors** la réponse 200 contient un jeton d'accès JWT `EdDSA` d'une durée ≤ 15 min (`iss`, `aud`, `kid`, `sub`, `tv`, `amr = ["otp"]`), signé par la clé la plus récente de `JWT_SIGNING_KEYS`, et `user {id, role}`
+**Alors** la réponse 200 contient un jeton d'accès JWT `EdDSA` d'une durée ≤ 15 min (`iss`, `aud`, `kid`, `sub`, `tv`, `amr = ["otp"]`), signé par la clé la plus récente de `JWT_SIGNING_KEYS`, et `user {id, memberships}` (v2.0)
 **Et** le code est consommé : une seconde vérification avec le même code renvoie 401 `otp_expired`.
 
 **Étant donné** un numéro qui n'a pas encore de compte
 **Quand** sa première vérification réussit
-**Alors** une ligne est créée dans la table `users` (créée par cette story : `id` UUID, `phone_hash` HMAC-SHA256 avec `PHONE_PEPPER`, `phone_enc` AES-GCM avec `key_id` et `nonce` de `PHONE_ENC_KEYS`, `display_name` nullable, `role` = Citoyen, `status = active`, `token_version`, `is_demo` par `core.demo.flag()`, horodatages par `core.clock`)
+**Alors** une ligne est créée dans la table `users` (créée par cette story : `id` UUID, `phone_hash` HMAC-SHA256 avec `PHONE_PEPPER`, `phone_enc` AES-GCM avec `key_id` et `nonce` de `PHONE_ENC_KEYS`, `display_name` nullable, `status = active`, `token_version`, `is_demo` par `core.demo.flag()`, horodatages par `core.clock`)
 **Et** aucune colonne ne contient le numéro en clair (test CI : recherche du numéro de test dans une copie de la base → absent).
 
 **Étant donné** un code erroné
@@ -1320,8 +1522,16 @@ Afin d'agir selon mon rôle et de retrouver mes Signalements sur mon compte.
 **Quand** on les inspecte
 **Alors** ils ne contiennent ni jeton, ni code, ni numéro complet.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** la table `users`
+**Quand** la migration de cette story s'applique
+**Alors** elle n'a **pas** de colonne `role` : les rôles sont portés par `memberships` (story 2.13), et un utilisateur sans Appartenance est Citoyen
+**Et** la première connexion renvoie `memberships = []`.
+
 **Exigences :** FR-1, FR-2, NFR-6.1b, NFR-14, NFR-17, AR-6, AR-17, AR-34, UX-DR-25, UX-DR-2, UX-DR-10, AD-5, AD-9, AD-10, AD-20, AD-26
 **Porte :** H24
+**Priorité :** P1
 
 ### Story 2.4 : Rester connecté 30 jours et se déconnecter
 
@@ -1375,27 +1585,28 @@ Afin d'utiliser l'application au quotidien sans qu'une session volée ou révoqu
 
 **Exigences :** FR-2, NFR-6.2, AR-12, AR-17, AR-18, UX-DR-7, UX-DR-8, AD-9, AD-17, AD-30
 **Porte :** H24
+**Priorité :** P1
 
 ### Story 2.5 : Appliquer les rôles et la propriété sur chaque route
 
-En tant qu'Administrateur commune responsable des données,
-Je veux que chaque route applique les rôles Citoyen, Collecteur, Recycleur, Modérateur et Administrateur commune et vérifie la propriété de chaque objet,
+En tant qu'Administrateur d'organisation responsable des données,
+Je veux que chaque route applique les rôles portés par les Appartenances, cloisonne par Organisation et vérifie la propriété de chaque objet,
 Afin qu'aucun accès non prévu ne soit possible, ce que la CI prouve à chaque modification.
 
 **Critères d'acceptation :**
 
-**Étant donné** l'énumération des rôles dans `core/enums.py` (`citizen`, `collector`, `recycler`, `moderator`, `municipal_admin`)
+**Étant donné** l'énumération `MembershipRole` dans `core/enums.py` (`collector`, `moderator`, `org_admin`, `enterprise_manager`, `recycler`, `super_admin` ; un utilisateur sans Appartenance est Citoyen)
 **Quand** une requête authentifiée arrive
-**Alors** le rôle est lu en base via le cache `authz:<user_id>` (story 2.4), jamais dans le jeton
-**Et** un test qui change le rôle en base en incrémentant `token_version` obtient 401 `session_revoked` à la requête suivante.
+**Alors** les Appartenances sont lues en base via le cache `authz:<user_id>` (stories 2.4 et 2.13), jamais dans le jeton, et chaque route déclare `require_membership(*roles)` (qui remplace `require_role(...)`)
+**Et** un test qui change une Appartenance en base en incrémentant `token_version` obtient 401 `session_revoked` à la requête suivante.
 
 **Étant donné** le test de la table des routes (story 1.6, liste blanche publique close)
 **Quand** on l'étend dans cette story
-**Alors** chaque route `/v1` hors liste blanche déclare soit `require_role(...)`, soit son appartenance à la liste close des routes du principal appareil, ouverte ici avec `PUT /v1/device/consent` (story 1.16) ; chaque story qui crée une route du principal appareil l'y ajoute
+**Alors** chaque route `/v1` hors liste blanche déclare soit `require_membership(...)`, soit son appartenance à la liste close des routes du principal appareil, ouverte ici avec `PUT /v1/device/consent` (story 1.16) ; chaque story qui crée une route du principal appareil l'y ajoute
 **Et** la CI échoue si une route déclarée n'est pas couverte par le générateur route × rôle ci-dessous.
 
 **Étant donné** le test route × rôle généré depuis la table des routes (`backend/tests/authz`)
-**Quand** il appelle chaque route avec chaque principal : sans jeton ni appareil, appareil seul, Citoyen, Collecteur non vérifié, Collecteur vérifié, Recycleur, Modérateur, Administrateur commune
+**Quand** il appelle chaque route avec chaque principal : sans jeton ni appareil, appareil seul, Citoyen, Collecteur non vérifié, Collecteur vérifié, Modérateur, Administrateur d'organisation, Gestionnaire d'entreprise, Recycleur non vérifié, Recycleur vérifié, Super Admin
 **Alors** tout accès non prévu échoue : 401 sans jeton, 403 avec un rôle non autorisé
 **Et** les routes ajoutées par les epics suivants sont couvertes automatiquement par le même générateur
 **Et** le test route × rôle sans jeton vérifie qu'aucune route renvoyant des coordonnées de Signalement n'est accessible sans jeton, hors `GET /v1/public/map`.
@@ -1409,26 +1620,31 @@ Afin qu'aucun accès non prévu ne soit possible, ce que la CI prouve à chaque 
 **Quand** leurs schémas de réponse sont inspectés par un test
 **Alors** aucun ne contient `author_user_id`, `owner_key`, numéro de téléphone ni nom de l'auteur d'un Signalement.
 
-**Étant donné** la table `collector_profiles` (créée par cette story : utilisateur, `verified_at`, `verified_by`)
-**Quand** `auth.service.is_verified_collector(user_id)` est appelé
-**Alors** il renvoie vrai seulement pour un Collecteur actif dont `verified_at` est renseigné.
+**Étant donné** la table `memberships` (story 2.13 ; v2.0 : la table `collector_profiles` n'est plus créée)
+**Quand** `orgs.service.is_verified_collector(user_id, organization_id)` est appelé
+**Alors** il renvoie vrai seulement pour une Appartenance `collector` active, dans cette Organisation, dont `verified_at` est renseigné.
+
+**Étant donné** le générateur du test d'isolement entre organisations (créé par cette story, NFR-18)
+**Quand** il s'exécute sur deux Organisations A et B seedées avec les mêmes objets
+**Alors** chaque route qui manipule un objet d'Organisation est appelée par un membre de A sur un objet de B : lecture et modification renvoient 404, et les listes ne contiennent aucun objet de B
+**Et** la CI échoue si une route qui porte un objet d'Organisation n'est pas couverte ; les routes des epics suivants le sont automatiquement.
 
 **Étant donné** la commande `python -m app.cli demo load`
 **Quand** elle s'exécute
-**Alors** elle crée des comptes de test `is_demo = true` pour chaque rôle : au moins un Citoyen, un Collecteur vérifié, un Collecteur non vérifié, un Recycleur, un Modérateur et un Administrateur commune, avec des numéros fictifs d'une plage réservée
+**Alors** elle crée des comptes de test `is_demo = true` pour chaque rôle, avec leurs Appartenances dans les Organisations de démonstration (story 1.17) : au moins un Citoyen, un Collecteur vérifié, un Collecteur non vérifié, un Modérateur, un Administrateur d'organisation, un Gestionnaire d'entreprise, un Recycleur non vérifié, un Recycleur vérifié et un Super Admin, avec des numéros fictifs d'une plage réservée
 **Et** `demo purge` les retire.
 
 **Étant donné** une connexion OTP réussie
-**Quand** la PWA reçoit le rôle
-**Alors** elle mène le Citoyen à l'écran 1, le Collecteur à l'espace Collecteur et le Personnel à l'espace commune (gabarit 1280×800, navigation au clavier, focus visible)
-**Et** un espace dont les fonctions ne sont pas encore livrées affiche un état vide, et une URL d'un autre rôle affiche « Accès refusé », l'API restant la seule barrière.
+**Quand** la PWA reçoit les Appartenances
+**Alors** le routage par espace suit la story 2.15 (v2.0 : routage déplacé de cette story vers la 2.15).
 
-**Exigences :** FR-3, FR-34, FR-37, NFR-9, NFR-6.2, AR-8, AR-17, AR-19, AR-32, UX-DR-7, UX-DR-9, UX-DR-21, AD-9, AD-10, AD-30
+**Exigences :** FR-3, FR-34, FR-37, FR-46, NFR-9, NFR-18, NFR-6.2, AR-8, AR-17, AR-19, AR-32, AR-44, AR-45, UX-DR-7, UX-DR-9, UX-DR-21, AD-9, AD-10, AD-30, AD-31, AD-32
 **Porte :** H24
+**Priorité :** P1
 
 ### Story 2.6 : Inscrire les actions sensibles au Journal d'audit
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux que chaque action sensible soit inscrite au Journal d'audit, en ajout seul, avec l'acteur, l'objet, l'état avant et après et l'horodatage serveur,
 Afin de pouvoir rendre compte de chaque décision et qu'aucune trace ne puisse être effacée.
 
@@ -1450,7 +1666,7 @@ Afin de pouvoir rendre compte de chaque décision et qu'aucune trace ne puisse �
 **Et** `before` et `after` se limitent aux champs modifiés, sans numéro de téléphone ni Position ; l'IP ne va que dans `audit_log_ips`.
 
 **Étant donné** la vérification OTP (story 2.3)
-**Quand** un Modérateur ou un Administrateur commune se connecte
+**Quand** un Modérateur ou un Administrateur d'organisation se connecte
 **Alors** une entrée `staff.login` (acteur `user`, IP) est inscrite
 **Et** la connexion d'un Citoyen ou d'un Collecteur n'en inscrit pas ; la première connexion qui crée un compte inscrit `account.create`.
 
@@ -1468,19 +1684,27 @@ Afin de pouvoir rendre compte de chaque décision et qu'aucune trace ne puisse �
 **Alors** seule la première IP est effacée, l'entrée `audit_logs` restant intacte
 **Et** la purge est inscrite par lot (`retention.purge`, nombre, catégorie, acteur `system:retention.sweep`).
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** la table `audit_logs`
+**Quand** la migration de cette story s'applique
+**Alors** elle porte aussi `organization_id` nullable (nul pour les actions de plateforme), renseigné pour toute action sur un objet d'Organisation
+**Et** la liste `AuditAction` comprend les actions v2.0 de l'épine (AD-25), en attente dans `PENDING_AUDIT_ACTIONS` jusqu'à la story qui les produit.
+
 **Exigences :** FR-36, NFR-17, NFR-6.1c, AR-11, AR-12, AR-23, AR-29, AR-32, AD-15, AD-17, AD-18, AD-25
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 2.7 : Consulter le Journal d'audit
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux consulter le Journal d'audit filtré par action et par période,
 Afin de vérifier qui a fait quoi et quand, sans pouvoir rien y modifier.
 
 **Critères d'acceptation :**
 
 **Étant donné** des entrées au Journal d'audit
-**Quand** l'Administrateur commune appelle `GET /v1/admin/audit-logs?action=&from=&to=&limit=&cursor=`
+**Quand** l'Administrateur d'organisation appelle `GET /v1/admin/audit-logs?action=&from=&to=&limit=&cursor=`
 **Alors** la réponse `{items, next_cursor}` liste les entrées de la plus récente à la plus ancienne (`limit` ≤ 100) avec action, acteur (`kind`, référence, rôle), objet, état avant et après, horodatage serveur et `is_demo`
 **Et** aucune IP ni aucun numéro de téléphone n'est renvoyé.
 
@@ -1493,12 +1717,20 @@ Afin de vérifier qui a fait quoi et quand, sans pouvoir rien y modifier.
 **Alors** la réponse est 403 ; sans jeton, 401 (test route × rôle).
 
 **Étant donné** l'espace commune
-**Quand** l'Administrateur commune ouvre « Journal d'audit » **[HORS MAQUETTE — UX-DR-28]**
+**Quand** l'Administrateur d'organisation ouvre « Journal d'audit » **[HORS MAQUETTE — UX-DR-28]**
 **Alors** il voit un tableau paginé, des filtres par action (libellés i18n) et par période, un état vide « Aucune entrée sur cette période », en 1280×800, entièrement navigable au clavier avec focus visible
 **Et** chaque entrée `is_demo` porte l'étiquette « Données de démonstration », et l'écran ne propose aucune action de modification.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un Administrateur d'organisation
+**Quand** il consulte le Journal d'audit
+**Alors** il ne voit que les entrées de son Organisation (Portée, AD-31)
+**Et** le Super Admin voit toutes les entrées, avec un filtre par Organisation, et sa lecture est inscrite `superadmin.access`.
+
 **Exigences :** FR-36, NFR-9, NFR-12, NFR-13, AR-20, AR-29, UX-DR-28, UX-DR-6, UX-DR-7, UX-DR-9, AD-11, AD-25
 **Porte :** Should, opt. H48
+**Priorité :** P1
 
 ### Story 2.8 : Consulter et rectifier son profil
 
@@ -1544,6 +1776,7 @@ Afin d'exercer mes droits d'accès et de rectification.
 
 **Exigences :** FR-5, FR-4, FR-3, NFR-6.1b, NFR-12, NFR-13, AR-15, AR-24, AR-30, AR-36, UX-DR-29, UX-DR-8, UX-DR-7, AD-5, AD-9, AD-10, AD-21, AD-24
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 2.9 : Retirer un Signalement anonyme encore en attente
 
@@ -1586,6 +1819,7 @@ Afin d'annuler un envoi fait par erreur sans créer de compte.
 
 **Exigences :** FR-5, FR-3, AR-12, AR-13, AR-15, AR-28, AR-29, UX-DR-29, UX-DR-10, UX-DR-7, AD-3, AD-5, AD-9, AD-13, AD-17, AD-25
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 2.10 : Supprimer son compte
 
@@ -1629,54 +1863,62 @@ Afin que mon numéro soit effacé et que mes Signalements non validés disparais
 
 **Exigences :** FR-5, FR-36, NFR-6.1c, AR-12, AR-18, AR-23, AR-24, AR-29, UX-DR-29, UX-DR-10, AD-1, AD-17, AD-18, AD-21, AD-25, AD-30
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 2.11 : Gérer les comptes Collecteurs et les rôles
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux créer, vérifier et suspendre un compte Collecteur et changer le rôle d'un utilisateur,
 Afin que seuls des Collecteurs vérifiés puissent prendre des Missions.
 
 **Critères d'acceptation :**
 
-**Étant donné** l'Administrateur commune dans l'espace commune
-**Quand** il appelle `POST /v1/admin/collectors` (numéro, nom affiché ; `Idempotency-Key`)
-**Alors** un compte au rôle Collecteur, `status = active`, non vérifié, est créé avec sa ligne `collector_profiles`, et `account.create` est inscrit (acteur : l'Administrateur commune)
-**Et** un numéro invalide renvoie 422 `invalid_phone`, un numéro qui a déjà un compte 409 `phone_already_registered`.
+**Étant donné** l'Administrateur d'organisation dans la console, Organisation active A
+**Quand** il appelle `POST /v1/orgs/{id}/members` (numéro, nom affiché, rôle `collector` ; `Idempotency-Key`)
+**Alors** le compte est créé s'il n'existe pas (`account.create`), puis une Appartenance `collector` non vérifiée est créée dans A (`membership.create`, acteur : l'Administrateur d'organisation)
+**Et** un numéro invalide renvoie 422 `invalid_phone` ; un numéro qui a déjà une Appartenance `collector` dans A renvoie 409 `membership_exists` ; un numéro qui a déjà un compte reçoit seulement la nouvelle Appartenance.
 
 **Étant donné** un Collecteur non vérifié
-**Quand** l'Administrateur commune appelle `POST /v1/admin/collectors/{id}/verify`
-**Alors** `verified_at` et `verified_by` sont renseignés, `account.verify` est inscrit avec l'état avant et après, et `auth.service.is_verified_collector()` renvoie vrai
-**Et** vérifier un utilisateur qui n'est pas Collecteur renvoie 409 `not_a_collector` ; vérifier un Collecteur déjà vérifié renvoie 200 sans nouvelle entrée.
+**Quand** l'Administrateur d'organisation appelle `POST /v1/orgs/{id}/members/{user_id}/verify`
+**Alors** `memberships.verified_at` et `verified_by` sont renseignés, `membership.verify` est inscrit avec l'état avant et après, et `orgs.service.is_verified_collector(user_id, A)` renvoie vrai
+**Et** vérifier une Appartenance qui n'est pas `collector` renvoie 409 `not_a_collector` ; vérifier un Collecteur déjà vérifié renvoie 200 sans nouvelle entrée.
 
 **Étant donné** un Collecteur connecté
-**Quand** l'Administrateur commune appelle `POST /v1/admin/collectors/{id}/suspend`
-**Alors** `status` passe à `suspended`, `token_version` est incrémenté, ses familles sont révoquées, le cache est invalidé par `after_commit`, `account.suspend` est inscrit et `CollectorSuspended` est émis (aucune réaction n'y est abonnée dans cette story ; la story 5.11 y abonne l'annulation de la Mission `active` du Collecteur)
-**Et** la requête suivante du Collecteur renvoie 401 `session_revoked`, son renouvellement 401, et une nouvelle vérification OTP 403 `account_suspended`.
+**Quand** l'Administrateur d'organisation appelle `POST /v1/orgs/{id}/members/{user_id}/suspend`
+**Alors** l'Appartenance passe à `suspended` dans A seulement, `token_version` est incrémenté, le cache est invalidé par `after_commit`, `membership.suspend` est inscrit et `MembershipSuspended(user_id, A)` est émis (aucune réaction n'y est abonnée dans cette story ; la story 5.11 y abonne la libération des Missions `active` de A)
+**Et** la requête suivante du Collecteur renvoie 401 `session_revoked` ; reconnecté, il n'a plus la Portée de A.
+
+**Étant donné** un compte à suspendre entièrement
+**Quand** le Super Admin appelle `POST /v1/admin/users/{id}/suspend`
+**Alors** `users.status` passe à `suspended`, ses familles sont révoquées, `account.suspend` est inscrit, et une nouvelle vérification OTP renvoie 403 `account_suspended`
+**Et** un Administrateur d'organisation qui appelle cette route reçoit 403.
 
 **Étant donné** un utilisateur
-**Quand** l'Administrateur commune appelle `PUT /v1/admin/users/{id}/role` avec un rôle de l'énumération
-**Alors** le rôle est changé, `token_version` incrémenté et `account.role_change` inscrit (rôle avant et après) ; la requête suivante de l'utilisateur renvoie 401 et sa reconnexion porte le nouveau rôle
-**Et** un rôle inconnu renvoie 422 ; passer au rôle Collecteur crée une ligne `collector_profiles` non vérifiée.
+**Quand** l'Administrateur d'organisation appelle `PUT /v1/orgs/{id}/members/{user_id}/role` avec un rôle de `MembershipRole`
+**Alors** le rôle de l'Appartenance dans A est changé, `token_version` incrémenté et `membership.role_change` inscrit (rôle avant et après) ; la requête suivante de l'utilisateur renvoie 401 et sa reconnexion porte le nouveau rôle
+**Et** un rôle inconnu ou incompatible avec le type de A renvoie 422 `role_incompatible` ; un nouveau rôle `collector` est non vérifié.
 
 **Étant donné** un Citoyen, un Collecteur, un Recycleur ou un Modérateur
-**Quand** il appelle l'une de ces routes ou `GET /v1/admin/collectors`
-**Alors** la réponse est 403 ; sans jeton, 401 (test route × rôle).
+**Quand** il appelle l'une de ces routes ou `GET /v1/orgs/{id}/members`
+**Alors** la réponse est 403 ; sans jeton, 401 (test route × rôle)
+**Et** un Administrateur d'organisation de B qui vise A reçoit 404 (test d'isolement).
 
 **Étant donné** l'écran « Collecteurs » de l'espace commune **[HORS MAQUETTE — UX-DR-28]**
-**Quand** l'Administrateur commune l'ouvre
-**Alors** il voit la liste paginée (`GET /v1/admin/collectors`) avec nom affiché, numéro masqué, état vérifié et état du compte, un formulaire de création, les actions « Vérifier », « Suspendre » et « Changer le rôle » avec confirmation
+**Quand** l'Administrateur d'organisation l'ouvre
+**Alors** il voit la liste paginée des membres de son Organisation (`GET /v1/orgs/{id}/members`) avec nom affiché, numéro masqué, état vérifié et état du compte, un formulaire de création, les actions « Vérifier », « Suspendre » et « Changer le rôle » avec confirmation
 **Et** l'écran est en 1280×800, entièrement navigable au clavier avec focus visible, et les comptes `is_demo` portent l'étiquette « Données de démonstration ».
 
 **Étant donné** le méta-test de la story 2.6
 **Quand** la CI s'exécute
-**Alors** `account.verify`, `account.suspend` et `account.role_change` ont chacune leur test et ne sont plus dans `PENDING_AUDIT_ACTIONS`.
+**Alors** `membership.create`, `membership.verify`, `membership.suspend`, `membership.role_change` et `account.suspend` ont chacune leur test et ne sont plus dans `PENDING_AUDIT_ACTIONS`.
 
-**Exigences :** FR-35, FR-36, FR-3, NFR-9, NFR-12, AR-18, AR-24, AR-29, UX-DR-28, UX-DR-6, UX-DR-7, UX-DR-9, AD-21, AD-25, AD-30
+**Exigences :** FR-35, FR-36, FR-3, FR-46, FR-48, NFR-9, NFR-18, NFR-12, AR-18, AR-24, AR-29, UX-DR-28, UX-DR-6, UX-DR-7, UX-DR-9, AD-21, AD-25, AD-30
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 2.12 : Se connecter avec un Second facteur (Personnel)
 
-En tant que Modérateur ou Administrateur commune,
+En tant que Modérateur ou Administrateur d'organisation,
 Je veux me connecter avec l'OTP et une application d'authentification,
 Afin qu'un numéro de téléphone détourné ne suffise pas à agir sur les données de la commune.
 
@@ -1693,7 +1935,7 @@ Afin qu'un numéro de téléphone détourné ne suffise pas à agir sur les donn
 **Et** un code déjà utilisé est refusé (401), l'`amr` est mémorisé par la famille de renouvellement et `staff.login` est inscrit avec `amr`.
 
 **Étant donné** `STAFF_MFA_REQUIRED` vrai
-**Quand** un Modérateur ou un Administrateur commune appelle une route du Personnel avec un jeton `amr = ["otp"]`
+**Quand** un Modérateur ou un Administrateur d'organisation appelle une route du Personnel avec un jeton `amr = ["otp"]`
 **Alors** la réponse est 403 `second_factor_required` et l'écran mène à la saisie ou à l'enrôlement du Second facteur
 **Et** les routes d'enrôlement et de vérification restent accessibles avec `amr = ["otp"]`.
 
@@ -1702,22 +1944,138 @@ Afin qu'un numéro de téléphone détourné ne suffise pas à agir sur les donn
 **Alors** `STAFF_MFA_REQUIRED` vaut faux par défaut en `dev` et `demo` et est forcé à vrai en `ENV=prod` (test).
 
 **Étant donné** un membre du Personnel qui a perdu son application d'authentification
-**Quand** un Administrateur commune appelle `POST /v1/admin/users/{id}/second-factor/reset` (`Idempotency-Key`)
+**Quand** un Administrateur d'organisation appelle `POST /v1/admin/users/{id}/second-factor/reset` (`Idempotency-Key`)
 **Alors** le Second facteur est supprimé, `token_version` incrémenté (la requête suivante de la personne renvoie 401), et `mfa.reset` est inscrit
-**Et** un rôle hors Administrateur commune reçoit 403.
+**Et** un rôle hors Administrateur d'organisation reçoit 403.
 
 **Étant donné** le méta-test de la story 2.6
 **Quand** la CI s'exécute
 **Alors** `mfa.enable` et `mfa.reset` ont chacune leur test et ne sont plus dans `PENDING_AUDIT_ACTIONS`.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un Super Admin (Appartenance `super_admin`)
+**Quand** `STAFF_MFA_REQUIRED` est vrai
+**Alors** il est soumis aux mêmes règles que le Personnel (403 `second_factor_required` sans `totp`)
+**Et** la réinitialisation du Second facteur est faite par l'Administrateur de la même Organisation ou par le Super Admin ; celle d'un Super Admin, par un autre Super Admin.
+
 **Exigences :** FR-43, FR-36, NFR-6.2, AR-6, AR-18, AR-29, UX-DR-26, UX-DR-7, UX-DR-10, AD-25, AD-26, AD-30
 **Porte :** pilote
+**Priorité :** P1
+
+### Story 2.13 : Organisations et appartenances par rôle
+
+En tant qu'Administrateur d'organisation,
+Je veux que les rôles soient portés par des Appartenances à une Organisation,
+Afin que chacun n'agisse que dans les Organisations dont il est membre.
+
+**Critères d'acceptation :**
+
+**Étant donné** une migration du module `orgs`
+**Quand** elle s'applique
+**Alors** elle crée `memberships(user_id, organization_id, role, status, verified_at, verified_by, is_demo, …)`, unique `(user_id, organization_id, role)`, avec le `CHECK` de compatibilité entre rôle et type d'Organisation d'AD-32
+**Et** un test vérifie chaque couple rôle × type (accepté ou refusé).
+
+**Étant donné** un utilisateur connecté
+**Quand** il appelle `GET /v1/me/memberships`
+**Alors** il reçoit ses Appartenances (Organisation, type, rôle, état vérifié), et rien d'autre.
+
+**Étant donné** `core.security.principal()`
+**Quand** une requête authentifiée arrive
+**Alors** il charge les Appartenances par le port `MembershipLoader` (implémenté par `orgs.service`, branché dans `main.py` et `worker.py`) et le cache `authz:<user_id>`, puis calcule `OrgScope`
+**Et** `X-Org-Id` hors Appartenance renvoie 403 `org_not_member` ; avec plusieurs Appartenances de console et sans `X-Org-Id`, la réponse est 400 `org_required`
+**Et** import-linter prouve que `core` n'importe aucun module.
+
+**Étant donné** la création, la suspension ou le changement de rôle d'une Appartenance
+**Quand** la transaction est validée
+**Alors** `token_version` est incrémenté, le cache est invalidé par `after_commit`, et la requête suivante reçoit 401 `session_revoked`.
+
+**Étant donné** les repositories
+**Quand** le test d'architecture s'exécute
+**Alors** il échoue si une fonction qui touche une table cloisonnée n'exige pas de paramètre `scope` (AD-31).
+
+**Exigences :** FR-3, FR-45, FR-46, FR-48, NFR-9, NFR-18, AR-44, AR-45, AD-9, AD-30, AD-31, AD-32
+**Porte :** H24
+**Priorité :** P1
+
+### Story 2.14 : Super Admin minimal de la plateforme
+
+En tant que membre de l'équipe TerangaCycle,
+Je veux un rôle Super Admin distinct de l'Administrateur d'organisation,
+Afin d'ouvrir les Organisations clientes et de nommer leur premier Administrateur.
+
+**Critères d'acceptation :**
+
+**Étant donné** la commande `python -m app.cli superadmin create` (numéro de téléphone en argument)
+**Quand** elle s'exécute
+**Alors** elle crée l'utilisateur s'il n'existe pas et son Appartenance `super_admin` dans l'Organisation plateforme ; l'action est auditée et la commande fonctionne aussi en `ENV=prod`.
+
+**Étant donné** le Super Admin
+**Quand** il appelle `POST /v1/admin/organizations` (type, nom, Zone pour une commune ; `Idempotency-Key`) puis `POST /v1/admin/organizations/{id}/admins` (numéro)
+**Alors** l'Organisation et l'Appartenance `org_admin` de son premier Administrateur sont créées ; `org.create` et `membership.create` sont inscrits
+**Et** une commune sans Zone renvoie 422 `zone_required`.
+
+**Étant donné** `GET /v1/admin/organizations`
+**Quand** le Super Admin l'appelle
+**Alors** la liste est paginée par curseur ; toute lecture d'un objet d'une autre Organisation inscrit `superadmin.access`.
+
+**Étant donné** tout autre rôle
+**Quand** il appelle une route `/v1/admin/*`
+**Alors** il reçoit 403 ; sans jeton, 401 (test route × rôle).
+
+**Étant donné** l'écran « Organisations » de la console **[HORS MAQUETTE — UX-DR-35]**
+**Quand** le Super Admin l'ouvre
+**Alors** il voit la liste, un formulaire de création et l'action « Nommer l'Administrateur », en 1280×800, entièrement au clavier.
+
+**Exigences :** FR-44, FR-49, FR-50, FR-36, NFR-9, AR-44, AR-45, UX-DR-34, UX-DR-35, AD-25, AD-31, AD-32
+**Porte :** H60
+**Priorité :** P1
+
+### Story 2.15 : Console web chargée à part de l'espace mobile
+
+En tant que Collecteur sur un téléphone d'entrée de gamme,
+Je veux que l'application ne télécharge pas la console des organisations,
+Afin de garder un premier chargement léger, alors que le Personnel dispose d'une console complète.
+
+**Critères d'acceptation :**
+
+**Étant donné** la construction Vite
+**Quand** la PWA est construite
+**Alors** `/console/*` est un morceau chargé par `React.lazy` (`web/src/console/`), et `web/src/mobile/` n'importe rien de `console/` (règle ESLint)
+**Et** un test CI sur le manifeste de construction prouve que l'entrée mobile tient en 500 Ko (hors images et Modèle) et ne référence aucun morceau `console`, et que le précache exclut la console.
+
+**Étant donné** une connexion OTP réussie
+**Quand** la PWA reçoit les Appartenances
+**Alors** un utilisateur sans Appartenance, ou avec seulement `collector`, est mené à `/` (écran 1 ou espace Collecteur) ; tout autre rôle est mené à `/console`
+**Et** une URL de console sans Appartenance de console affiche « Accès refusé », l'API restant la seule barrière ; un espace sans fonctions livrées affiche un état vide.
+
+**Étant donné** une personne avec plusieurs Appartenances de console
+**Quand** elle ouvre la console
+**Alors** un sélecteur d'Organisation fixe l'Organisation active, que le client API envoie dans `X-Org-Id`.
+
+**Étant donné** Caddy
+**Quand** on demande `/console/organisations` directement
+**Alors** l'application est servie (renvoi vers `index.html`), avec les mêmes en-têtes et la même CSP.
+
+**Étant donné** l'écran 1
+**Quand** il s'affiche
+**Alors** l'entrée « Espace commune » devient « Espace professionnel » et mène à la connexion de la console.
+
+**Étant donné** la console en 1280×800
+**Quand** on l'audite
+**Alors** elle est entièrement navigable au clavier avec un focus visible, et le bandeau du Mode démonstration y est visible.
+
+**Exigences :** FR-55, NFR-5, NFR-6, NFR-12, AR-46, UX-DR-34, UX-DR-5, AD-16, AD-23, AD-33
+**Porte :** H24
+**Priorité :** P1
 
 ## Epic 3 : L'IA propose le type de déchet
 
 Le téléphone du Citoyen classe la photo sans réseau en moins de 3 s et propose un Type de déchet avec son Score de confiance ; sous le Seuil de confiance (60 %), le Citoyen choisit lui-même, et il peut toujours corriger en un toucher. Le serveur reclasse la même photo en tâche de fond avec la même version du Modèle, conserve les deux Classifications et lève le drapeau Désaccord IA. L'équipe IA dispose d'une chaîne `ml/` reproductible (données, entraînement, export ONNX, évaluation sur le Jeu de test figé, Fiche du Modèle, publication) et d'un Modèle factice de repli derrière la même interface, si bien que le Modèle se remplace sans toucher aux écrans ni à l'API.
 
 **Prérequis :** Epic 1 livré (squelette, `POST /v1/reports` anonyme, écrans 1 à 4 avec Taille de tas et commentaire, worker arq, `GET /v1/config`, Données de démonstration).
+
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :** la piste hackathon garde les stories 3.1, 3.9, 3.11 et 3.12 ; la story 3.8 est fusionnée dans la 3.12 ; les autres stories passent en P4. Le Modèle prototype entraîné hors story (décision du 24/11) est publié par le contrat de la story 3.1 (manifeste `kind: trained`, étiqueté « prototype » à l'écran) ; les seuils de SM-2, la Fiche du Modèle et la publication conditionnelle restent en P4.
 
 ### Story 3.1 : Contrat du Modèle et Modèle factice
 
@@ -1747,8 +2105,16 @@ Afin que l'API et la PWA puissent intégrer la classification dès H24, quel que
 **Alors** il produit `tc-mnv3-0.0.0-stub.onnx` (graphe ONNX minimal, < 50 Ko, entrée `1×3×224×224`, sortie `1×5` logits constants qui ignorent le contenu de l'image) et `tc-mnv3-0.0.0-stub.json` (`kind: fake`, `confidence_threshold: 0.60`, `onnx_sha256` exact)
 **Et** `ml/release/current.json` contient `{"model_version": "0.0.0-stub"}` et devient la seule source de la version courante.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** la distribution minimale reprise de la story 3.2 (le reste de 3.2 passe en P4)
+**Quand** la PWA est construite
+**Alors** le `.onnx` et le manifeste désignés par `ml/release/current.json` sont récupérés et leur `onnx_sha256` vérifié ; aucun `.onnx` n'est dans Git
+**Et** un Modèle `kind: trained` non publié selon SM-2 s'affiche avec la mention « prototype ».
+
 **Exigences :** FR-16 ; AD-7, AD-29 (AR-39, AR-40) ; Conventions (énumérations).
 **Porte :** H24
+**Priorité :** piste hackathon
 
 ### Story 3.2 : Publication d'une version du Modèle et récupération par l'API et la PWA
 
@@ -1779,6 +2145,7 @@ Afin que les deux côtés embarquent exactement la même version, sans aucun fic
 
 **Exigences :** FR-16 ; AD-29 (AR-40), AD-28 ; NFR-5, NFR-10.
 **Porte :** H24
+**Priorité :** P4
 
 ### Story 3.3 : Classification côté serveur par le module `ai`
 
@@ -1814,6 +2181,7 @@ Afin que le serveur classe une photo exactement comme le contrat l'exige, avec l
 
 **Exigences :** FR-14, FR-16, NFR-7 ; AD-1, AD-7, AD-27, AD-29 (AR-9, AR-33, AR-39, AR-40) ; AD-23.
 **Porte :** H24
+**Priorité :** P4
 
 ### Story 3.4 : Préparation des données d'entraînement et Jeu de test figé
 
@@ -1849,6 +2217,7 @@ Afin d'entraîner et d'évaluer le Modèle sans fuite entre entraînement et tes
 
 **Exigences :** FR-16 ; SM-2 ; NFR-6.3d ; AR-41 (addendum §D).
 **Porte :** H24
+**Priorité :** P4
 
 ### Story 3.5 : Entraînement de MobileNetV3-Large en deux phases et calibration
 
@@ -1880,6 +2249,7 @@ Afin d'obtenir un premier Modèle entraîné dont le Score de confiance a un sen
 
 **Exigences :** FR-16 ; SM-2 ; AR-41 (addendum §A, §D) ; NFR-P3 (pas d'entraînement from scratch).
 **Porte :** H24
+**Priorité :** P4
 
 ### Story 3.6 : Export ONNX, quantification INT8 QDQ statique et manifeste
 
@@ -1906,6 +2276,7 @@ Afin d'obtenir un artefact de 8 Mo au plus, identique sur l'appareil et sur le s
 
 **Exigences :** FR-11, FR-16 ; NFR-1, NFR-5 ; AD-7 (AR-39), AR-41.
 **Porte :** H24
+**Priorité :** P4
 
 ### Story 3.7 : Évaluation sur le Jeu de test figé, Fiche du Modèle et publication conditionnelle
 
@@ -1932,8 +2303,11 @@ Afin qu'aucune version du Modèle n'atteigne les Citoyens sans qualité prouvée
 
 **Exigences :** FR-16 ; SM-2 ; NFR-6.3d ; AD-29 (AR-40), AR-41.
 **Porte :** H24 (premier Modèle entraîné visé ; le Modèle factice reste en place si les seuils ne sont pas atteints)
+**Priorité :** P4
 
-### Story 3.8 : Sélecteur des Types de déchet piloté par la proposition IA
+### Story 3.8 : Sélecteur des Types de déchet piloté par la proposition IA — fusionnée dans la story 3.12
+
+> v2.0 (25/11/2026) : cette story est réalisée par la story 3.12 et n'a plus d'entrée propre dans `sprint-status.yaml`.
 
 En tant que Citoyen,
 Je veux que le sélecteur des Types de déchet présélectionne la proposition de l'IA et l'annonce clairement, tout en me laissant en choisir un autre en un toucher,
@@ -1953,6 +2327,7 @@ Afin de comprendre la proposition de l'IA et de la corriger sans lire de texte l
 
 **Exigences :** FR-11, FR-12, FR-13 ; UX-DR-3, UX-DR-7, UX-DR-8 ; NFR-12, NFR-13.
 **Porte :** H48
+**Priorité :** fusionnée dans 3.12
 
 ### Story 3.9 : Classification locale dans la PWA
 
@@ -1984,6 +2359,7 @@ Afin d'obtenir une proposition de Type de déchet en moins de 3 s sans consommer
 
 **Exigences :** FR-11 ; NFR-1, NFR-5, NFR-6 ; AD-7, AD-16 (AR-38, AR-39) ; UX-DR-21.
 **Porte :** H48
+**Priorité :** piste hackathon
 
 ### Story 3.10 : Test doré des trois chaînes de classification
 
@@ -2010,6 +2386,7 @@ Afin d'éviter des Désaccords IA artificiels dus à un prétraitement ou un pos
 
 **Exigences :** FR-14, FR-15, FR-16 ; AD-7 (AR-39), AD-28 (AR-8).
 **Porte :** H48
+**Priorité :** P4
 
 ### Story 3.11 : Enregistrer la Classification locale et la Correction du Citoyen
 
@@ -2041,6 +2418,7 @@ Afin de juger la photo en sachant ce que l'IA a proposé et ce que le Citoyen a 
 
 **Exigences :** FR-12, FR-13, FR-14 ; AD-6, AD-19 (AR-16, AR-25) ; AD-2.
 **Porte :** H48
+**Priorité :** piste hackathon
 
 ### Story 3.12 : Écran 3 · Résultat IA avec Seuil de confiance et Correction
 
@@ -2081,8 +2459,15 @@ Afin d'envoyer un Signalement juste même quand l'IA hésite ou se trompe.
 **Alors** la médiane des 30 essais est inférieure à 30 s
 **Et** les durées sont consignées avec l'appareil et la version de la PWA.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** la story 3.8, fusionnée dans celle-ci
+**Quand** cette story est livrée
+**Alors** tous les critères de la story 3.8 (sélecteur piloté par la proposition IA) sont satisfaits ici.
+
 **Exigences :** FR-11, FR-12, FR-13 ; UX-DR-13, UX-DR-21, UX-DR-7, UX-DR-8, UX-DR-10 ; NFR-12, NFR-13 ; NFR-SM-3.
 **Porte :** H48
+**Priorité :** piste hackathon
 
 ### Story 3.13 : Classification serveur en tâche de fond
 
@@ -2122,6 +2507,7 @@ Afin de disposer d'une Classification hors de portée du client pour juger le Si
 
 **Exigences :** FR-14, FR-16 ; AD-6, AD-7, AD-8, AD-17, AD-18, AD-19, AD-29 (AR-12, AR-22, AR-23, AR-25).
 **Porte :** H48
+**Priorité :** P4
 
 ### Story 3.14 : Désaccord IA et Type de déchet pré-rempli pour le Modérateur
 
@@ -2152,6 +2538,7 @@ Afin de repérer d'un coup d'œil les Signalements à examiner de près.
 
 **Exigences :** FR-14, FR-15 ; AD-19 (AR-25), AD-10.
 **Porte :** H48
+**Priorité :** P4
 
 ### Story 3.15 : Remplacer le Modèle factice par le Modèle entraîné sans toucher aux écrans ni à l'API
 
@@ -2182,6 +2569,7 @@ Afin de bénéficier de meilleures propositions tout en gardant le même parcour
 
 **Exigences :** FR-16, FR-15 ; AD-7, AD-29 (AR-40) ; UX-DR-21 ; NFR-5.
 **Porte :** H48
+**Priorité :** P4
 
 ## Epic 4 : Modérer et suivre un signalement
 
@@ -2189,7 +2577,7 @@ Le Modérateur trie la File de modération (plus anciens d'abord, drapeaux, phot
 
 Les Corrections des Signalements validés et consentis sont exportées comme exemples étiquetés (story 4.6), puis servent au réentraînement mensuel du pilote (story 4.11).
 
-**Prérequis :** Epic 1 livré ; stories 2.1 à 2.6 pour les stories 4.1 à 4.6 (porte H48) ; stories 2.8 (`GET /v1/reports/mine`) et 2.10 (`AccountDeleted`) en plus pour les stories 4.7 à 4.10 (porte H60) ; story 3.7 en plus pour la story 4.11 (pilote). Les stories 3.11 (`corrections`) et 3.14 (`prefilled_type()`, `get_for_staff()`) sont requises par 4.1 et 4.3 ; la Classification serveur (tâche de la story 3.13) n'a pas à être passée : sans elle, la File affiche « classification serveur en attente », le Modérateur décide quand même, et les drapeaux IA (Désaccord IA, « faible confiance ») ne s'affichent que s'ils existent.
+**Prérequis :** Epic 1 livré ; stories 2.1 à 2.6 pour les stories 4.1 à 4.6 (porte H48) ; stories 2.8 (`GET /v1/reports/mine`) et 2.10 (`AccountDeleted`) en plus pour les stories 4.7 à 4.10 (porte H60) ; story 3.7 en plus pour la story 4.11 (pilote). La story 3.11 (`corrections`) est requise par 4.1 et 4.3 ; v2.0 : `prefilled_type()` et `get_for_staff()` sont créées par la story 4.1 (la story 3.14 passe en P4) ; la Classification serveur (tâche de la story 3.13) n'a pas à être passée : sans elle, la File affiche « classification serveur en attente », le Modérateur décide quand même, et les drapeaux IA (Désaccord IA, « faible confiance ») ne s'affichent que s'ils existent.
 
 ### Story 4.1 : Consulter la File de modération
 
@@ -2205,7 +2593,7 @@ Afin de les trier vite et de n'exposer aux Collecteurs que des photos vues par u
 **Et** au plus 50 éléments par page (défaut 50) ; `limit` > 50 renvoie 422 `invalid_limit`.
 
 **Étant donné** un élément de la File
-**Quand** il est sérialisé par `reports.service.get_for_staff()` (créé par la story 3.14, étendu ici)
+**Quand** il est sérialisé par `reports.service.get_for_staff()` (créé par cette story ; v2.0 : la story 3.14, en P4, l'étendra)
 **Alors** il porte le Numéro de suivi, la réception, une URL signée de 5 min de la photo sur `MEDIA_HOST`, la Position précise (`core.geo.expose(…, precise)` ; `core.geo.expose()` et ses niveaux `precise`, `approx`, `rounded`, `aggregated`, `none` sont créés par cette story) et sa précision en mètres, la Zone, la Taille de tas, le commentaire, le Type de déchet envoyé par l'appareil et son Score de confiance, `classification_status` et la Classification serveur, et les drapeaux `ai_disagreement`, `low_confidence`, `imprecise_position`, `duplicate_of` (identifiant et Numéro de suivi du Signalement d'origine), plus `is_demo`
 **Et** tout champ dont la donnée n'existe pas (Classification locale absente, Classification serveur pas encore faite, Désaccord IA non calculable) vaut `null`, sans erreur.
 
@@ -2229,10 +2617,10 @@ Afin de les trier vite et de n'exposer aux Collecteurs que des photos vues par u
 **Alors** `GET /v1/moderation/reports/{id}` (créée par cette story, tout Statut) affiche l'original avec les mêmes champs
 **Et** si l'original a été retiré, la réponse est 404 et l'écran affiche « Signalement d'origine retiré ».
 
-**Étant donné** un Modérateur ou un Administrateur commune
+**Étant donné** un Modérateur ou un Administrateur d'organisation
 **Quand** il appelle `GET /v1/staff/reports?status=&limit=&cursor=` (créée par cette story : Signalements du Statut demandé, plus anciens d'abord, `limit` ≤ 100, mêmes champs que la File) ou `GET /v1/moderation/reports/{id}`
 **Alors** il reçoit 200 en lecture seule
-**Et** l'Administrateur commune reçoit 403 sur la File (`GET /v1/moderation/queue`) ; les routes de décision des stories 4.3 et 4.4 sont réservées au Modérateur.
+**Et** l'Administrateur d'organisation reçoit 403 sur la File (`GET /v1/moderation/queue`) ; les routes de décision des stories 4.3 et 4.4 sont réservées au Modérateur.
 
 **Étant donné** un Citoyen, un Collecteur ou un Recycleur
 **Quand** il appelle les routes `/v1/moderation/*` ou `GET /v1/staff/reports`
@@ -2243,8 +2631,20 @@ Afin de les trier vite et de n'exposer aux Collecteurs que des photos vues par u
 **Alors** il voit, en 1280×800, chaque élément avec miniature (story 1.11) et texte alternatif, badge du Type de déchet (pictogramme + libellé, composant `WasteTypeBadge` de la story 1.13), Score de confiance, Position et précision, drapeaux en badges pictogramme + libellé (jamais la couleur seule), filtres par drapeau, pagination et l'état vide « Aucun Signalement en attente »
 **Et** la liste se rafraîchit toutes les 15 s, la navigation est complète au clavier (Tab, Entrée pour ouvrir le détail) avec focus visible, et un élément `is_demo` porte l'étiquette « Données de démonstration ».
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** deux Organisations A et B avec chacune des Signalements `en attente de modération`
+**Quand** un Modérateur de A appelle `GET /v1/moderation/queue`
+**Alors** il ne reçoit que les Signalements de A (Portée, AD-31), et le détail d'un Signalement de B renvoie 404.
+
+**Étant donné** `reports.service.prefilled_type(report)` (créée par cette story)
+**Quand** elle est appelée
+**Alors** elle renvoie le choix du Citoyen s'il existe, sinon la Classification serveur si elle existe, sinon la Classification locale si elle existe, sinon aucun (PRD FR-14, v2.0)
+**Et** ce Type pré-rempli n'est exposé que par `get_for_staff()`.
+
 **Exigences :** FR-22, FR-3, FR-26, FR-28, FR-36, NFR-6.1b, NFR-12, NFR-13, AR-19, AR-20, AR-25, AR-28, UX-DR-27, UX-DR-28, UX-DR-21, UX-DR-3, UX-DR-6, UX-DR-7, UX-DR-9, AD-9, AD-10, AD-11, AD-13, AD-19
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 4.2 : Tracer chaque changement de Statut par une porte unique
 
@@ -2278,7 +2678,7 @@ Afin de faire confiance à chaque Statut affiché et de pouvoir rendre compte de
 **Alors** un événement initial `NULL → pending_review` est écrit dans `report_status_events` avec l'horodatage de réception
 **Et** une migration crée cet événement initial pour chaque Signalement existant, Données de démonstration comprises.
 
-**Étant donné** le détail d'un Signalement ouvert par un Modérateur ou un Administrateur commune (`GET /v1/moderation/reports/{id}`, story 4.1)
+**Étant donné** le détail d'un Signalement ouvert par un Modérateur ou un Administrateur d'organisation (`GET /v1/moderation/reports/{id}`, story 4.1)
 **Quand** il s'affiche
 **Alors** l'historique des Statuts (Statut d'arrivée, motif, nature de l'acteur, horodatage) est listé dans l'ordre chronologique, lu dans `report_status_events` uniquement
 **Et** aucune route destinée au Citoyen, au Collecteur ou au Recycleur ne renvoie cet historique avec l'acteur.
@@ -2292,8 +2692,15 @@ Afin de faire confiance à chaque Statut affiché et de pouvoir rendre compte de
 **Quand** la CI s'exécute
 **Alors** `report.transition` a son test et n'est plus dans `PENDING_AUDIT_ACTIONS`.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un membre du Personnel de l'Organisation A
+**Quand** il agit sur un Signalement de l'Organisation B
+**Alors** la réponse est 404 et rien n'est modifié (Portée d'organisation, AD-31 ; test d'isolement de la story 2.5).
+
 **Exigences :** FR-21, FR-23, FR-36, AR-12, AR-13, AR-16, AR-24, AR-29, UX-DR-27, UX-DR-7, AD-3, AD-6, AD-17, AD-21, AD-25
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 4.3 : Valider un Signalement et fixer le Type de déchet retenu
 
@@ -2305,7 +2712,7 @@ Afin que les Collecteurs ne voient que des Signalements vérifiés, avec le bon 
 
 **Étant donné** le détail d'un Signalement `en attente de modération`
 **Quand** il s'affiche
-**Alors** le Type de déchet pré-rempli suit `reports.service.prefilled_type()` (story 3.14) : choix du Citoyen s'il existe, sinon Classification serveur si elle existe, sinon aucun, avec la consigne « Choisissez le Type de déchet »
+**Alors** le Type de déchet pré-rempli suit `reports.service.prefilled_type()` (story 4.1) : choix du Citoyen s'il existe, sinon Classification serveur si elle existe, sinon Classification locale si elle existe, sinon aucun, avec la consigne « Choisissez le Type de déchet »
 **Et** le sélecteur des 5 Types de déchet (pictogramme + libellé) permet de corriger en un clic.
 
 **Étant donné** `POST /v1/moderation/reports/{id}/validate` avec `retained_type` et `Idempotency-Key`
@@ -2340,8 +2747,15 @@ Afin que les Collecteurs ne voient que des Signalements vérifiés, avec le bon 
 **Quand** la CI s'exécute
 **Alors** `report.correction` a son test et n'est plus dans `PENDING_AUDIT_ACTIONS`.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un membre du Personnel de l'Organisation A
+**Quand** il agit sur un Signalement de l'Organisation B
+**Alors** la réponse est 404 et rien n'est modifié (Portée d'organisation, AD-31 ; test d'isolement de la story 2.5).
+
 **Exigences :** FR-23, FR-13, FR-36, FR-3, AR-13, AR-15, AR-25, AR-29, UX-DR-27, UX-DR-3, UX-DR-7, UX-DR-8, AD-3, AD-5, AD-17, AD-19, AD-25
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 4.4 : Rejeter un Signalement avec un motif obligatoire
 
@@ -2383,12 +2797,19 @@ Afin d'écarter le spam, les doublons et les photos inacceptables en expliquant 
 **Alors** le service `reports` ajoute ses Données de démonstration par ses propres règles (`validate()` et `reject()`) : au moins 5 Signalements `validé` avec Type de déchet retenu et 3 `rejeté` dont un `duplicate`, tous `is_demo = true`
 **Et** `demo purge` les retire, et un second `demo load` ne les duplique pas.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un membre du Personnel de l'Organisation A
+**Quand** il agit sur un Signalement de l'Organisation B
+**Alors** la réponse est 404 et rien n'est modifié (Portée d'organisation, AD-31 ; test d'isolement de la story 2.5).
+
 **Exigences :** FR-23, FR-36, FR-37, AR-13, AR-15, AR-29, AR-32, UX-DR-27, UX-DR-7, UX-DR-8, UX-DR-10, AD-3, AD-5, AD-10, AD-14, AD-25
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 4.5 : Effacer sous 24 h la photo d'un rejet « personne ou plaque visible »
 
-En tant qu'Administrateur commune responsable des données,
+En tant qu'Administrateur d'organisation responsable des données,
 Je veux que la photo d'un Signalement rejeté parce qu'une personne ou une plaque y est visible soit supprimée du stockage sous 24 h,
 Afin que l'image d'une personne photographiée par erreur ne soit pas conservée.
 
@@ -2421,8 +2842,15 @@ Afin que l'image d'une personne photographiée par erreur ne soit pas conservée
 **Alors** les photos (et miniatures) de Signalements `rejeté` depuis plus de `REJECTED_PHOTO_RETENTION_DAYS` (30, date lue dans `report_status_events`) et de Signalements reçus depuis plus de `REPORT_PHOTO_RETENTION_DAYS` (365) sont purgées par `core.storage.purge()`, l'ancienne URL signée ne fonctionne plus, et la purge est inscrite par lot (`retention.purge`)
 **Et** une photo de 29 jours après le rejet, ou de 364 jours après la réception, est conservée.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un membre du Personnel de l'Organisation A
+**Quand** il agit sur un Signalement de l'Organisation B
+**Alors** la réponse est 404 et rien n'est modifié (Portée d'organisation, AD-31 ; test d'isolement de la story 2.5).
+
 **Exigences :** FR-23, NFR-6.1c, AR-12, AR-23, AR-28, AR-29, UX-DR-27, AD-13, AD-17, AD-18, AD-25
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 4.6 : Export des Corrections consenties comme exemples étiquetés
 
@@ -2453,6 +2881,7 @@ Afin de réentraîner le Modèle uniquement sur des exemples vérifiés par un h
 
 **Exigences :** FR-13, FR-4, FR-36 ; AD-24, AD-25 (AR-29, AR-30) ; AD-3.
 **Porte :** H48
+**Priorité :** P4
 
 ### Story 4.7 : Suivre ses Signalements sur la Frise de suivi
 
@@ -2500,6 +2929,7 @@ Afin de savoir ce que devient chaque dépôt que j'ai signalé.
 
 **Exigences :** FR-20, FR-23, FR-3, NFR-12, NFR-13, AR-19, AR-36, UX-DR-4, UX-DR-11, UX-DR-15, UX-DR-24, UX-DR-6, UX-DR-7, UX-DR-10, AD-9, AD-10, AD-16
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 4.8 : Voir les changements de Statut depuis sa dernière visite
 
@@ -2533,6 +2963,7 @@ Afin d'être informé sans notification par SMS.
 
 **Exigences :** FR-21, FR-3, AR-13, AR-38, UX-DR-22, UX-DR-11, UX-DR-4, UX-DR-8, AD-3, AD-9, AD-16
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 4.9 : S'abonner aux notifications push
 
@@ -2563,6 +2994,7 @@ Afin de choisir d'être informé même application fermée.
 
 **Exigences :** FR-21, FR-5, NFR-6.1a, AR-6, AR-24, AR-42, UX-DR-22, UX-DR-7, UX-DR-8, AD-5, AD-21, AD-26
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 4.10 : Recevoir une notification push de changement de Statut
 
@@ -2603,6 +3035,7 @@ Afin d'être informé même application fermée.
 
 **Exigences :** FR-21, NFR-6.1a, AR-12, AR-22, AR-24, AR-42, UX-DR-22, UX-DR-8, AD-1, AD-8, AD-17, AD-21
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 4.11 : Réentraînement mensuel sur les Corrections exportées
 
@@ -2629,15 +3062,18 @@ Afin que la part de classifications corrigées baisse pendant le pilote sans jam
 
 **Exigences :** FR-16, FR-13 ; SM-2, SM-8 ; AR-41 ; NFR-P3 (pas de réentraînement automatique).
 **Porte :** pilote
+**Priorité :** P4
 
 ## Epic 5 : Missions et preuve de collecte
 
-Le Collecteur vérifié voit les Signalements `validé` proches sans jamais connaître leur auteur, accepte une Mission sans conflit, prouve la collecte (photo avant, photo après, Poids déclaré, Position à moins de 150 m) et garde l'historique de son travail ; l'Administrateur commune peut annuler ou assigner une Mission ; avant le pilote, les Missions oubliées expirent et les Preuves de collecte sont contrôlées par échantillon.
+Le Collecteur vérifié voit les Signalements `validé` proches sans jamais connaître leur auteur, accepte une Mission sans conflit, prouve la collecte (photo avant, photo après, Poids déclaré, Position à moins de 150 m) et garde l'historique de son travail ; l'Administrateur d'organisation peut annuler ou assigner une Mission ; avant le pilote, les Missions oubliées expirent et les Preuves de collecte sont contrôlées par échantillon.
 
 **Prérequis :** Epic 1 ; stories 2.1 à 2.6 et 4.1 à 4.5 pour les stories H48 (Signalements `validé` avec Type de déchet retenu, Collecteurs vérifiés, porte des Statuts `reports.service.transition()` et émission de `ReportStatusChanged`, Journal d'audit, URL signées, détail d'un Signalement pour le Personnel) ; stories 2.8 à 2.11 en plus pour les stories H60 (5.10, 5.11). La Classification serveur de l'Epic 3 est lue si elle existe (Score de confiance de la story 5.1).
-**Écrans :** Figma 5 · Missions (nœud 2:2) et 6 · Preuve de collecte (nœud 2:35) ; historique du Collecteur, revue de Preuve, assignation et annulation par l'Administrateur commune : [HORS MAQUETTE — à concevoir], mêmes jetons et police Inter.
+**Écrans :** Figma 5 · Missions (nœud 2:2) et 6 · Preuve de collecte (nœud 2:35) ; historique du Collecteur, revue de Preuve, assignation et annulation par l'Administrateur d'organisation : [HORS MAQUETTE — à concevoir], mêmes jetons et police Inter.
 **FR couvertes :** FR-24, FR-25, FR-26, FR-27, FR-28, FR-29, FR-30, FR-41, FR-42 ; FR-5 en partie (Mission d'un Collecteur supprimé, story 5.11)
 **Porte :** H48 → H60 ; FR-27 et FR-28 : Should, opt. H48 ; FR-41 et FR-42 : pilote.
+
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :** chaque Mission porte son Organisation et son Origine (AD-36) ; un Collecteur ne voit et n'accepte que les Missions des Organisations qui l'ont vérifié ; les stories 5.12 à 5.15 passent de « pilote » à P1 ; la story 5.16 ajoute les alertes de fraude. **Priorité :** P1.
 
 ### Story 5.1 : Lister les Signalements `validé` proches d'un Collecteur vérifié
 
@@ -2691,13 +3127,20 @@ Afin de choisir où collecter sans connaître l'auteur ni la Position exacte ava
 **Quand** la requête est traitée
 **Alors** cette Position n'est écrite ni en base, ni dans les journaux `structlog`, ni dans les journaux d'accès de Caddy (test : aucune valeur `lat`/`lng` de la requête dans les journaux capturés)
 
-**Étant donné** un Collecteur non vérifié, un Citoyen, un Recycleur, un Modérateur, un Administrateur commune, et une requête sans jeton
+**Étant donné** un Collecteur non vérifié, un Citoyen, un Recycleur, un Modérateur, un Administrateur d'organisation, et une requête sans jeton
 **Quand** ils appellent ces deux routes
 **Alors** les rôles connectés reçoivent 403 et la requête sans jeton 401
 **Et** les deux routes figurent dans le test « route × rôle » généré depuis la table des routes
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un Collecteur vérifié par l'Organisation A seulement
+**Quand** il appelle la liste des Signalements `validé` proches
+**Alors** il ne reçoit que des Signalements de A (`OrgScope`) ; test : un Signalement de B à 100 m n'apparaît pas.
+
 **Exigences :** FR-24, FR-3, NFR-9, AD-1 (`missions` → `reports.service`), AD-2, AD-6, AD-8, AD-10, AD-11, AD-13, AR-10, AR-19, AR-20
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 5.2 : Écran 5 · Missions : carte et liste des Signalements proches
 
@@ -2759,6 +3202,7 @@ Afin de repérer depuis mon téléphone la matière la plus proche et la plus ut
 
 **Exigences :** FR-24, UX-DR-17, UX-DR-3, UX-DR-6, UX-DR-7, UX-DR-8, UX-DR-9, UX-DR-21, NFR-6, NFR-7, NFR-12, NFR-13, NFR-6.4, AR-4, AD-16, AD-23 (`TILES_HOST`)
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 5.3 : Accepter une Mission de façon exclusive
 
@@ -2812,8 +3256,16 @@ Afin de me déplacer sans risquer qu'un autre Collecteur prenne le même dépôt
 **Alors** le service `missions` ajoute ses Données de démonstration par ses propres règles (`accept()`) : au moins 2 Missions `active`, toutes `is_demo = true`
 **Et** `demo purge` les retire, et un second `demo load` ne les duplique pas
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** la migration de `missions` de cette story
+**Quand** elle s'applique
+**Alors** `missions` porte aussi `organization_id NOT NULL` (copié du Signalement) et `origin` (valeur `report` seulement à ce stade ; la story 11.3 ajoute `collection_request`, AD-36)
+**Et** accepter une Mission d'une Organisation qui n'a pas vérifié le Collecteur renvoie 403 `collector_not_verified_here`.
+
 **Exigences :** FR-25, FR-24 (Position précise après acceptation), FR-36, FR-37, AD-3, AD-4, AD-5, AD-9, AD-10, AD-14, AD-17, AR-13, AR-14, AR-15, AR-32, NFR-9
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 5.4 : Accepter une Mission depuis l'écran 5 et voir la Position précise
 
@@ -2856,10 +3308,11 @@ Afin de partir collecter sans perdre de temps.
 
 **Exigences :** FR-25, FR-24, UX-DR-17, UX-DR-7, UX-DR-8, UX-DR-10, AD-5, AD-11, AD-12 (pas d'outbox pour les Missions)
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 5.5 : Annuler une Mission `active`
 
-En tant que Collecteur vérifié ou Administrateur commune,
+En tant que Collecteur vérifié ou Administrateur d'organisation,
 Je veux annuler une Mission `active`,
 Afin que le dépôt redevienne disponible pour un autre Collecteur quand la collecte ne peut pas avoir lieu.
 
@@ -2870,19 +3323,19 @@ Afin que le dépôt redevienne disponible pour un autre Collecteur quand la coll
 **Alors** la Mission passe à `annulée` (`ended_at` = `core.clock.now()`) et le Signalement revient à `validé`, dans la même unité de travail, verrous pris dans l'ordre Mission puis Signalement
 **Et** le Journal d'audit reçoit une entrée `mission.transition` et une entrée `report.transition` dont l'acteur est le Collecteur, et `report_status_events` reçoit une ligne
 
-**Étant donné** un Administrateur commune et une Mission `active` de n'importe quel Collecteur
+**Étant donné** un Administrateur d'organisation et une Mission `active` de n'importe quel Collecteur
 **Quand** il l'annule par la même route
-**Alors** le résultat est identique et l'acteur audité est l'Administrateur commune
+**Alors** le résultat est identique et l'acteur audité est l'Administrateur d'organisation
 
 **Étant donné** une Mission `terminée`, `annulée` ou `expirée`
-**Quand** son Collecteur ou un Administrateur commune tente de l'annuler
+**Quand** son Collecteur ou un Administrateur d'organisation tente de l'annuler
 **Alors** la requête est refusée (409 `invalid_transition`) et rien n'est modifié
 
 **Étant donné** un autre Collecteur, un Citoyen, un Modérateur ou un Recycleur
 **Quand** il tente d'annuler la Mission
 **Alors** l'autre Collecteur reçoit 404 et les autres rôles 403
 
-**Étant donné** une annulation par le Collecteur et une annulation par l'Administrateur commune envoyées en parallèle (répété 50 fois)
+**Étant donné** une annulation par le Collecteur et une annulation par l'Administrateur d'organisation envoyées en parallèle (répété 50 fois)
 **Quand** elles aboutissent
 **Alors** une seule réussit, l'autre reçoit 409, sans interblocage
 
@@ -2895,13 +3348,13 @@ Afin que le dépôt redevienne disponible pour un autre Collecteur quand la coll
 **Quand** le Collecteur touche « Annuler la mission » puis confirme dans la boîte de dialogue
 **Alors** la Mission quitte « Mes Missions en cours » et l'écran revient à la liste
 
-**Étant donné** `GET /v1/missions/staff?status=&report_id=&cursor=` (créée par cette story ; Modérateur et Administrateur commune, au test route × rôle)
+**Étant donné** `GET /v1/missions/staff?status=&report_id=&cursor=` (créée par cette story ; Modérateur et Administrateur d'organisation, au test route × rôle)
 **Quand** elle est appelée
 **Alors** elle renvoie les Missions demandées avec `report_id`, le nom affiché du Collecteur (ou son identifiant court s'il n'en a pas), la date d'acceptation et le Statut de Mission, sans numéro de téléphone
 **Et** un Collecteur, un Citoyen ou un Recycleur reçoit 403, et une requête sans jeton 401
 
-**Étant donné** un Signalement `assigné` trouvé par l'Administrateur commune dans `GET /v1/staff/reports?status=assigned` (story 4.1) et ouvert dans son détail (`GET /v1/moderation/reports/{id}`), dans l'espace du Personnel (1280×800) [HORS MAQUETTE]
-**Quand** un Administrateur commune l'ouvre
+**Étant donné** un Signalement `assigné` trouvé par l'Administrateur d'organisation dans `GET /v1/staff/reports?status=assigned` (story 4.1) et ouvert dans son détail (`GET /v1/moderation/reports/{id}`), dans l'espace du Personnel (1280×800) [HORS MAQUETTE]
+**Quand** un Administrateur d'organisation l'ouvre
 **Alors** il voit la Mission `active` lue par `GET /v1/missions/staff?report_id=` (nom affiché du Collecteur, ou son identifiant court s'il n'en a pas ; date d'acceptation) et un bouton « Annuler la Mission » avec confirmation, utilisable au clavier
 **Et** un Modérateur ne voit pas ce bouton
 
@@ -2911,6 +3364,7 @@ Afin que le dépôt redevienne disponible pour un autre Collecteur quand la coll
 
 **Exigences :** FR-26, FR-36, UX-DR-28 (annulation par l'Administrateur), UX-DR-17, AD-3, AD-5, AD-9, AD-17, AD-25
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 5.6 : Soumettre une Preuve de collecte géorepérée
 
@@ -2981,8 +3435,16 @@ Afin que mon travail soit reconnu sur des éléments vérifiables.
 **Alors** les photos avant et après des Preuves reçues depuis plus de `PROOF_PHOTO_RETENTION_DAYS` (365) sont purgées par `core.storage.purge()`, l'ancienne URL signée ne fonctionne plus, et la purge est inscrite par lot (`retention.purge`)
 **Et** la ligne `proofs` (Poids déclaré, distance) est conservée et marquée par `photos_purged_at` (colonne créée avec la table par cette story), si bien qu'un second passage ne purge ni n'inscrit rien
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** une Preuve acceptée
+**Quand** la transaction est validée
+**Alors** les événements `ProofAccepted` et `MissionCompleted` (AD-21) sont émis sous `after_commit`, avec la Mission, le Collecteur, l'Organisation, le Type de déchet retenu et le Poids déclaré
+**Et** aucune réaction n'y est abonnée dans cette story (stories 9.2, 11.6 et 12.2).
+
 **Exigences :** FR-29, FR-36, FR-37, NFR-6.1b, NFR-6.1c, NFR-6.2, AD-3, AD-5, AD-6, AD-10, AD-11, AD-13, AD-14, AD-17, AD-18, AR-16, AR-23, AR-28, AR-32, UX-DR-10
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 5.7 : Écran 6 · Preuve de collecte
 
@@ -3035,6 +3497,7 @@ Afin de prouver mon travail sans ressaisir ni être accusé à tort.
 
 **Exigences :** FR-29, UX-DR-18, UX-DR-7, UX-DR-8, UX-DR-9, UX-DR-10, NFR-4, NFR-12, NFR-P3 (pas de Preuve hors-ligne), AD-5
 **Porte :** H48
+**Priorité :** P1
 
 ### Story 5.8 : Ouvrir l'itinéraire vers une Mission `active`
 
@@ -3059,22 +3522,23 @@ Afin de m'y rendre sans recopier d'adresse.
 
 **Exigences :** FR-27, UX-DR-17, AD-10
 **Porte :** Should, opt. H48
+**Priorité :** P1
 
 ### Story 5.9 : Assigner un Signalement `validé` à un Collecteur vérifié
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux assigner un Signalement `validé` à un Collecteur vérifié de mon choix,
 Afin de faire traiter un dépôt prioritaire sans attendre qu'un Collecteur l'accepte.
 
 **Critères d'acceptation :**
 
-**Étant donné** un Administrateur commune, un Signalement `validé` et un Collecteur vérifié actif
+**Étant donné** un Administrateur d'organisation, un Signalement `validé` et un Collecteur vérifié actif
 **Quand** il appelle `POST /v1/missions/assignments` avec `{report_id, collector_id}` et une `Idempotency-Key`
 **Alors** il reçoit 201 avec une Mission `active` au nom de ce Collecteur, et le Signalement passe à `assigné` dans la même unité de travail, sous le même index unique partiel qu'à l'acceptation
-**Et** le Journal d'audit reçoit `mission.assign` (acteur : l'Administrateur commune ; après : `report_id`, `collector_id`) et `report.transition`, et `MissionAssigned` est émis après le commit, sans réaction abonnée au MVP
+**Et** le Journal d'audit reçoit `mission.assign` (acteur : l'Administrateur d'organisation ; après : `report_id`, `collector_id`) et `report.transition`, et `MissionAssigned` est émis après le commit, sans réaction abonnée au MVP
 
 **Étant donné** un Signalement qui a déjà une Mission `active`
-**Quand** l'Administrateur commune l'assigne
+**Quand** l'Administrateur d'organisation l'assigne
 **Alors** il reçoit 409 `mission_already_taken`
 **Et** un Signalement qui n'est pas `validé` renvoie 409 `invalid_transition`
 
@@ -3091,18 +3555,25 @@ Afin de faire traiter un dépôt prioritaire sans attendre qu'un Collecteur l'ac
 **Alors** la Mission apparaît dans « Mes Missions en cours » avec la mention « Assignée par la commune » au plus 15 s après (rafraîchissement de 15 s, test à minuterie simulée)
 **Et** la notification du Collecteur au MVP est cette apparition dans la liste en 15 s au plus ; aucune réaction n'est abonnée à `MissionAssigned`
 
-**Étant donné** un Signalement `validé` trouvé par l'Administrateur commune dans `GET /v1/staff/reports?status=validated` (story 4.1) et ouvert dans son détail, dans l'espace du Personnel (1280×800) [HORS MAQUETTE]
-**Quand** l'Administrateur commune choisit « Assigner à un collecteur »
+**Étant donné** un Signalement `validé` trouvé par l'Administrateur d'organisation dans `GET /v1/staff/reports?status=validated` (story 4.1) et ouvert dans son détail, dans l'espace du Personnel (1280×800) [HORS MAQUETTE]
+**Quand** l'Administrateur d'organisation choisit « Assigner à un collecteur »
 **Alors** il choisit un Collecteur dans la liste des Collecteurs vérifiés actifs (nom affiché, recherche par nom), confirme, et voit la Mission créée
-**Et** la liste vient de `GET /v1/missions/assignable-collectors` (créée par cette story, Administrateur commune seulement, par `auth.service` : Collecteurs vérifiés actifs, nom affiché, sans numéro), couverte par le test route × rôle
+**Et** la liste vient de `GET /v1/missions/assignable-collectors` (créée par cette story, Administrateur d'organisation seulement, par `auth.service` : Collecteurs vérifiés actifs, nom affiché, sans numéro), couverte par le test route × rôle
 **Et** tout le parcours est utilisable au clavier avec un focus visible, et un Modérateur ne voit pas l'action
 
 **Étant donné** le méta-test du Journal d'audit (story 2.6)
 **Quand** la CI s'exécute
 **Alors** `mission.assign` a son test et n'est plus dans `PENDING_AUDIT_ACTIONS`
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un Administrateur de l'Organisation A
+**Quand** il assigne un Signalement de A
+**Alors** seul un Collecteur vérifié par A peut être choisi (sinon 422 `collector_not_verified_here`), et un Signalement de B renvoie 404.
+
 **Exigences :** FR-28, FR-36, UX-DR-28 (assignation manuelle), UX-DR-17, AD-4, AD-5, AD-9, AD-21, AD-25
 **Porte :** Should, opt. H48
+**Priorité :** P1
 
 ### Story 5.10 : Historique des Missions du Collecteur
 
@@ -3138,10 +3609,11 @@ Afin de disposer d'un historique crédible de mon travail.
 
 **Exigences :** FR-30 (sans la mention `contestée`, livrée par la Story 5.15), UX-DR-30, UX-DR-8, AD-10
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 5.11 : Libérer la Mission `active` d'un Collecteur supprimé ou suspendu
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux que la Mission `active` d'un Collecteur qui supprime son compte ou qui est suspendu soit annulée d'elle-même,
 Afin que le dépôt redevienne disponible pour les autres Collecteurs sans intervention.
 
@@ -3157,8 +3629,8 @@ Afin que le dépôt redevienne disponible pour les autres Collecteurs sans inter
 **Alors** `missions.service.on_collector_deleted(user_id)` annule sa Mission, le Signalement revient à `validé`, puis `reports.service.detach_owner` s'exécute, dans cet ordre dans `reactions.py` (AD-21)
 **Et** rejouer la réaction ne change rien.
 
-**Étant donné** un Collecteur qui a une Mission `active` et est suspendu par l'Administrateur commune (story 2.11)
-**Quand** la réaction `CollectorSuspended` s'exécute
+**Étant donné** un Collecteur qui a une Mission `active` et est suspendu par l'Administrateur d'organisation (story 2.11)
+**Quand** la réaction `MembershipSuspended` (v2.0, ex-`CollectorSuspended`) s'exécute
 **Alors** `missions.service.on_collector_deleted(user_id)` annule sa Mission de la même façon (acteur `system:collector_suspended`)
 **Et** rejouer la réaction ne change rien.
 
@@ -3168,14 +3640,22 @@ Afin que le dépôt redevienne disponible pour les autres Collecteurs sans inter
 
 **Étant donné** l'analyse import-linter
 **Quand** la CI s'exécute
-**Alors** `auth` n'importe pas `missions`, et seul `reactions.py` relie `AccountDeleted` et `CollectorSuspended` à `missions.service`.
+**Alors** `auth` n'importe pas `missions`, et seul `reactions.py` relie `AccountDeleted` et `MembershipSuspended` à `missions.service`.
+
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** l'événement `MembershipSuspended(user_id, A)` (story 2.11 ; remplace `CollectorSuspended`)
+**Quand** la réaction s'exécute
+**Alors** seules les Missions `active` du Collecteur dans l'Organisation A sont libérées ; ses Missions d'autres Organisations restent `active`
+**Et** `AccountDeleted` et la suspension du compte par le Super Admin libèrent toutes ses Missions.
 
 **Exigences :** FR-5, FR-26, FR-35, FR-36, AR-13, AR-24, AD-1, AD-3, AD-17, AD-21, AD-25
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 5.12 : Expirer les Missions sans Preuve après 48 h
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux qu'une Mission restée sans Preuve de collecte expire seule,
 Afin qu'un dépôt ne reste pas bloqué par un Collecteur qui ne viendra pas.
 
@@ -3210,6 +3690,7 @@ Afin qu'un dépôt ne reste pas bloqué par un Collecteur qui ne viendra pas.
 
 **Exigences :** FR-42, FR-36, AD-3, AD-17, AD-18, AD-25, AR-23
 **Porte :** pilote
+**Priorité :** P1 (était : pilote)
 
 ### Story 5.13 : Tirer chaque semaine l'échantillon de Preuves à revoir
 
@@ -3242,8 +3723,15 @@ Afin de détecter les fausses preuves sans tout revoir.
 **Alors** il passe par une source aléatoire injectable (`secrets.SystemRandom` en exécution, générateur fixé en test) et la Revue de Preuve de chaque Preuve tirée vaut `non revue`
 **Et** le tirage n'écrit que dans `proofs` (module `missions`) et ne modifie ni la Mission ni le Signalement
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** plusieurs Organisations ayant des Preuves acceptées dans la semaine
+**Quand** le tirage s'exécute
+**Alors** au moins une Preuve est tirée par Organisation, en plus de la part globale, et les Preuves signalées par une Alerte de fraude (story 5.16) sont ajoutées d'office.
+
 **Exigences :** FR-41 (tirage), NFR-6.2, AD-13 (`photo_seen`), AD-18, AR-23
 **Porte :** pilote
+**Priorité :** P1 (était : pilote)
 
 ### Story 5.14 : Revoir une Preuve tirée : `confirmée` ou `contestée`
 
@@ -3258,7 +3746,7 @@ Afin d'écarter des Kg collectés les poids douteux tout en gardant une trace de
 **Alors** la table `proof_reviews` existe (une ligne par revue : `proof_id`, `status` `confirmed` ou `contested`, `reason`, `reviewer_user_id`, `reviewed_at`, `is_demo`) avec `CHECK (status <> 'contested' OR reason IS NOT NULL)`
 **Et** la Revue de Preuve courante est la dernière ligne, `non revue` s'il n'y en a aucune ; la migration ne modifie aucune colonne lue par une vue analytique (la lecture de `proof_reviews` par `v_mission_facts` est ajoutée par la story 7.7)
 
-**Étant donné** un Modérateur ou un Administrateur commune
+**Étant donné** un Modérateur ou un Administrateur d'organisation
 **Quand** il appelle `GET /v1/proofs/samples?review_status=unreviewed`
 **Alors** il reçoit les Preuves tirées, plus anciennes d'abord, paginées, avec les URL signées de 5 min des photos avant et après, le Poids déclaré et sa mention, la Position du Collecteur, la Position précise du Signalement, la distance mesurée, le Type de déchet retenu, `sample_reason` et, pour une photo identique, la référence de la photo d'origine
 
@@ -3285,15 +3773,23 @@ Afin d'écarter des Kg collectés les poids douteux tout en gardant une trace de
 **Et** `total_kg` vaut 27 kg (Preuves `contestée` exclues)
 
 **Étant donné** 20 Preuves revues sur une période, dont 3 `contestée`
-**Quand** un Administrateur commune appelle `GET /v1/proofs/samples/stats?from=&to=`
+**Quand** un Administrateur d'organisation appelle `GET /v1/proofs/samples/stats?from=&to=`
 **Alors** il reçoit `reviewed = 20`, `contested = 3` et `contested_share = 0.15` (part de Preuves `contestée` parmi les revues, SM-C3), avec `contains_demo_data`
 
 **Étant donné** le méta-test du Journal d'audit (story 2.6)
 **Quand** la CI s'exécute
 **Alors** `proof.review` a son test et n'est plus dans `PENDING_AUDIT_ACTIONS`
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** une Preuve marquée `contestée`
+**Quand** la transaction est validée
+**Alors** l'événement `ProofContested` est émis sous `after_commit` (réactions : stories 9.2 et 12.5)
+**Et** `ProofConfirmed` est émis pour `confirmée`.
+
 **Exigences :** FR-41 (revue, exclusion, part contestée), FR-30 (mention `contestée`, API), FR-36, AD-2, AD-5, AD-10, AD-25
 **Porte :** pilote
+**Priorité :** P1 (était : pilote)
 
 ### Story 5.15 : Écran de revue des Preuves et mention `contestée` dans l'historique
 
@@ -3326,10 +3822,41 @@ Afin de décider vite et sans erreur, et que chaque Collecteur sache quelles Pre
 
 **Exigences :** FR-41, FR-30, UX-DR-31, UX-DR-30, UX-DR-2, UX-DR-7, UX-DR-8, NFR-12
 **Porte :** pilote
+**Priorité :** P1 (était : pilote)
+
+### Story 5.16 : Alertes de fraude pour le Personnel et le Super Admin
+
+En tant que membre du Personnel,
+Je veux être alerté quand une Preuve semble frauduleuse,
+Afin de la contrôler avant que ses kg ne soient comptés, payés ou vendus.
+
+**Critères d'acceptation :**
+
+**Étant donné** une Preuve dont une photo a le `sha256` d'une photo déjà reçue (Signalement ou Preuve, toutes Organisations), ou un Poids déclaré hors des bornes configurables `[ASSUMPTION]`, ou une Preuve `contestée`
+**Quand** elle est enregistrée ou revue
+**Alors** une ligne `fraud_alerts(organization_id, kind, proof_id, status, created_at)` est créée, la Preuve est ajoutée à l'échantillon (story 5.13) et `fraud_alert.create` est inscrit au Journal d'audit.
+
+**Étant donné** un membre du Personnel de l'Organisation A
+**Quand** il appelle `GET /v1/fraud-alerts`
+**Alors** il ne voit que les Alertes de A ; le Super Admin voit toutes les Organisations, avec un filtre par Organisation.
+
+**Étant donné** une Alerte
+**Quand** le Personnel la classe (`examinée`, motif obligatoire ; `Idempotency-Key`)
+**Alors** l'action est inscrite `fraud_alert.review`.
+
+**Étant donné** la tâche planifiée `missions.fraud_sweep` (horaire, AD-18)
+**Quand** elle est rejouée
+**Alors** elle ne crée aucune Alerte en double.
+
+**Exigences :** FR-68, FR-41, FR-36, NFR-6.2, AD-18, AD-25, AD-31
+**Porte :** pilote
+**Priorité :** P1
 
 ## Epic 6 : Signaler sans réseau
 
 Un Signalement fait en mode avion est conservé dans la File hors-ligne puis envoyé tout seul au retour du réseau, sans doublon ni perte. Cet epic suppose Epic 1 terminé ; il utilise la session d'Epic 2 (`refreshSession()`) si les comptes sont livrés, et sinon l'envoi par Identifiant d'appareil (`X-Device-Id`) seul.
+
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :** cet epic est dans la **piste hackathon** (décision du 25/11/2026) : SM-1, SM-4 et la séquence « mode avion » de la vidéo de démo (story 8.8) sont conservés.
 
 ### Story 6.1 : Garder un Signalement sur le téléphone quand le réseau manque
 
@@ -3389,6 +3916,7 @@ Afin de ne rien perdre et de ne pas attendre le réseau devant le dépôt.
 
 **Exigences :** FR-17, FR-4, NFR-4, NFR-6, NFR-12, NFR-13, NFR-SM-4, NFR-P1, AR-21, AR-37, UX-DR-7, UX-DR-8, UX-DR-10, UX-DR-16, UX-DR-23, AD-9, AD-12, AD-16
 **Porte :** H48
+**Priorité :** piste hackathon
 
 ### Story 6.2 : Envoyer automatiquement la File hors-ligne, sans doublon
 
@@ -3446,6 +3974,7 @@ Afin que la commune les reçoive sans que j'y pense, une seule fois chacun.
 
 **Exigences :** FR-18, FR-9, NFR-SM-4, AR-18, AR-21, AR-37, UX-DR-10, UX-DR-20, AD-5, AD-6, AD-12, AD-30
 **Porte :** H48
+**Priorité :** piste hackathon
 
 ### Story 6.3 : Voir les Signalements en attente et relancer l'envoi
 
@@ -3488,16 +4017,17 @@ Afin d'être rassuré quand je retrouve du réseau.
 
 **Exigences :** FR-19, NFR-6, NFR-12, NFR-13, AR-37, UX-DR-7, UX-DR-8, UX-DR-9, UX-DR-11, UX-DR-20, AD-12
 **Porte :** H60
+**Priorité :** piste hackathon
 
-## Epic 7 : Tableau de bord de la commune
+## Epic 7 : Tableau de bord des organisations
 
-L'Administrateur commune voit, pour une période choisie, les Indicateurs de la Cohorte, la Carte de chaleur et la répartition par Type de déchet retenu, et télécharge un Export agrégé CSV ou GeoJSON sans aucune donnée personnelle ; les Visiteurs voient une carte publique agrégée, jamais un point précis. Tout repose sur des vues analytiques en lecture seule (AD-22) et fonctionne aussi bien sur les Signalements collectés que sur les Données de démonstration, toujours étiquetées comme telles.
+L'Administrateur d'organisation voit, pour une période choisie, les Indicateurs de la Cohorte, la Carte de chaleur et la répartition par Type de déchet retenu, et télécharge un Export agrégé CSV ou GeoJSON sans aucune donnée personnelle ; les Visiteurs voient une carte publique agrégée, jamais un point précis. Tout repose sur des vues analytiques en lecture seule (AD-22) et fonctionne aussi bien sur les Signalements collectés que sur les Données de démonstration, toujours étiquetées comme telles.
 
 **Prérequis :** stories H24 à H60 des Epics 1, 2, 4 et 5 (Signalements, historique des Statuts `report_status_events`, Missions, Preuves de collecte, Poids estimé, tuiles `TILES_HOST`, Collecteurs vérifiés, Données de démonstration chargeables par `python -m app.cli demo load`) ; stories 5.14 et 5.15 (pilote) en plus pour la story 7.7.
 
 ### Story 7.1 : Vues analytiques en lecture seule
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux que les Indicateurs soient calculés sur des vues analytiques déclarées, sans donnée personnelle,
 Afin que les chiffres restent justes et stables quelle que soit l'évolution des autres modules.
 
@@ -3522,19 +4052,26 @@ Afin que les chiffres restent justes et stables quelle que soit l'évolution des
 **Quand** il tente un `INSERT`, `UPDATE` ou `DELETE` sur une vue
 **Alors** l'opération est refusée.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** les vues `v_report_facts`, `v_mission_facts` et `v_collector_facts`
+**Quand** la migration de cette story s'applique
+**Alors** chacune expose `organization_id`, et toute lecture passe par un paramètre `scope` (AD-31) ; test : la Portée de A ne renvoie aucune ligne de B.
+
 **Exigences :** FR-31, FR-32, FR-33, FR-34, FR-37 ; AD-2, AD-15, AD-22 (AR-10, AR-11, AR-31).
 **Porte :** H60 ; opt. H48 si la story 7.6 est tirée à opt. H48 (ses prérequis 4.2, 5.1, 5.3 et 5.6 sont tous à H48)
+**Priorité :** P1
 
 ### Story 7.2 : Calcul des Indicateurs de la Cohorte
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux obtenir les Indicateurs de FR-31 pour la Cohorte d'une période choisie,
 Afin de rendre compte au maire avec des chiffres vérifiables.
 
 **Critères d'acceptation :**
 
 **Étant donné** `GET /v1/analytics/indicators?from=<date>&to=<date>` (dates UTC incluses ; défaut : mois civil en cours)
-**Quand** l'Administrateur commune l'appelle
+**Quand** l'Administrateur d'organisation l'appelle
 **Alors** la réponse contient, pour la Cohorte (Signalements dont `received_at` serveur tombe dans la période) : Nombre de Signalements, dont ayant atteint `validé`, dont `rejeté` ; Délai médian ; nombre de Signalements de la Cohorte encore ouverts ; Taux de traitement ; Kg collectés (total, par Type de déchet, part `pesé`) ; Collecteurs vérifiés actifs ; répartition de la Cohorte par Type de déchet retenu (plus « sans Type retenu »)
 **Et** `from` postérieur à `to`, ou une période de plus de 366 jours, renvoie 422.
 
@@ -3562,19 +4099,26 @@ Afin de rendre compte au maire avec des chiffres vérifiables.
 **Alors** la réponse est 403 (ou 401 sans jeton) et la route figure dans le test route × rôle
 **Et** hors Mode démonstration, les lignes `is_demo` sont exclues ; chaque réponse porte `contains_demo_data`.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un Administrateur de l'Organisation A
+**Quand** il consulte ou exporte
+**Alors** les chiffres ne portent que sur A, avec une répartition par quartier, Type de déchet et période ; le Super Admin peut choisir une Organisation ou le total de la plateforme.
+
 **Exigences :** FR-31, FR-37 ; AD-9, AD-22 (AR-17, AR-31) ; NFR-9 ; SM-5, SM-6, SM-7, SM-9.
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 7.3 : Écran 7 · Tableau de bord des Indicateurs
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux voir les Indicateurs et la répartition par Type de déchet sur un écran unique, pour la période de mon choix,
 Afin de préparer mon point mensuel en quelques minutes.
 
 **Critères d'acceptation :**
 
 **Étant donné** l'écran 7 (nœud Figma 2:65) sur un écran 1280×800
-**Quand** l'Administrateur commune l'ouvre
+**Quand** l'Administrateur d'organisation l'ouvre
 **Alors** il voit un sélecteur de période (mois en cours par défaut) et les 5 tuiles : Nombre de Signalements (dont validés, dont rejetés), Délai médian (avec le nombre encore ouverts), Taux de traitement, Kg collectés par Type de déchet avec part `pesé`, Collecteurs vérifiés actifs
 **Et** la répartition de la Cohorte par Type de déchet retenu utilise le composant `WasteTypeBadge` et les jetons `--color-waste-*` de la story 1.13 (pictogramme + libellé + couleur) et montre aussi les valeurs en chiffres.
 
@@ -3584,38 +4128,45 @@ Afin de préparer mon point mensuel en quelques minutes.
 **Et** aucun libellé ne présente un chiffre de démonstration comme réel ni un objectif comme un résultat.
 
 **Étant donné** un changement de période
-**Quand** l'Administrateur commune valide la nouvelle période
+**Quand** l'Administrateur d'organisation valide la nouvelle période
 **Alors** les tuiles et la répartition se mettent à jour, avec un squelette de chargement puis un état vide explicite si la Cohorte est vide
 **Et** un Taux « non calculable » s'affiche « — » avec une explication, jamais « 0 % ».
 
 **Étant donné** la navigation au clavier
-**Quand** l'Administrateur commune parcourt l'écran avec Tab
+**Quand** l'Administrateur d'organisation parcourt l'écran avec Tab
 **Alors** chaque contrôle est atteignable avec un focus visible, tous les textes passent par i18next (dates et nombres localisés en français), et l'audit Lighthouse accessibilité ne relève aucune erreur
 **Et** aucun débordement horizontal n'apparaît à 1280×800.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un Administrateur de l'Organisation A
+**Quand** il consulte ou exporte
+**Alors** les chiffres ne portent que sur A, avec une répartition par quartier, Type de déchet et période ; le Super Admin peut choisir une Organisation ou le total de la plateforme.
+
 **Exigences :** FR-31, FR-37 ; UX-DR-19, UX-DR-6, UX-DR-3, UX-DR-7, UX-DR-8, UX-DR-9 ; NFR-6, NFR-12, NFR-13 ; NFR-P2.
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 7.4 : Carte de chaleur filtrable
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux une Carte de chaleur des Signalements filtrable par période, Type de déchet et Statut,
 Afin de repérer les zones où agir en priorité.
 
 **Critères d'acceptation :**
 
-**Étant donné** `GET /v1/analytics/heatmap?from=&to=&type=&status=` (Administrateur commune seulement)
+**Étant donné** `GET /v1/analytics/heatmap?from=&to=&type=&status=` (Administrateur d'organisation seulement)
 **Quand** elle est appelée
 **Alors** elle renvoie des cellules agrégées `{lat, lng, count}` (Positions arrondies à 3 décimales, groupées en base), jamais une ligne par Signalement avec Position précise
 **Et** `type` filtre sur le Type de déchet retenu, `status` sur le Statut courant, la période sur la réception serveur ; une valeur hors énumération renvoie 422.
 
 **Étant donné** l'écran 7, le fond de carte des tuiles `TILES_HOST` (story 5.2) et la couche `leaflet.heat` 1.0 enveloppée par `createLayerComponent` (react-leaflet)
-**Quand** l'Administrateur commune change un filtre
+**Quand** l'Administrateur d'organisation change un filtre
 **Alors** la carte se redessine selon les filtres, avec une légende textuelle et un résumé accessible (nombre de Signalements affichés)
 **Et** l'étiquette « Données de démonstration » apparaît sur la carte si `contains_demo_data = true`.
 
 **Étant donné** un jeu de 5 000 Signalements générés dans la Zone active (script de seed de performance, `is_demo`)
-**Quand** l'Administrateur commune ouvre la carte ou change un filtre sur 1280×800
+**Quand** l'Administrateur d'organisation ouvre la carte ou change un filtre sur 1280×800
 **Alors** la Carte de chaleur est affichée en moins de 2 s, du changement de filtre au dessin de la couche (mesure `performance.mark` consignée sur 10 essais, et audit Lighthouse)
 **Et** la réponse de l'API pour ces 5 000 Signalements est inférieure à 300 ms au p95.
 
@@ -3623,19 +4174,26 @@ Afin de repérer les zones où agir en priorité.
 **Quand** il appelle la route
 **Alors** il reçoit 403 (401 sans jeton), testé dans le test route × rôle.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un Administrateur de l'Organisation A
+**Quand** il consulte ou exporte
+**Alors** les chiffres ne portent que sur A, avec une répartition par quartier, Type de déchet et période ; le Super Admin peut choisir une Organisation ou le total de la plateforme.
+
 **Exigences :** FR-32 ; NFR-3, NFR-2, NFR-9 ; AD-10, AD-16, AD-22 (AR-19, AR-36) ; UX-DR-19, UX-DR-6.
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 7.5 : Export agrégé CSV et GeoJSON
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux télécharger un Export agrégé en CSV ou en GeoJSON pour une période,
 Afin de l'intégrer à mon rapport sans exposer aucune donnée personnelle.
 
 **Critères d'acceptation :**
 
-**Étant donné** `GET /v1/analytics/export?format=csv|geojson&from=&to=` (Administrateur commune seulement) et les boutons « Exporter CSV » et « Exporter GeoJSON » de l'écran 7
-**Quand** l'Administrateur commune télécharge un export
+**Étant donné** `GET /v1/analytics/export?format=csv|geojson&from=&to=` (Administrateur d'organisation seulement) et les boutons « Exporter CSV » et « Exporter GeoJSON » de l'écran 7
+**Quand** l'Administrateur d'organisation télécharge un export
 **Alors** chaque ligne (ou entité) contient : date de réception (au jour), Zone, Statut, Type de déchet retenu, Taille de tas, Poids estimé, Poids déclaré et mention `pesé`/`estimé` le cas échéant, Position arrondie à 3 décimales, `is_demo`
 **Et** le fichier ne contient ni numéro, ni nom, ni identifiant d'auteur, ni `owner_key`, ni Identifiant d'appareil, ni Numéro de suivi, ni commentaire, ni lien de photo.
 
@@ -3658,8 +4216,15 @@ Afin de l'intégrer à mon rapport sans exposer aucune donnée personnelle.
 **Quand** il appelle la route
 **Alors** il reçoit 403 (401 sans jeton), testé dans le test route × rôle.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** un Administrateur de l'Organisation A
+**Quand** il consulte ou exporte
+**Alors** les chiffres ne portent que sur A, avec une répartition par quartier, Type de déchet et période ; le Super Admin peut choisir une Organisation ou le total de la plateforme.
+
 **Exigences :** FR-33, FR-36, FR-37 ; AD-10 (niveau `rounded`), AD-22, AD-25 (AR-19, AR-29, AR-31) ; NFR-6.1a, NFR-6.4 ; UX-DR-19, UX-DR-6.
 **Porte :** H60
+**Priorité :** P1
 
 ### Story 7.6 : Carte publique agrégée pour les Visiteurs
 
@@ -3688,12 +4253,19 @@ Afin de constater l'action de la commune sans qu'aucun dépôt ne soit localisab
 **Quand** le test route × rôle s'exécute sans jeton
 **Alors** `GET /v1/public/map` est la seule route cartographique accessible, et la Carte de chaleur et toute autre carte renvoient 401.
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** la carte publique
+**Quand** elle agrège les Signalements
+**Alors** elle couvre toutes les Organisations sans exposer aucun identifiant d'Organisation.
+
 **Exigences :** FR-34 ; NFR-9 ; AD-9, AD-10 (niveau `aggregated`), AD-22 (AR-17, AR-19) ; UX-DR-32, UX-DR-6, UX-DR-9.
 **Porte :** opt. H48 avec 7.1 (Should ; la story 7.1 passe alors elle aussi à opt. H48, voir sa porte), sinon après H60 ; prérequis : story 7.1
+**Priorité :** P1
 
 ### Story 7.7 : Part des Preuves contestées sur le Tableau de bord
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux voir la part de Preuves de collecte `contestée` parmi les Preuves revues,
 Afin de surveiller la fiabilité des Poids déclarés plutôt que de pousser les kg par Mission.
 
@@ -3709,7 +4281,7 @@ Afin de surveiller la fiabilité des Poids déclarés plutôt que de pousser les
 **Alors** les Kg collectés l'excluent, au total et par Type de déchet.
 
 **Étant donné** des Revues de Preuve sur la période (par exemple 20 Preuves revues dont 3 `contestée`)
-**Quand** l'Administrateur commune appelle `GET /v1/analytics/indicators`
+**Quand** l'Administrateur d'organisation appelle `GET /v1/analytics/indicators`
 **Alors** la réponse contient la part de Preuves `contestée` parmi les Preuves revues de la période : 15 %, avec le nombre de Preuves revues
 **Et** sans Preuve revue, la part est « non calculable ».
 
@@ -3720,13 +4292,14 @@ Afin de surveiller la fiabilité des Poids déclarés plutôt que de pousser les
 
 **Exigences :** FR-41, FR-31 ; SM-C3 ; AD-15, AD-22 (AR-11, AR-31) ; UX-DR-19.
 **Porte :** pilote
+**Priorité :** P1
 
 ## Epic 8 : Démo fiable et service exploitable
 
-Le jury voit une démo qui tient même si le réseau tombe (serveur, portable de secours, vidéo, photos préparées, pitch répété et honnête), et l'Administrateur commune peut compter sur un service mesuré, durci, publié de façon réversible, supervisé, sauvegardé et restaurable avant toute donnée réelle du pilote.
+Le jury voit une démo qui tient même si le réseau tombe (serveur, portable de secours, vidéo, photos préparées, pitch répété et honnête), et l'Administrateur d'organisation peut compter sur un service mesuré, durci, publié de façon réversible, supervisé, sauvegardé et restaurable avant toute donnée réelle du pilote.
 
 **Prérequis :** 8.1 : stories 1.13, 3.12, 4.1, 5.2 ; 8.2 à 8.9 : stories H24 à H60 des Epics 1 à 7 (squelette Docker Compose et CI, parcours complet signaler → modérer → collecter → Tableau de bord, Mode démonstration et Données de démonstration) ; 8.10 à 8.15 : 8.1 à 8.9.
-**Acteurs :** jury, Administrateur commune, équipe.
+**Acteurs :** jury, Administrateur d'organisation, équipe.
 **FR couvertes :** aucune — NFR-2, NFR-5, NFR-7, NFR-8, NFR-10, NFR-15, NFR-16, NFR-17 (chiffrement au repos), NFR-P2, NFR-6.4, PRD §9.3 ; AR-3, AR-4, AR-6, AR-7, AR-33, AR-43 ; UX-DR-3.
 **Porte :** démo (Stories 8.1 à 8.9) : H48 à H60 ; exploitation (Stories 8.10 à 8.15) : pilote.
 
@@ -3756,10 +4329,11 @@ Afin que Citoyens, Collecteurs et Personnel reconnaissent chaque matière d'un c
 **Étant donné** le composant unique `WasteTypeBadge` / `WasteTypePicker` (story 1.13)
 **Quand** il est affiché sur les écrans 3 et 5 (390×844) et la File de modération (1280×800)
 **Alors** il utilise les cinq jetons, toujours avec pictogramme + libellé i18n
-**Et** des captures de ces trois écrans, en vision normale et sous les simulations deutéranopie, protanopie et tritanopie de Chrome DevTools, sont jointes à la revue et validées par Mia, choix consigné dans `.memlog.md`
+**Et** des captures de ces trois écrans, en vision normale et sous les simulations deutéranopie, protanopie et tritanopie de Chrome DevTools, sont jointes à la revue et validées par la responsable produit, choix consigné dans `.memlog.md`
 
 **Exigences :** UX-DR-3, UX-DR-1, UX-DR-2, NFR-12, NFR-6.3b, AD-16
 **Porte :** H48
+**Priorité :** démo (avec la piste hackathon)
 
 ### Story 8.2 : Mesurer et tenir le budget de premier chargement en 3G
 
@@ -3786,8 +4360,15 @@ Afin de savoir avant la démo ce que vit un Citoyen sur un Android d'entrée de 
 **Quand** l'une dépasse un budget de NFR-5
 **Alors** l'équipe ouvre une issue avec la cause et l'action, et la liste de préparation de la démo exige que chaque téléphone de démo ait la PWA installée et le Modèle en cache avant le pitch
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** la console chargée à part (story 2.15)
+**Quand** le budget de premier chargement est mesuré
+**Alors** la mesure porte sur l'Espace mobile seul (AD-33).
+
 **Exigences :** NFR-5, NFR-6, AR-43, AR-38, AD-16, AD-29, FR-11 (repli sans Modèle)
 **Porte :** H60
+**Priorité :** démo (avec la piste hackathon)
 
 ### Story 8.3 : Test de charge k6 de la lecture API
 
@@ -3817,10 +4398,11 @@ Afin de prouver que l'API tient p95 < 300 ms à 50 requêtes par seconde.
 
 **Exigences :** NFR-2, AD-8, AD-20, AR-32
 **Porte :** H60
+**Priorité :** démo (avec la piste hackathon)
 
 ### Story 8.4 : Bord HTTP durci et vérifié
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux que le bord HTTP applique et prouve les protections exigées,
 Afin que ni le jury ni un attaquant ne trouvent d'en-tête manquant, de surface interne exposée ou de donnée personnelle dans les journaux.
 
@@ -3861,6 +4443,7 @@ Afin que ni le jury ni un attaquant ne trouvent d'en-tête manquant, de surface 
 
 **Exigences :** NFR-7, NFR-8, NFR-14, AD-23, AR-4, AD-13
 **Porte :** H60
+**Priorité :** démo (avec la piste hackathon)
 
 ### Story 8.5 : Publier par empreinte et revenir en arrière en une commande
 
@@ -3898,6 +4481,7 @@ Afin de déployer sans crainte avant la démo et pendant le pilote.
 
 **Exigences :** AD-28, AD-15, NFR-10, NFR-11, AR-7, AR-8, AR-11
 **Porte :** H60
+**Priorité :** démo (avec la piste hackathon)
 
 ### Story 8.6 : Déployer l'instance de démonstration sur le serveur
 
@@ -3931,6 +4515,7 @@ Afin de juger un service réel et non une maquette.
 
 **Exigences :** NFR-7, NFR-6, AR-3, AR-5, AR-32, FR-37 (référence), FR-6 (référence), SM-1, AD-14
 **Porte :** H60
+**Priorité :** démo (avec la piste hackathon)
 
 ### Story 8.7 : Portable de secours et tuiles de la zone de démo sans Internet
 
@@ -3964,6 +4549,7 @@ Afin de voir la boucle complète quoi qu'il arrive.
 
 **Exigences :** NFR-7, PRD §9.3 (réseau instable), AR-3, AD-23 (`TILES_HOST`), NFR-6.4
 **Porte :** H60
+**Priorité :** démo (avec la piste hackathon)
 
 ### Story 8.8 : Plans B : vidéo de la démo complète et 10 photos locales préparées
 
@@ -3998,6 +4584,7 @@ Afin de pouvoir montrer la boucle même si le réseau, la File hors-ligne ou le 
 
 **Exigences :** NFR-7, PRD §9.3, SM-1, SM-2, FR-13 (Correction montrée), FR-6 (référence), NFR-6.3a, NFR-P2
 **Porte :** H60
+**Priorité :** démo (avec la piste hackathon)
 
 ### Story 8.9 : Répétition chronométrée du pitch de 1 min 30 avec données étiquetées
 
@@ -4028,12 +4615,19 @@ Afin de juger la chaîne de confiance sur pièces, sans chiffre fictif présent�
 **Quand** la liste de préparation est vérifiée
 **Alors** chaque téléphone a la PWA installée, le Modèle en cache, une batterie d'au moins 80 % et les notifications système coupées
 
+**Amendement v2.0 (25/11/2026, `sprint-change-proposal-2026-11-25.md`) :**
+
+**Étant donné** le script de la démo
+**Quand** il est répété
+**Alors** il montre deux Organisations de démonstration et le cloisonnement de leurs données, en une phrase.
+
 **Exigences :** NFR-P2, NFR-7, UX-DR-5, UX-DR-6, SM-1, PRD §7 (honnêteté)
 **Porte :** H60
+**Priorité :** démo (avec la piste hackathon)
 
 ### Story 8.10 : Secrets et clés tenus par l'organisation, rotation éprouvée
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux que les secrets du service soient tenus par l'organisation et puissent tourner sans perte de données,
 Afin qu'une fuite ou un départ ne compromette ni les comptes ni les numéros de téléphone.
 
@@ -4067,10 +4661,11 @@ Afin qu'une fuite ou un départ ne compromette ni les comptes ni les numéros de
 
 **Exigences :** AD-26, NFR-10, NFR-17, NFR-6.1b, NFR-6.4, AR-6, AD-30
 **Porte :** pilote
+**Priorité :** avant données réelles (condition de sortie de P1)
 
 ### Story 8.11 : Supervision et alertes de l'équipe
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux que l'équipe soit alertée dès qu'un incident menace le service,
 Afin de réagir avant que les Citoyens et les Collecteurs ne le subissent.
 
@@ -4113,10 +4708,11 @@ Afin de réagir avant que les Citoyens et les Collecteurs ne le subissent.
 
 **Exigences :** NFR-16, NFR-15 (disponibilité), NFR-14, AD-27, AD-18, AR-33, FR-1 et FR-14 (alertes, référence)
 **Porte :** pilote
+**Priorité :** avant données réelles (condition de sortie de P1)
 
 ### Story 8.12 : Sauvegardes quotidiennes chiffrées hors de l'hôte
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux une sauvegarde quotidienne chiffrée de la base et des photos, conservée hors du serveur,
 Afin de ne jamais perdre plus de 24 h de données.
 
@@ -4145,10 +4741,11 @@ Afin de ne jamais perdre plus de 24 h de données.
 
 **Exigences :** NFR-15, NFR-17, NFR-16, AD-27, NFR-6.4
 **Porte :** pilote
+**Priorité :** avant données réelles (condition de sortie de P1)
 
 ### Story 8.13 : Chiffrement au repos de la base et des photos
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux que la base, les photos et le cache soient chiffrés sur disque avec des clés de l'organisation,
 Afin qu'un disque volé ou un hôte compromis à froid ne livre aucune donnée personnelle.
 
@@ -4173,10 +4770,11 @@ Afin qu'un disque volé ou un hôte compromis à froid ne livre aucune donnée p
 
 **Exigences :** NFR-17, NFR-6.1b, AD-27, AD-26
 **Porte :** pilote
+**Priorité :** avant données réelles (condition de sortie de P1)
 
 ### Story 8.14 : Restauration complète testée sur un hôte vierge
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux qu'une restauration complète ait réussi sur un hôte vierge avant la première donnée réelle,
 Afin d'être sûr de pouvoir reprendre le service et de pouvoir quitter l'hébergeur à tout moment.
 
@@ -4198,10 +4796,11 @@ Afin d'être sûr de pouvoir reprendre le service et de pouvoir quitter l'héber
 
 **Exigences :** NFR-15, NFR-6.4, NFR-6.3a, AD-27, AD-18
 **Porte :** pilote
+**Priorité :** avant données réelles (condition de sortie de P1)
 
 ### Story 8.15 : Restauration de sortie vers un autre hébergeur
 
-En tant qu'Administrateur commune,
+En tant qu'Administrateur d'organisation,
 Je veux qu'une restauration complète ait réussi chez un autre hébergeur avant la fin du pilote,
 Afin de prouver que la commune peut quitter l'hébergeur actuel, par exemple pour un hébergement au Sénégal.
 
@@ -4218,180 +4817,653 @@ Afin de prouver que la commune peut quitter l'hébergeur actuel, par exemple pou
 
 **Exigences :** NFR-6.4, NFR-15, AD-27, AD-28
 **Porte :** pilote (avant la fin du pilote)
+**Priorité :** avant données réelles (condition de sortie de P1)
 
-## Epic 9 : Lots de matière (extension)
+## Epic 9 : Place de marché de la matière
 
-Le Collecteur déclare la matière qu'il a récupérée en Lots de matière ; le Recycleur consulte les Lots `disponible` sans voir l'identité du Collecteur, obtient son contact sur demande et réserve un Lot.
+Le Collecteur vend des Lots constitués de kg qu'il a lui-même prouvés, vérifiés, non contestés et non encore vendus. Son groupement de collecteurs, ou une Organisation, peut être vendeur à sa place si son Contrat le prévoit. Un Recycleur vérifié par la plateforme consulte, réserve et achète. Chaque kg vendu remonte à une Preuve. La réservation, la vente et la commission sont enregistrées en états, sans aucun flux d'argent par TerangaCycle.
 
-**Prérequis :** stories H24 à H48 des Epics 1, 2, 4 et 5 (Zones de la Zone active, rôles Collecteur et Recycleur, Collecteurs vérifiés, composant Type de déchet, capture et compression de photo, `core.storage.ingest_photo()`, URL signées).
-**Écrans :** [HORS MAQUETTE — à concevoir] (UX-DR-33), mêmes jetons et police Inter.
-**FR couvertes :** FR-38, FR-39, FR-40
-**Porte :** extension (après H48, hors démo) ; FR-38 et FR-39 : Should ; FR-40 : Could.
+> Réécrit le 25/11/2026 (`sprint-change-proposal-2026-11-25.md`, amendement n° 2) : il remplace l'ancien Epic 9 « Lots de matière (extension) », où le Collecteur déclarait librement un Lot.
 
-### Story 9.1 : Déclarer un Lot de matière (API)
+**Prérequis :** Epic 2 (Appartenances, Super Admin, console), stories 5.6 (`ProofAccepted`) et 5.14 (`ProofContested`, `ProofConfirmed`), story 10.2 (Contrats : droit de vendre, commission), story 12.5 (Litiges) pour la story 9.6.
+**Écrans :** [HORS MAQUETTE — UX-DR-33] ; Lots du Collecteur vendeur dans l'Espace mobile, Recycleur et Super Admin dans la console.
+**FR couvertes :** FR-38, FR-39, FR-40, FR-69, FR-70, FR-71
+**Priorité :** P3
 
-En tant que Collecteur vérifié,
-Je veux déclarer un Lot de matière avec son Type de déchet, son poids, sa Zone et une photo,
+### Story 9.1 : Vérifier un Recycleur
+
+En tant que Super Admin,
+Je veux vérifier une Organisation recycleur avant qu'elle accède aux Lots,
+Afin que seuls des acheteurs connus voient la matière et contactent les vendeurs.
+
+**Critères d'acceptation :**
+
+**Étant donné** une Organisation de type `recycler` et l'Appartenance `recycler` de son membre
+**Quand** le Super Admin appelle `POST /v1/admin/organizations/{id}/verify` (`Idempotency-Key`)
+**Alors** l'Organisation et l'Appartenance sont marquées vérifiées, et `membership.verify` est inscrit.
+
+**Étant donné** un Recycleur non vérifié
+**Quand** il appelle une route de Lot
+**Alors** la réponse est 403 `recycler_not_verified` (test route × rôle avec un Recycleur non vérifié et un vérifié).
+
+**Exigences :** FR-69, FR-48, FR-36, NFR-9, AD-25, AD-32
+**Priorité :** P3
+
+### Story 9.2 : Suivre les kg vérifiés disponibles à la vente
+
+En tant que Collecteur vendeur,
+Je veux voir les kg vérifiés que je peux mettre en vente,
+Afin de ne proposer que de la matière prouvée qui m'appartient.
+
+**Critères d'acceptation :**
+
+**Étant donné** une migration du module `lots`
+**Quand** elle s'applique
+**Alors** elle crée `lot_proof_balances` selon AD-35, avec `CHECK (0 <= kg_taken AND kg_taken <= kg_total)`.
+
+**Étant donné** l'événement `ProofAccepted`
+**Quand** la réaction `lots.service.on_proof_accepted()` s'exécute
+**Alors** une ligne est créée avec `kg_total` = Poids déclaré, `eligible = true` et le vendeur fixé dans l'ordre d'AD-35 : l'Organisation de la Mission si son Contrat la désigne ; sinon le groupement du Collecteur s'il en est membre vérifié et si le Contrat du groupement l'autorise ; sinon le Collecteur
+**Et** rejouer la réaction ne crée pas de seconde ligne.
+
+**Étant donné** `ProofContested` ou `ProofConfirmed`
+**Quand** la réaction s'exécute
+**Alors** `eligible` passe à faux (contestée) ou reste vrai (confirmée), de façon idempotente.
+
+**Étant donné** un Collecteur vendeur dans l'Espace mobile
+**Quand** il ouvre « Ma matière »
+**Alors** il voit ses kg disponibles par Type de déchet et par Zone, sans voir ceux des autres (test).
+
+**Exigences :** FR-38, FR-41, FR-71, AD-21, AD-31, AD-35
+**Priorité :** P3
+
+### Story 9.3 : Constituer un Lot à partir de kg vérifiés
+
+En tant que Collecteur vendeur,
+Je veux regrouper mes kg vérifiés d'un même Type de déchet en un Lot,
 Afin de le proposer aux Recycleurs.
 
 **Critères d'acceptation :**
 
-**Étant donné** la base au schéma courant
-**Quand** la migration Alembic de cette story s'applique
-**Alors** la table `material_lots` existe (identifiant, `collector_id`, `waste_type`, `weight_kg NUMERIC(8,2) CHECK (weight_kg > 0)`, `zone_id`, clé et `sha256` de la photo, `status` contraint à `available` ou `reserved` et valant `available` par défaut, `created_at`, `is_demo`), écrite par le seul module `lots`
+**Étant donné** des soldes éligibles dont il est le vendeur
+**Quand** il appelle `POST /v1/lots` (Type de déchet, Zone, liste de `proof_id` et de kg ; `Idempotency-Key`)
+**Alors** chaque prélèvement passe par la mise à jour conditionnelle d'AD-35, et des `lot_items` sont créés dans la même unité de travail ; le Lot est `available` et `lot.create` est inscrit.
 
-**Étant donné** un Collecteur vérifié
-**Quand** il appelle `POST /v1/lots` en `multipart/form-data` (`meta` : `waste_type`, `weight_kg`, `zone_id` ; `photo`) avec une `Idempotency-Key`
-**Alors** il reçoit 201 avec un Lot au Statut de Lot `disponible`, `created_at` = `core.clock.now()`, et `is_demo` vrai en Mode démonstration
-**Et** un renvoi avec la même clé rejoue la réponse sans créer de second Lot
+**Étant donné** des kg déjà pris, une Preuve contestée, une Preuve d'un autre vendeur ou un Type de déchet différent
+**Quand** le Lot est demandé
+**Alors** la réponse est 409 `kg_not_available` (ou 403 pour une Preuve d'un autre vendeur), et rien n'est écrit.
 
-**Étant donné** une déclaration sans Type de déchet, avec un poids ≤ 0, sans Zone, avec une Zone hors de la Zone active, ou sans photo (un test par cas)
-**Quand** elle est envoyée
-**Alors** elle est refusée (422) et rien n'est créé
-**Et** la photo passe par `core.storage.ingest_photo()` (type `lot`) : 415 hors JPEG, PNG et WebP ; 413 ou 422 au-delà de 1 Mo ou 12 Mpx ; métadonnées supprimées
+**Étant donné** 20 prélèvements concurrents sur une même Preuve
+**Quand** ils s'exécutent
+**Alors** la somme prélevée ne dépasse jamais `kg_total`.
 
-**Étant donné** un Collecteur vérifié
-**Quand** il appelle `GET /v1/zones` puis `GET /v1/lots/mine`
-**Alors** il reçoit la liste des Zones (quartiers) de la Zone active, puis ses seuls Lots, plus récents d'abord, paginés
+**Étant donné** une Organisation vendeuse (groupement, ou Organisation désignée par son Contrat)
+**Quand** son Administrateur constitue un Lot depuis la console
+**Alors** les mêmes règles s'appliquent, sur ses seuls soldes.
 
-**Étant donné** un Collecteur non vérifié, un Citoyen, un Recycleur ou un membre du Personnel
-**Quand** il appelle `POST /v1/lots`
-**Alors** il reçoit 403 (test « route × rôle »)
+**Exigences :** FR-38, FR-71, AD-5, AD-31, AD-35, UX-DR-33
+**Priorité :** P3
 
-**Exigences :** FR-38, AD-2, AD-5, AD-11, AD-13, AD-14, NFR-9
-**Porte :** Should, extension
+### Story 9.4 : Consulter les Lots disponibles
 
-### Story 9.2 : Écran de déclaration d'un Lot et « Mes Lots »
+En tant que Recycleur vérifié,
+Je veux filtrer les Lots disponibles,
+Afin de trouver la matière dont j'ai besoin, sans voir l'identité des vendeurs.
+
+**Critères d'acceptation :**
+
+**Étant donné** des Lots `available`
+**Quand** le Recycleur vérifié appelle `GET /v1/lots?waste_type=&min_kg=&zone=&limit=&cursor=`
+**Alors** il reçoit `{items, next_cursor}` avec Type de déchet, kg, Zone et date, sans identité, numéro ni contact du vendeur (test sur le schéma de réponse).
+
+**Étant donné** l'écran « Lots » de la console
+**Quand** il s'affiche
+**Alors** les filtres sont utilisables au clavier, et les Lots `is_demo` portent l'étiquette « Données de démonstration ».
+
+**Exigences :** FR-39, AD-10, AD-11, UX-DR-33, UX-DR-6
+**Priorité :** P3
+
+### Story 9.5 : Réserver un Lot et obtenir le contact du vendeur
+
+En tant que Recycleur vérifié,
+Je veux réserver un Lot et obtenir le contact de son vendeur,
+Afin d'organiser l'enlèvement.
+
+**Critères d'acceptation :**
+
+**Étant donné** un Lot `available`
+**Quand** le Recycleur appelle `POST /v1/lots/{id}/reservations` (`Idempotency-Key`)
+**Alors** le Lot passe `reserved`, `lot.reserve` est inscrit, `LotReserved` est émis et le vendeur est notifié
+**Et** une réservation concurrente reçoit 409 `lot_already_reserved`.
+
+**Étant donné** une réservation acceptée
+**Quand** le Recycleur demande le contact
+**Alors** il reçoit le contact du vendeur, par `auth.service.get_contact()` pour un Collecteur ou `orgs.service.get_contact()` pour une Organisation ; tout autre Recycleur reçoit 404.
+
+**Étant donné** une réservation annulée par le Recycleur ou le vendeur
+**Quand** l'annulation est enregistrée
+**Alors** le Lot redevient `available`.
+
+**Étant donné** le Collecteur vendeur, application ouverte
+**Quand** son Lot est réservé
+**Alors** il voit la réservation au plus 15 s après.
+
+**Exigences :** FR-40, AD-5, AD-10, AD-21, UX-DR-33
+**Priorité :** P3
+
+### Story 9.6 : Confirmer la réception et la vente d'un Lot
+
+En tant que Recycleur, puis vendeur,
+Je veux confirmer la réception, puis la vente,
+Afin que la vente soit enregistrée et que les kg vendus soient bloqués.
+
+**Critères d'acceptation :**
+
+**Étant donné** un Lot `reserved`
+**Quand** le Recycleur confirme la réception, puis que le vendeur appelle `POST /v1/sales/{id}/confirm` (prix en entier FCFA, date ; `Idempotency-Key`)
+**Alors** une ligne `sales` est créée, le Lot passe `sold` et devient immuable, `sold_kg` est fixé sur les soldes, `sale.confirm` est inscrit et `SaleConfirmed` est émis.
+
+**Étant donné** une Preuve d'un Lot contestée
+**Quand** le Lot n'est pas vendu
+**Alors** l'Élément est gelé et le Lot passe `withdrawn` (`lot.withdraw`)
+**Et** si le Lot est vendu, un Litige s'ouvre (story 12.5).
+
+**Exigences :** FR-70, FR-71, AD-21, AD-34, AD-35
+**Priorité :** P3
+
+### Story 9.7 : Enregistrer la commission d'une vente
+
+En tant que Super Admin,
+Je veux que la commission de chaque vente soit calculée et enregistrée,
+Afin de la facturer sans qu'aucun fonds ne transite par TerangaCycle.
+
+**Critères d'acceptation :**
+
+**Étant donné** une Vente confirmée
+**Quand** elle est enregistrée
+**Alors** la Commission est calculée depuis le paramètre `commission_bps` du Contrat du Recycleur (story 10.2), en entier FCFA, et figée sur `sales`.
+
+**Étant donné** le dépôt
+**Quand** un test parcourt `Settings`, `.env.example` et le seed hors démo
+**Alors** il ne trouve aucune valeur de commission ; le seed de démonstration utilise une valeur fictive étiquetée `is_demo`.
+
+**Étant donné** `finance` et `lots`
+**Quand** le test d'architecture s'exécute
+**Alors** aucune route ne déclenche un encaissement ni un transfert (AD-34).
+
+**Exigences :** FR-70, FR-51, AD-34
+**Priorité :** P3
+
+### Story 9.8 : Suivre les Lots, réservations et ventes
+
+En tant que vendeur ou Super Admin,
+Je veux suivre les Lots, les réservations et les ventes,
+Afin de savoir où en est chaque kg mis en vente.
+
+**Critères d'acceptation :**
+
+**Étant donné** un Collecteur vendeur (Espace mobile) ou une Organisation vendeuse (console)
+**Quand** il ouvre « Mes Lots »
+**Alors** il voit ses Lots avec leur statut (`available`, `reserved`, `sold`, `withdrawn` avec motif) et les kg par Preuve d'origine.
+
+**Étant donné** le Super Admin
+**Quand** il ouvre le suivi de la place de marché
+**Alors** il voit tous les Lots, réservations et ventes, filtrables par Organisation, Type de déchet et période, avec un export CSV sans donnée personnelle.
+
+**Exigences :** FR-71, FR-53, AD-22, UX-DR-33, UX-DR-35
+**Priorité :** P3
+
+## Epic 10 : Organisations et contrats
+
+Le Super Admin gère le cycle de vie des Organisations clientes, leurs Contrats et leurs Factures en états, et pilote la plateforme. Aucune valeur commerciale n'est écrite dans le dépôt : les valeurs vivent en base, dans les Contrats.
+
+**Prérequis :** stories 2.13, 2.14 et 2.15.
+**FR couvertes :** FR-50 (cycle de vie), FR-51, FR-52, FR-53, FR-54
+**Priorité :** P2
+
+### Story 10.1 : Gérer le cycle de vie d'une organisation cliente
+
+En tant que Super Admin,
+Je veux modifier, suspendre et réactiver une Organisation,
+Afin de refléter l'état de la relation avec chaque client.
+
+**Critères d'acceptation :**
+
+**Étant donné** une Organisation `active`
+**Quand** le Super Admin la suspend (`POST /v1/admin/organizations/{id}/suspend`, `Idempotency-Key`)
+**Alors** elle passe `suspended`, `org.suspend` est inscrit et `OrganizationSuspended` est émis
+**Et** elle ne reçoit plus de nouveau Signalement (rattaché alors à l'Organisation plateforme), de Demande ni de Mission ; ses membres gardent la lecture de leur historique.
+
+**Étant donné** une Organisation `suspended`
+**Quand** le Super Admin la réactive ou la modifie (nom, Zone)
+**Alors** `org.update` est inscrit avec l'état avant et après.
+
+**Exigences :** FR-44, FR-50, FR-36, AD-21, AD-25, AD-31
+**Priorité :** P2
+
+### Story 10.2 : Enregistrer les contrats et abonnements
+
+En tant que Super Admin,
+Je veux enregistrer le Contrat de chaque Organisation avec ses paramètres commerciaux,
+Afin que les frais, la rémunération, la commission et le droit de vendre des Lots soient calculés sans valeur écrite dans le code.
+
+**Critères d'acceptation :**
+
+**Étant donné** une migration du module `orgs`
+**Quand** elle s'applique
+**Alors** elle crée `contracts(organization_id, offer, monthly_price_xof, starts_on, ends_on, status, coordination_fee_*, collector_payout_*, commission_bps, lot_seller_enabled, provider_org_ids, is_demo, …)`, montants en `BIGINT`.
+
+**Étant donné** le Super Admin
+**Quand** il crée ou modifie un Contrat (`Idempotency-Key`)
+**Alors** `contract.create` ou `contract.update` est inscrit ; tout autre rôle reçoit 403.
+
+**Étant donné** le dépôt
+**Quand** un test parcourt `Settings`, `.env.example` et le seed hors démo
+**Alors** il ne trouve aucune valeur commerciale.
+
+**Exigences :** FR-51, FR-38, FR-58, FR-62, FR-70, AD-34
+**Priorité :** P2
+
+### Story 10.3 : Émettre les factures et suivre leurs échéances
+
+En tant que Super Admin,
+Je veux que les Factures de chaque Contrat soient émises par période et suivies en états,
+Afin de savoir qui doit quoi, sans encaisser.
+
+**Critères d'acceptation :**
+
+**Étant donné** la tâche `finance.issue_invoices` (mensuelle, AD-18) et une horloge simulée
+**Quand** elle s'exécute
+**Alors** elle crée une Facture `issued` par Contrat actif et par période, une seule même si elle est rejouée ; `invoice.issue` est inscrit.
+
+**Étant donné** une Facture `issued`
+**Quand** le Super Admin la marque `paid` avec une référence (`Idempotency-Key`)
+**Alors** `invoice.status` est inscrit ; aucune passerelle de paiement n'est appelée.
+
+**Étant donné** un Administrateur d'organisation
+**Quand** il ouvre « Factures » dans la console
+**Alors** il ne voit que les Factures de son Organisation.
+
+**Exigences :** FR-52, AD-18, AD-25, AD-34
+**Priorité :** P2
+
+### Story 10.4 : Signaler les factures en retard
+
+En tant que Super Admin,
+Je veux être alerté des Factures en retard,
+Afin de relancer à temps.
+
+**Critères d'acceptation :**
+
+**Étant donné** la tâche `finance.mark_overdue_invoices` (quotidienne) et une horloge simulée
+**Quand** une Facture `issued` dépasse son échéance
+**Alors** elle passe `overdue`, `invoice.status` est inscrit et une alerte part une seule fois
+**Et** la console du Super Admin liste les Factures en retard.
+
+**Exigences :** FR-52, AD-18, AD-27
+**Priorité :** P2
+
+### Story 10.5 : Tableau de bord plateforme du Super Admin
+
+En tant que Super Admin,
+Je veux voir les indicateurs d'activité de la plateforme,
+Afin de suivre clients, collectes, kg vérifiés, ventes et rémunérations.
+
+**Critères d'acceptation :**
+
+**Étant donné** les vues `v_finance_facts` et `v_lot_facts` (AD-22)
+**Quand** le Super Admin choisit une période et, au besoin, une Organisation
+**Alors** il voit SM-B1 à SM-B8 : clients payants, revenu mensuel récurrent, coût moyen par collecte, Missions terminées, Preuves valides, kg vérifiés, Lots vendus, rémunérations versées
+**Et** les Données de démonstration sont étiquetées, et aucun chiffre de démonstration n'est présenté comme réel.
+
+**Exigences :** FR-53, NFR-P2, AD-22
+**Priorité :** P2
+
+### Story 10.6 : Paramètres de la plateforme et journal d'audit global
+
+En tant que Super Admin,
+Je veux régler les paramètres non commerciaux et consulter le Journal d'audit de toutes les Organisations,
+Afin de piloter la plateforme et de rendre compte.
+
+**Critères d'acceptation :**
+
+**Étant donné** les paramètres non commerciaux (bornes de fraude, délais)
+**Quand** le Super Admin les modifie
+**Alors** ils sont enregistrés en base et l'action est auditée.
+
+**Étant donné** le Journal d'audit global
+**Quand** le Super Admin le consulte
+**Alors** il le filtre par Organisation, action et période.
+
+**Exigences :** FR-54, FR-36, AD-25
+**Priorité :** P2
+
+## Epic 11 : Espace entreprise
+
+Le Gestionnaire d'entreprise gère ses Sites, déclare ses déchets, demande des collectes ponctuelles ou régulières, et suit preuves et quantités jusqu'au rapport mensuel.
+
+**Prérequis :** Epics 2 et 5 ; story 10.2 (prestataires du Contrat) ; story 12.1 pour les montants prévus.
+**FR couvertes :** FR-56, FR-57, FR-58, FR-59, FR-60, FR-61
+**Priorité :** P2
+
+### Story 11.1 : Gérer les sites de l'entreprise
+
+En tant que Gestionnaire d'entreprise,
+Je veux enregistrer les Sites de mon entreprise,
+Afin d'y rattacher mes déchets et mes collectes.
+
+**Critères d'acceptation :**
+
+**Étant donné** une migration du module `enterprise`
+**Quand** elle s'applique
+**Alors** elle crée `sites(organization_id, name, geog, contact_enc, is_demo, …)`.
+
+**Étant donné** le Gestionnaire
+**Quand** il crée, modifie ou archive un Site (`/v1/enterprise/sites`)
+**Alors** la Position doit être dans la Zone active (422 `outside_active_zone` sinon), et le contact est chiffré
+**Et** le test d'isolement prouve qu'une entreprise ne voit aucun Site d'une autre.
+
+**Exigences :** FR-56, AD-10, AD-31
+**Priorité :** P2
+
+### Story 11.2 : Déclarer les déchets d'un site
+
+En tant que Gestionnaire d'entreprise,
+Je veux déclarer les déchets produits par chaque Site,
+Afin de prévoir les collectes nécessaires.
+
+**Critères d'acceptation :**
+
+**Étant donné** un Site
+**Quand** le Gestionnaire déclare des Types de déchet et un volume estimé par période
+**Alors** une ligne `site_waste_declarations` est créée et l'historique est conservé.
+
+**Exigences :** FR-57, AD-31
+**Priorité :** P2
+
+### Story 11.3 : Demander une collecte ponctuelle
+
+En tant que Gestionnaire d'entreprise,
+Je veux demander une collecte pour un Site,
+Afin qu'un Collecteur vérifié vienne la faire et la prouve.
+
+**Critères d'acceptation :**
+
+**Étant donné** une migration d'expansion (AD-36)
+**Quand** elle s'applique
+**Alors** elle crée `collection_requests`, ajoute `missions.collection_request_id`, rend `report_id` nullable, et pose les `CHECK` d'origine et l'index unique partiel `(collection_request_id) WHERE status = 'active'`.
+
+**Étant donné** un Site
+**Quand** le Gestionnaire appelle `POST /v1/collection-requests` (Site, Types de déchet, volume estimé, créneau ; `Idempotency-Key`)
+**Alors** la Demande passe `requested`, et une Mission d'Origine `collection_request` est créée par `missions.service` pour l'Organisation de l'entreprise
+**Et** les Collecteurs éligibles sont ceux de `orgs.service.eligible_collector_orgs()` : Organisation plateforme et opérateurs prestataires du Contrat.
+
+**Étant donné** les réactions à `MissionAssigned`, `MissionCompleted` et `MissionReleased`
+**Quand** la Mission change d'état
+**Alors** la Demande passe `assigned`, `completed` ou redevient `requested`, de façon idempotente.
+
+**Exigences :** FR-58, FR-25, AD-3, AD-4, AD-21, AD-36
+**Priorité :** P2
+
+### Story 11.4 : Programmer des collectes régulières
+
+En tant que Gestionnaire d'entreprise,
+Je veux programmer des collectes régulières,
+Afin de ne pas redemander chaque collecte.
+
+**Critères d'acceptation :**
+
+**Étant donné** un Programme `collection_schedules` (Site, fréquence, Types de déchet)
+**Quand** la tâche `enterprise.generate_scheduled_requests` (quotidienne) s'exécute avec une horloge simulée
+**Alors** elle crée les Demandes arrivées à échéance, une seule par échéance même si elle est rejouée.
+
+**Exigences :** FR-59, AD-18
+**Priorité :** P2
+
+### Story 11.5 : Voir les Missions d'entreprise dans l'espace Collecteur
 
 En tant que Collecteur vérifié,
-Je veux déclarer un Lot depuis mon téléphone et suivre l'état de mes Lots,
-Afin de vendre ma matière sans démarche papier.
+Je veux voir les Demandes d'entreprise auxquelles je suis éligible,
+Afin de prendre aussi ces Missions.
 
 **Critères d'acceptation :**
 
-**Étant donné** un Collecteur vérifié sur un écran de 390×844
-**Quand** il ouvre « Déclarer un lot » [HORS MAQUETTE]
-**Alors** il choisit le Type de déchet avec le sélecteur commun (pictogramme + libellé + couleur), saisit le poids en kg (> 0, virgule décimale), choisit la Zone dans la liste des quartiers et prend une photo (consigne « ni personne ni plaque », compression à 300 Ko au plus)
-**Et** le bouton « Déclarer » reste désactivé tant qu'un champ manque
+**Étant donné** un Collecteur vérifié par une Organisation éligible
+**Quand** il ouvre l'écran 5
+**Alors** les Missions d'Origine `collection_request` apparaissent avec un pictogramme « Entreprise » et une Position arrondie avant l'acceptation (AD-10)
+**Et** l'acceptation, la Preuve et l'historique suivent les mêmes règles que pour un Signalement.
 
-**Étant donné** une réponse 422
-**Quand** elle arrive
-**Alors** le message du champ en cause s'affiche (clé `errors.<code>`) et la saisie est conservée
+**Étant donné** un Collecteur non éligible
+**Quand** il liste ou accepte
+**Alors** la Mission n'apparaît pas, et l'acceptation renvoie 403 `collector_not_verified_here`.
 
-**Étant donné** l'appareil hors réseau
-**Quand** le Collecteur touche « Déclarer »
-**Alors** l'écran affiche « Pas de réseau : le lot n'est pas encore déclaré » et rien n'est mis en File hors-ligne
+**Exigences :** FR-58, FR-24, FR-25, AD-10, AD-36
+**Priorité :** P2
 
-**Étant donné** l'écran « Mes Lots »
-**Quand** il est ouvert
-**Alors** chaque Lot affiche son badge de Type de déchet, son poids, sa Zone, sa date et son Statut de Lot (`disponible` ou `réservé`, pictogramme + libellé), et la liste se rafraîchit toutes les 15 s
-**Et** un état vide invite à déclarer un premier Lot, les cibles tactiles mesurent au moins 44 px et aucun texte n'est en dur
+### Story 11.6 : Suivre les demandes, les prestataires et les preuves
 
-**Exigences :** FR-38, UX-DR-33, UX-DR-3, UX-DR-7, UX-DR-8, UX-DR-9, NFR-4
-**Porte :** Should, extension
-
-### Story 9.3 : Consulter les Lots `disponible`
-
-En tant que Recycleur,
-Je veux consulter les Lots `disponible`, filtrés par Type de déchet, Zone et poids minimal,
-Afin d'anticiper la matière que je peux acheter.
+En tant que Gestionnaire d'entreprise,
+Je veux suivre mes Demandes jusqu'à la Preuve,
+Afin de savoir qui a collecté quoi, et combien.
 
 **Critères d'acceptation :**
 
-**Étant donné** des Lots `disponible` et `réservé` de plusieurs Types de déchet, Zones et poids
-**Quand** un Recycleur appelle `GET /v1/lots?waste_type=&zone_id=&min_weight_kg=`
-**Alors** il ne reçoit que des Lots `disponible` correspondant à tous les filtres fournis, plus récents d'abord, paginés (`limit` ≤ 100)
-**Et** avec `min_weight_kg=10`, un Lot de 9,99 kg est exclu et un Lot de 10 kg inclus
+**Étant donné** une Demande
+**Quand** le Gestionnaire l'ouvre dans la console
+**Alors** il voit son état, le Collecteur (nom affiché et état de vérification, jamais le numéro), les photos de Preuve par URL signée et les kg vérifiés par Site.
 
-**Étant donné** n'importe quelle réponse de cette liste
-**Quand** elle est sérialisée
-**Alors** chaque élément porte l'identifiant du Lot, le Type de déchet, le poids, le nom de la Zone, la date, `is_demo` et une URL signée de 5 min vers la photo
-**Et** aucun champ ne contient le numéro, le nom, l'identifiant ni une Position du Collecteur (test qui cherche ces valeurs dans la réponse brute)
+**Étant donné** une Preuve qu'il conteste
+**Quand** il saisit un motif
+**Alors** un Litige s'ouvre (story 12.5).
 
-**Étant donné** un Collecteur, un Citoyen ou un membre du Personnel
-**Quand** il appelle cette route
-**Alors** il reçoit 403 (test « route × rôle »)
+**Exigences :** FR-60, FR-66, AD-10, AD-31
+**Priorité :** P2
 
-**Étant donné** un Recycleur sur un écran de 390×844 ou de 1280×800
-**Quand** il ouvre « Lots disponibles » [HORS MAQUETTE]
-**Alors** il voit les Lots avec badge de Type de déchet, poids, Zone et photo, et des filtres Type de déchet, Zone et poids minimal
-**Et** l'étiquette « Données de démonstration » marque les Lots `is_demo`, et l'écran est utilisable au clavier
+### Story 11.7 : Rapport mensuel de l'entreprise
 
-**Exigences :** FR-39, AD-10, UX-DR-33, UX-DR-3, UX-DR-6, UX-DR-7, NFR-9
-**Porte :** Should, extension
-
-### Story 9.4 : Demander le contact du Collecteur d'un Lot
-
-En tant que Recycleur,
-Je veux obtenir le contact du Collecteur d'un Lot après en avoir fait la demande,
-Afin de négocier directement, sans que les identités soient exposées à tous.
+En tant que Gestionnaire d'entreprise,
+Je veux un rapport mensuel de mes collectes,
+Afin de rendre compte de ma gestion des déchets.
 
 **Critères d'acceptation :**
 
-**Étant donné** la base au schéma courant
-**Quand** la migration Alembic de cette story s'applique
-**Alors** la table `lot_requests` existe (`lot_id`, `recycler_user_id`, `created_at`, `is_demo`, `UNIQUE (lot_id, recycler_user_id)`), écrite par le seul module `lots`
+**Étant donné** un mois choisi
+**Quand** le Gestionnaire télécharge le rapport (CSV et PDF)
+**Alors** il contient les kg vérifiés par Type de déchet et par Site, les Missions terminées et les Preuves contestées, sans donnée personnelle ; `export.aggregate` est inscrit.
 
-**Étant donné** un Recycleur et un Lot `disponible`
-**Quand** il appelle `POST /v1/lots/<id>/contact-requests` avec une `Idempotency-Key`
-**Alors** il reçoit 201 avec le nom affiché et le numéro du Collecteur, obtenus par `auth.service.get_contact()`
-**Et** une seconde demande du même Recycleur pour le même Lot renvoie 200 avec le même contact, sans seconde ligne
-**Et** `GET /v1/lots/requests/mine` liste les demandes de ce seul Recycleur avec le Lot et le contact obtenu
+**Exigences :** FR-61, AD-22, AD-25
+**Priorité :** P2
 
-**Étant donné** un Lot `réservé` ou inexistant
-**Quand** un Recycleur demande le contact
-**Alors** il reçoit respectivement 409 et 404, sans contact
+### Story 11.8 : Rapport mensuel de la commune ou de l'opérateur
 
-**Étant donné** un contact fourni
-**Quand** les autres réponses sont examinées
-**Alors** le contact n'apparaît que dans la réponse de cette demande et dans `GET /v1/lots/requests/mine` du même Recycleur, jamais dans `GET /v1/lots`
-**Et** les journaux `structlog` masquent le numéro (test de lecture des journaux)
-
-**Étant donné** le détail d'un Lot sur l'écran du Recycleur
-**Quand** il touche « Demander le contact » puis confirme
-**Alors** le nom affiché et le numéro s'affichent avec un bouton « Appeler » (lien `tel:`)
-
-**Étant donné** un Collecteur, un Citoyen ou un membre du Personnel
-**Quand** il appelle ces routes
-**Alors** il reçoit 403
-
-**Exigences :** FR-39 (contact après demande), AD-10, AD-2, AD-5, NFR-14, UX-DR-33
-**Porte :** Should, extension
-
-### Story 9.5 : Réserver un Lot
-
-En tant que Recycleur,
-Je veux réserver un Lot `disponible`,
-Afin de m'assurer qu'aucun autre Recycleur ne le prenne pendant que j'organise l'enlèvement.
+En tant qu'Administrateur d'organisation,
+Je veux le même rapport mensuel par quartier,
+Afin de rendre compte avec des chiffres vérifiables.
 
 **Critères d'acceptation :**
 
-**Étant donné** la base au schéma courant
-**Quand** la migration Alembic de cette story s'applique
-**Alors** `material_lots` reçoit `reserved_by_user_id` et `reserved_at`, nuls tant que le Lot est `disponible`
+**Étant donné** les vues de l'Epic 7
+**Quand** l'Administrateur télécharge le rapport d'un mois
+**Alors** il contient les kg vérifiés par Type de déchet et par quartier, les Missions terminées et les Preuves contestées de son Organisation, sans donnée personnelle.
 
-**Étant donné** un Recycleur et un Lot `disponible`
-**Quand** il appelle `POST /v1/lots/<id>/reservation` avec une `Idempotency-Key`
-**Alors** le Lot passe à `réservé` par une mise à jour conditionnelle (`WHERE status = 'available'`), avec `reserved_at` = `core.clock.now()`
-**Et** `LotReserved` est émis après le commit
+**Exigences :** FR-61, FR-31, AD-22
+**Priorité :** P2
 
-**Étant donné** deux Recycleurs qui réservent le même Lot en parallèle (répété 20 fois)
-**Quand** les requêtes aboutissent
-**Alors** une seule réussit et l'autre reçoit 409
-**Et** toute réservation d'un Lot déjà `réservé` reçoit 409, sauf le rejeu d'une même requête avec la même `Idempotency-Key`
+## Epic 12 : Finance terrain
 
-**Étant donné** un Lot réservé
-**Quand** un Recycleur appelle `GET /v1/lots`
-**Alors** ce Lot n'y figure plus
+Chaque Mission porte ses frais et sa rémunération prévus ; chaque Preuve acceptée crée un Montant dû ; le payeur confirme le paiement mobile money ; le Collecteur voit ses Montants et peut contester ; les Litiges sont tranchés. TerangaCycle ne détient aucun fonds (AD-34).
 
-**Étant donné** le Collecteur du Lot avec l'application ouverte sur « Mes Lots »
-**Quand** la réservation est validée
-**Alors** le Lot y apparaît `réservé` au plus 15 s après (rafraîchissement de 15 s, test à minuterie simulée)
-**Et** la notification du Collecteur au MVP est cette apparition dans la liste en 15 s au plus ; aucune réaction n'est abonnée à `LotReserved`
+**Prérequis :** stories 5.6, 5.14 et 10.2.
+**FR couvertes :** FR-62, FR-63, FR-64, FR-65, FR-66, FR-67
+**Priorité :** P2
 
-**Étant donné** le détail d'un Lot `disponible` sur l'écran du Recycleur
-**Quand** il touche « Réserver ce lot » puis confirme
-**Alors** le Lot s'affiche `réservé` ; une réponse 409 affiche « Ce lot vient d'être réservé » et rafraîchit la liste
+### Story 12.1 : Fixer les frais et la rémunération prévus d'une Mission
 
-**Exigences :** FR-40, AD-5, AD-21, UX-DR-33, UX-DR-8
-**Porte :** Could, extension
+En tant qu'Administrateur d'organisation,
+Je veux que chaque Mission porte ses frais et sa rémunération prévus,
+Afin que chacun sache dès le départ ce qui sera dû.
+
+**Critères d'acceptation :**
+
+**Étant donné** une migration d'expansion de `missions`
+**Quand** elle s'applique
+**Alors** elle ajoute `planned_fee_xof` et `planned_payout_xof` (`BIGINT`, nullables pour l'historique).
+
+**Étant donné** la création d'une Mission
+**Quand** elle est enregistrée
+**Alors** les valeurs sont calculées depuis le Contrat de son Organisation et figées
+**Et** un changement de Contrat ne modifie aucune Mission existante (test).
+
+**Exigences :** FR-62, AD-34
+**Priorité :** P2
+
+### Story 12.2 : Créer le montant dû au Collecteur à la Preuve acceptée
+
+En tant que Collecteur,
+Je veux qu'un Montant dû soit créé dès que ma Preuve est acceptée,
+Afin que mon travail soit reconnu et suivi jusqu'au paiement.
+
+**Critères d'acceptation :**
+
+**Étant donné** une migration du module `finance`
+**Quand** elle s'applique
+**Alors** elle crée `payouts(organization_id, mission_id, collector_user_id, amount_xof, payer_org_id, status, payment_reference_enc, paid_at, confirmed_by, is_demo, …)`, unique par Mission.
+
+**Étant donné** l'événement `ProofAccepted`
+**Quand** la réaction `finance.service.create_payout()` s'exécute
+**Alors** un Montant `due` est créé avec `planned_payout_xof`, une seule fois même si elle est rejouée ; `payout.create` est inscrit.
+
+**Exigences :** FR-63, AD-21, AD-34
+**Priorité :** P2
+
+### Story 12.3 : Confirmer un paiement mobile money
+
+En tant que payeur (Administrateur d'organisation ou Gestionnaire d'entreprise),
+Je veux enregistrer le paiement que j'ai fait au Collecteur,
+Afin que chacun voie qu'il est payé, sans que TerangaCycle touche à l'argent.
+
+**Critères d'acceptation :**
+
+**Étant donné** un Montant `due` de son Organisation
+**Quand** le payeur appelle `POST /v1/payouts/{id}/confirm` (Référence de paiement, date ; `Idempotency-Key`)
+**Alors** le Montant passe `paid` avec `confirmed_by`, et `payout.status` est inscrit
+**Et** la Référence est chiffrée, masquée dans les journaux et visible seulement du payeur, du Collecteur et du Super Admin.
+
+**Étant donné** la table des transitions `due → paid`, `due → contested`, `contested → due | paid`
+**Quand** le test parcourt chaque couple
+**Alors** toute autre transition renvoie 409 `invalid_transition`
+**Et** aucune route ne déclenche de transfert (test d'architecture, AD-34).
+
+**Exigences :** FR-64, NFR-14, AD-10, AD-34
+**Priorité :** P2
+
+### Story 12.4 : Voir ses montants dus et ses paiements confirmés
+
+En tant que Collecteur,
+Je veux voir ce qui m'est dû et ce qui a été payé,
+Afin de suivre mes revenus et de contester une erreur.
+
+**Critères d'acceptation :**
+
+**Étant donné** l'écran « Mes montants » de l'Espace mobile **[HORS MAQUETTE — UX-DR-36]**
+**Quand** le Collecteur l'ouvre
+**Alors** il voit ses Montants (Mission, date, montant, statut) et les totaux dû et payé.
+
+**Étant donné** un Montant
+**Quand** il touche « Contester » et saisit un motif obligatoire
+**Alors** le Montant passe `contested` et un Litige s'ouvre (story 12.5).
+
+**Exigences :** FR-65, FR-66, NFR-12, UX-DR-36
+**Priorité :** P2
+
+### Story 12.5 : Ouvrir et trancher un litige
+
+En tant que Super Admin,
+Je veux instruire et trancher les Litiges,
+Afin que chaque contestation reçoive une décision motivée et tracée.
+
+**Critères d'acceptation :**
+
+**Étant donné** une migration du module `finance`
+**Quand** elle s'applique
+**Alors** elle crée `disputes(organization_id, object_type, object_id, reason, status, decision, decided_by, is_demo, …)`, `object_type` parmi `proof`, `payout`, `sale`.
+
+**Étant donné** un Litige ouvert (par un Collecteur, un payeur, un Gestionnaire d'entreprise ou automatiquement sur `ProofContested`)
+**Quand** le Super Admin le tranche avec une décision motivée
+**Alors** `dispute.decide` est inscrit, et les effets passent par événements : Montant `due` ou `paid`, Preuve confirmée ou `contestée`
+**Et** un Montant `contested` n'est ni dû ni payé tant que le Litige est ouvert.
+
+**Exigences :** FR-66, FR-41, FR-71, AD-21, AD-25
+**Priorité :** P2
+
+### Story 12.6 : Suivre les montants dus, payés et contestés
+
+En tant qu'Administrateur d'organisation ou Super Admin,
+Je veux suivre les Montants de mes Missions,
+Afin de savoir ce qui reste à payer.
+
+**Critères d'acceptation :**
+
+**Étant donné** la console
+**Quand** l'Administrateur d'organisation ouvre « Montants »
+**Alors** il voit les Montants de son Organisation, filtrables par statut et période, avec un export CSV sans Référence de paiement complète
+**Et** le Super Admin voit toutes les Organisations.
+
+**Exigences :** FR-67, AD-22, AD-31
+**Priorité :** P2
+
+## Epic 13 : Données ouvertes et interopérabilité
+
+Les données agrégées sont publiées en formats standards documentés, et des partenaires (opérateurs, communes, bailleurs) les lisent par une API en lecture seule.
+
+> Validé le 25/11/2026 (`sprint-change-proposal-2026-11-25.md`, amendement n° 3), planifié après le pilote.
+
+**Prérequis :** Epic 7 et story 11.8.
+**FR couvertes :** aucune nouvelle FR ; prolonge FR-33 et FR-61.
+**Priorité :** post-pilote
+
+### Story 13.1 : Exports en formats standards documentés
+
+En tant que partenaire de données,
+Je veux des exports agrégés dans un format documenté et stable,
+Afin de les réutiliser sans retraitement.
+
+**Critères d'acceptation :**
+
+**Étant donné** les vues de l'Epic 7
+**Quand** un export ouvert est produit (CSV, GeoJSON)
+**Alors** il suit un schéma publié et versionné, sous une licence ouverte des données agrégées, sans donnée personnelle (Positions arrondies, FR-33).
+
+**Exigences :** FR-33, NFR-6.4, AD-22
+**Priorité :** post-pilote
+
+### Story 13.2 : API en lecture pour partenaires
+
+En tant que partenaire autorisé,
+Je veux lire les agrégats par une API,
+Afin d'alimenter mes propres outils.
+
+**Critères d'acceptation :**
+
+**Étant donné** un jeton de partenaire en lecture seule émis par le Super Admin
+**Quand** le partenaire appelle l'API ouverte
+**Alors** il ne reçoit que des agrégats par Zone et par période ; le débit est limité et chaque appel est audité
+**Et** le jeton est révocable.
+
+**Exigences :** FR-33, NFR-9, AD-20, AD-25
+**Priorité :** post-pilote
+
+### Story 13.3 : Documentation publique des jeux de données
+
+En tant que partenaire de données,
+Je veux une documentation des jeux publiés,
+Afin de comprendre chaque champ et ses limites.
+
+**Critères d'acceptation :**
+
+**Étant donné** chaque jeu publié
+**Quand** sa documentation est consultée
+**Alors** elle donne le dictionnaire des champs, la fréquence de mise à jour, la licence et les limites connues.
+
+**Exigences :** NFR-6.4
+**Priorité :** post-pilote

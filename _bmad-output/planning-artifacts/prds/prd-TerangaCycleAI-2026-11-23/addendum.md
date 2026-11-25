@@ -2,11 +2,11 @@
 
 > Ce fichier regroupe le « comment » que le PRD ne porte pas. Il est destiné à `bmad-architecture` et aux stories. La source détaillée reste `docs/dossier-technique.md` : ce fichier ne liste que les décisions arrêtées et les **écarts à corriger** par rapport à ce dossier. Le vocabulaire est celui du Glossaire du PRD (§3).
 
-## A. Décisions techniques arrêtées (brief, ne pas rouvrir sans Mia)
+## A. Décisions techniques arrêtées (brief, ne pas rouvrir sans la responsable produit)
 
 | Sujet | Décision |
 |---|---|
-| Style | Monolithe modulaire FastAPI : `auth`, `reports`, `missions`, `lots`, `analytics`, `ai`, `notifications` |
+| Style | Monolithe modulaire FastAPI : `auth`, `orgs`, `reports`, `missions`, `enterprise`, `finance`, `lots`, `analytics`, `ai`, `notifications` (v2.0 : `orgs`, `enterprise` et `finance` ajoutés le 25/11/2026) |
 | Backend | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 + GeoAlchemy2, Alembic |
 | Données | PostgreSQL 16 + PostGIS, Redis (OTP, limites de débit, files arq), stockage compatible S3 avec URL signées |
 | Frontend | PWA React + TypeScript (Vite), vite-plugin-pwa, Dexie, Leaflet, onnxruntime-web, i18next, Tailwind |
@@ -37,7 +37,7 @@
 13. **Retirer `users.points`** (non-objectif, minimisation).
 14. **Drapeau de désaccord** : un seul nom, `disagreement` (point 1).
 15. **`users.totp_secret`** chiffré pour le Second facteur du Personnel (FR-43).
-16. **Zone active** : une seule Zone active configurée (polygone PostGIS) ; contrôle `ST_Contains` à la création (FR-7). Aucune colonne `commune_id` de cloisonnement au MVP (multi-commune : non-objectif).
+16. **Zone active** : une seule Zone active configurée (polygone PostGIS) ; contrôle `ST_Contains` à la création (FR-7). **(v2.0)** Cloisonnement par `organization_id` sur chaque table métier (épine AD-31) ; la Zone active reste unique au MVP.
 
 ### B.2 PWA hors-ligne : corrections du code du dossier technique
 
@@ -111,7 +111,7 @@
 - `SECURITY.md` indique un canal privé de signalement et un délai de réponse.
 - `main` protégée : PR obligatoire, CI verte requise, pas de *force push* ; *secret scanning*, *push protection* et Dependabot (pip, npm, Docker, GitHub Actions) activés.
 - Gitleaks lancé en binaire (licence MIT) plutôt que par `gitleaks-action` si le dépôt passe dans une organisation GitHub.
-- `LICENSE` à la racine dès que Mia a tranché (PRD §11, Q1 ; H60).
+- `LICENSE` à la racine dès que la responsable produit a tranché (PRD §11, Q1 ; H60).
 
 ## G. Actions hors PRD pour l'équipe
 
@@ -124,12 +124,7 @@ Ces actions ne sont pas des exigences du produit. Elles découlent du triage des
   2. « F1 macro, plus honnête avec des classes déséquilibrées ; la top-1 promise est aussi publiée. »
   3. « Portable d'abord, AWS au pilote, par souveraineté. »
   4. « Vert foncé pour l'accessibilité AA. »
-  5. « Mono-commune au pilote, conçu pour être répliqué. » (Zone active, PRD §8.)
-
-**Pitch**
-- Obtenir un témoignage de terrain : collecteur ou commune contactés. Responsable à désigner.
-- Garder les messages de pitch : sens de *teranga*, complémentarité avec les applications existantes, modèle économique (abonnement des communes, commission sur les Lots de matière, subventions), « chaque correction consentie devient un exemple ».
-- Lots de matière : à l'oral, assumer qu'ils viennent avec le pilote, comme dans le Proposal (PRD §9.2).
+  5. « Un territoire au pilote, des organisations cloisonnées dès le MVP. » (Zone active, PRD FR-46.)
 
 **Maquette Figma**
 - Elle est figée (quota Figma) : ne pas la modifier.
@@ -138,7 +133,8 @@ Ces actions ne sont pas des exigences du produit. Elles découlent du triage des
 - Vérifier le partage « Anyone with the link can view ».
 
 **Documents sources**
-- **`docs/cahier-des-charges.md` (responsable : Mia) :**
+- **(v2.0)** Ajouter en tête de `docs/cahier-des-charges.md` et de `docs/dossier-technique.md` la mention « remplacé par le PRD v2.0 pour la vision, les rôles et les non-objectifs ».
+- **`docs/cahier-des-charges.md` (responsable : responsable produit) :**
   - critère du pilote (80 % sur 4 à 6 semaines → 60 % sur 6 mois) ;
   - pitch (5 min → 1 min 30) ;
   - délai moyen → Délai médian ;
@@ -147,11 +143,11 @@ Ces actions ne sont pas des exigences du produit. Elles découlent du triage des
   - marquer comme remplacés le prétraitement (Resize 224 sans recadrage), `PendingReport`, `flushQueue` sans jeton, les 4xx renvoyés sans fin, le reclassement synchrone et le hachage salé du téléphone ;
   - renvoyer vers cet addendum (B, C, D).
 
-**Dépôt (epic E0, avant H24, responsable proposé : Ahmadou)**
+**Dépôt (epic E0, avant H24, responsable proposé : responsable technique)**
 - Committer le `.gitignore` modifié.
 - Ajouter `.env.example` et `SECURITY.md` (F.2).
 - Protéger `main`, activer *secret scanning*, *push protection* et Dependabot.
-- Ajouter `LICENSE` dès que Mia a tranché (H60).
+- Ajouter `LICENSE` dès que la responsable produit a tranché (H60).
 - Avant de committer `_bmad-output/`, chercher la clé du fichier Figma dans tous les fichiers. Les rapports de relecture et le triage n'en contiennent pas, mais il faut le vérifier.
 - Exécuter Python 3.12 via Docker ou `uv` (le poste a la 3.15).
 
