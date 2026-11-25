@@ -10,6 +10,7 @@ from app.core.config import Settings
 from app.core.logging import MASK, get_logger, mask_sensitive
 from app.main import create_app
 from tests.asgi import request
+from tests.support import sample_active_zone
 
 SENSITIVE = {
     "phone": "+221770000000",
@@ -122,6 +123,7 @@ def test_access_log_line(
     make_settings: Callable[..., Settings], capsys: pytest.CaptureFixture[str]
 ) -> None:
     app = create_app(make_settings())
+    app.state.active_zone = sample_active_zone()
     capsys.readouterr()
     response = request(
         app,
@@ -149,6 +151,7 @@ def test_access_log_uses_route_template(
     make_settings: Callable[..., Settings], capsys: pytest.CaptureFixture[str]
 ) -> None:
     app = create_app(make_settings())
+    app.state.active_zone = sample_active_zone()
 
     @app.get("/v1/_test/reports/{report_id}")
     async def read(report_id: str) -> dict[str, str]:
@@ -174,6 +177,7 @@ def test_probe_access_lines_are_debug(
     make_settings: Callable[..., Settings], capsys: pytest.CaptureFixture[str]
 ) -> None:
     app = create_app(make_settings())
+    app.state.active_zone = sample_active_zone()
     capsys.readouterr()
     for path in ("/healthz", "/metrics", "/v1/config"):
         request(app, "GET", path)
@@ -190,6 +194,7 @@ def test_probe_access_lines_visible_in_debug(
     make_settings: Callable[..., Settings], capsys: pytest.CaptureFixture[str]
 ) -> None:
     app = create_app(make_settings(log_level="DEBUG"))
+    app.state.active_zone = sample_active_zone()
     capsys.readouterr()
     request(app, "GET", "/healthz")
     lines = [

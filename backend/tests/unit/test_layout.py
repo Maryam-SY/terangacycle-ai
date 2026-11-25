@@ -9,7 +9,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[3]
 BACKEND = REPO / "backend"
 
-CORE_MODULES = ["config", "db", "logging", "clock", "enums", "http", "health", "public"]
+CORE_MODULES = ["config", "db", "logging", "clock", "enums", "http", "health", "public", "geo"]
 BUSINESS_MODULES = ["auth", "reports", "missions", "lots", "analytics", "ai", "notifications"]
 
 EXPECTED_FILES = [

@@ -1,4 +1,5 @@
 // Story 1.7 : accueil, Identifiant d'appareil et consentement avant la première capture.
+// L'écran 2 · Capture lui-même (Position, Zone active) est vérifié par capture.spec.ts.
 // Une ligne de la matrice I/O de la spec par test, en 390×844 sur la PWA construite.
 // Espions posés avant tout script de la page : géolocalisation, appareil photo, réseau.
 import { readFileSync } from 'node:fs'
@@ -280,7 +281,10 @@ test('acceptation sans la case : training = false, puis écran 2', async ({ page
   await expectCaptureScreen(page)
   await expectStoredConsent(page, false)
 
-  expect(await watch.permissionCalls()).toEqual([])
+  // L'écran 2 suit la Position (story 1.8), jamais avant l'acceptation ; pas d'appareil
+  // photo (story 1.9) ni de Signalement (story 1.11).
+  await expect.poll(() => watch.permissionCalls()).toContain('geolocation.watchPosition')
+  expect(await watch.permissionCalls()).not.toContain('mediaDevices.getUserMedia')
   expect(reportRequests(watch)).toEqual([])
 })
 

@@ -12,6 +12,14 @@ class Env(StrEnum):
     PROD = "prod"
 
 
+class ZoneKind(StrEnum):
+    """Niveau d'une Zone (table `zones`, AD-5) : Dakar et ses communes d'arrondissement
+    sont des `commune`, leurs subdivisions des `quartier`."""
+
+    COMMUNE = "commune"
+    QUARTIER = "quartier"
+
+
 class Role(StrEnum):
     """Rôles du Glossaire ; l'autorisation qui les applique arrive avec la story 2.5."""
 

@@ -14,9 +14,17 @@ import os
 import secrets
 from functools import lru_cache
 from pathlib import Path
-from typing import ClassVar
+from typing import Annotated, ClassVar
 
-from pydantic import PrivateAttr, SecretStr, ValidationError, field_validator, model_validator
+from pydantic import (
+    Field,
+    PrivateAttr,
+    SecretStr,
+    StringConstraints,
+    ValidationError,
+    field_validator,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict, SettingsError
 from sqlalchemy import URL
 
@@ -126,6 +134,13 @@ class Settings(BaseSettings):
 
     # Version du Modèle livré ; None tant qu'aucun Modèle n'existe (story 3.x).
     model_version: str | None = None
+
+    # Zone active (table `zones`) : chargée au démarrage de l'API, qui refuse de démarrer
+    # si elle n'existe pas. Publiée par GET /v1/config.
+    active_zone_id: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)] = "dakar"
+    # Précision de Position (mètres) au-delà de laquelle la PWA invite à patienter et le
+    # Signalement porte le drapeau « position imprécise » ; exactement ce seuil : pas de drapeau.
+    report_accuracy_flag_m: Annotated[int, Field(ge=1, le=1000)] = 50
 
     # Inventaire AD-26 (fichiers de /run/secrets/). Voir REQUIRED_SECRETS.
     jwt_signing_keys: SecretStr | None = None

@@ -37,7 +37,30 @@
   },
   "capture": {
     "title": "Photographier le dépôt",
-    "soon": "Merci ! La prise de photo arrive très bientôt dans l'application.",
+    "position": {
+      "locating": "Recherche de votre position…",
+      "detected": "Position détectée, précision ± {{accuracy}} m",
+      "wait": "Votre position est encore imprécise. Patientez quelques secondes, si possible à découvert : elle s'affine toute seule.",
+      "continue": "Continuer quand même",
+      "denied": "Pour situer le dépôt, TerangaCycle a besoin de la position de votre téléphone. Autorisez la localisation pour ce site dans les réglages du navigateur, puis réessayez.",
+      "unavailable": "Votre position n'a pas pu être trouvée pour le moment. Vérifiez que la localisation du téléphone est activée, puis réessayez."
+    },
+    "zone": {
+      "checking": "Vérification de la zone couverte…",
+      "outside": "TerangaCycle n'est pas encore actif ici. Merci de votre aide : vous pourrez signaler un dépôt dès que vous serez dans la zone couverte.",
+      "firstConnection": "Une connexion est nécessaire une première fois pour connaître la zone couverte. Connectez-vous à internet, puis réessayez."
+    },
+    "announce": {
+      "waiting": "Vérification de votre position en cours.",
+      "positionError": "Position indisponible : photo impossible pour le moment.",
+      "configUnavailable": "Zone couverte inconnue : une connexion est requise.",
+      "outsideZone": "Hors de la zone couverte : photo impossible à cet endroit.",
+      "imprecise": "Position imprécise : patientez, ou continuez sans attendre.",
+      "ready": "Position vérifiée : vous pouvez prendre la photo."
+    },
+    "retry": "Réessayer",
+    "trigger": "Prendre la photo",
+    "photoSoon": "Merci ! La prise de photo arrive à l'étape suivante de l'application.",
     "back": "Retour à l'accueil"
   },
   "notFound": {
