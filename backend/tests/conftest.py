@@ -23,6 +23,8 @@ _SETTINGS_ENV_VARS = [
     "S3_REGION",
     "S3_BUCKET",
     "VALKEY_URL",
+    "ACTIVE_ZONE_ID",
+    "REPORT_ACCURACY_FLAG_M",
     *(name.upper() for name in REQUIRED_SECRETS),
 ]
 

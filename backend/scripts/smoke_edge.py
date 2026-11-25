@@ -13,7 +13,9 @@ local (CA interne de Caddy) :
   - route profonde : `/n-importe-quoi` et les liens directs `/signaler/…` servent aussi
     index.html (`no-cache`) ; manifeste nommé, icônes 192, 512 et 512 maskable ;
     coquille et bundle compressés (gzip ou zstd) quand le client l'accepte ;
-  - API : `/v1/config`, `/healthz`, `/readyz` relayés vers l'API ;
+  - API : `/v1/config`, `/healthz`, `/readyz` relayés vers l'API ; `/v1/config` publie la
+    Zone active (`ACTIVE_ZONE_ID`, MultiPolygon GeoJSON qui couvre le Plateau et pas
+    Thiès) et le seuil de précision (`REPORT_ACCURACY_FLAG_M`) ;
   - surfaces internes : `/metrics`, `/v1/ai/x` (et variantes) → 404 ;
   - photos : `GET`/`HEAD MEDIA_HOST/<bucket>/<clé>` relayé vers Garage → 403 sans
     signature ; tout autre chemin → 404, toute autre méthode → 405, sans atteindre Garage ;
@@ -24,7 +26,8 @@ dans `Host` : aucune résolution DNS de `*.localhost` n'est nécessaire.
 
 Bibliothèque standard seulement. Réglages lus dans l'environnement, puis dans le `.env`
 de la racine, sinon valeurs par défaut : `APP_HOST`, `MEDIA_HOST`, `HTTP_PORT`,
-`HTTPS_PORT`, `S3_BUCKET`. Code de sortie 0 si toutes les lignes sont vertes.
+`HTTPS_PORT`, `S3_BUCKET`, `ACTIVE_ZONE_ID`, `REPORT_ACCURACY_FLAG_M`. Code de sortie 0
+si toutes les lignes sont vertes.
 """
 
 import argparse
@@ -47,7 +50,12 @@ DEFAULTS = {
     "HTTP_PORT": "80",
     "HTTPS_PORT": "443",
     "S3_BUCKET": "terangacycle-photos",
+    "ACTIVE_ZONE_ID": "dakar",
+    "REPORT_ACCURACY_FLAG_M": "50",
 }
+# Points témoins (longitude, latitude) de la Zone active par défaut (Dakar).
+PLATEAU = (-17.4381, 14.6708)
+THIES = (-16.9359, 14.7910)
 # /readyz peut mettre quelques secondes à passer à 200 juste après `up --wait`.
 READY_TIMEOUT_S = 60
 
@@ -227,10 +235,50 @@ def check_deep_route(edge: Edge) -> None:
         _expect_cache(resp, NO_CACHE, path)
 
 
+def _in_ring(point: tuple[float, float], ring: list) -> bool:
+    x, y = point
+    inside = False
+    for (x1, y1), (x2, y2) in zip(ring, ring[1:], strict=False):
+        if (y1 > y) != (y2 > y) and x < x1 + (y - y1) * (x2 - x1) / (y2 - y1):
+            inside = not inside
+    return inside
+
+
+def _in_multipolygon(point: tuple[float, float], coordinates: list) -> bool:
+    return any(
+        _in_ring(point, polygon[0]) and not any(_in_ring(point, hole) for hole in polygon[1:])
+        for polygon in coordinates
+    )
+
+
+def check_public_config(body: dict) -> None:
+    """Zone active et seuil de précision publiés par `/v1/config` (story 1.8)."""
+    zone = body.get("active_zone")
+    _expect(isinstance(zone, dict), "/v1/config : active_zone absente")
+    expected_id = _setting("ACTIVE_ZONE_ID")
+    _expect(zone.get("id") == expected_id, f"active_zone.id {zone.get('id')!r} != {expected_id!r}")
+    _expect(bool(zone.get("name")), "active_zone sans nom")
+    geometry = zone.get("geometry") or {}
+    _expect(geometry.get("type") == "MultiPolygon", "active_zone : pas un MultiPolygon")
+    coordinates = geometry.get("coordinates") or []
+    _expect(bool(coordinates), "active_zone : aucune coordonnée")
+    for polygon in coordinates:
+        for ring in polygon:
+            _expect(len(ring) >= 4 and ring[0] == ring[-1], "active_zone : anneau non fermé")
+    if expected_id == DEFAULTS["ACTIVE_ZONE_ID"]:
+        _expect(_in_multipolygon(PLATEAU, coordinates), "active_zone ne couvre pas le Plateau")
+        _expect(not _in_multipolygon(THIES, coordinates), "active_zone couvre Thiès")
+    flag = body.get("report_accuracy_flag_m")
+    expected_flag = int(_setting("REPORT_ACCURACY_FLAG_M"))
+    _expect(flag == expected_flag, f"report_accuracy_flag_m {flag!r} != {expected_flag}")
+
+
 def check_api(edge: Edge) -> None:
     config = edge.https(edge.app_host, "/v1/config")
     _expect(config.status == 200, f"/v1/config : statut {config.status}")
-    _expect("env" in json.loads(config.body), "/v1/config : pas la réponse de l'API")
+    body = json.loads(config.body)
+    _expect("env" in body, "/v1/config : pas la réponse de l'API")
+    check_public_config(body)
 
     healthz = edge.https(edge.app_host, "/healthz")
     _expect(healthz.status == 200, f"/healthz : statut {healthz.status}")

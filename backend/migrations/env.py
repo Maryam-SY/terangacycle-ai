@@ -9,6 +9,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import create_engine, pool
 
+import app.core.geo  # noqa: F401  (table `zones` dans les métadonnées)
 from app.core.config import MigratorSettings, load_settings
 from app.core.db import Base
 

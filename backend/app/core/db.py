@@ -61,8 +61,13 @@ def get_engine() -> Engine:
             "Base de données non configurée : DATABASE_URL ou le secret db_app_password manque."
         )
     # Délai de connexion borné : une base arrêtée ne bloque pas /readyz ni une requête.
+    # hide_parameters : les valeurs liées (une Position, par exemple) ne figurent jamais
+    # dans les messages d'erreur, donc jamais dans les journaux.
     return create_engine(
-        url.get_secret_value(), pool_pre_ping=True, connect_args={"connect_timeout": 5}
+        url.get_secret_value(),
+        pool_pre_ping=True,
+        hide_parameters=True,
+        connect_args={"connect_timeout": 5},
     )
 
 

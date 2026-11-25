@@ -18,6 +18,7 @@ from app.core.config import Settings
 from app.core.enums import Env
 from app.main import create_app
 from tests.asgi import request
+from tests.support import sample_active_zone
 
 
 async def _ok(settings: Settings) -> None:
@@ -179,13 +180,36 @@ def test_public_config(
     make_settings: Callable[..., Settings],
 ) -> None:
     app = create_app(make_settings(env=env, demo_mode=demo_mode, model_version=model_version))
+    app.state.active_zone = sample_active_zone()
     response = request(app, "GET", "/v1/config")
     assert response.status == 200
     assert response.json() == {
         "demo_mode": demo_mode,
         "env": env.value,
         "model_version": model_version,
+        "active_zone": sample_active_zone().model_dump(),
+        "report_accuracy_flag_m": 50,
     }
+
+
+def test_public_config_shape(make_settings: Callable[..., Settings]) -> None:
+    """Visiteur sans en-tête : Zone active (id, nom, MultiPolygon GeoJSON) et seuil réglé."""
+    app = create_app(make_settings(report_accuracy_flag_m=35))
+    app.state.active_zone = sample_active_zone()
+    body = request(app, "GET", "/v1/config").json()
+    zone = body["active_zone"]
+    assert set(zone) == {"id", "name", "geometry"}
+    assert (zone["id"], zone["name"]) == ("dakar", "Dakar")
+    assert zone["geometry"]["type"] == "MultiPolygon"
+    ring = zone["geometry"]["coordinates"][0][0]
+    assert ring[0] == ring[-1] and len(ring) >= 4
+    assert body["report_accuracy_flag_m"] == 35
+
+
+def test_public_config_documents_new_fields(make_settings: Callable[..., Settings]) -> None:
+    schema = create_app(make_settings()).openapi()["components"]["schemas"]
+    assert {"active_zone", "report_accuracy_flag_m"} <= set(schema["PublicConfig"]["required"])
+    assert schema["MultiPolygon"]["properties"]["type"]["const"] == "MultiPolygon"
 
 
 # --- Vérifications réelles, dépendances simulées ----------------------------------
