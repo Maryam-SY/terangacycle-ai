@@ -163,6 +163,7 @@ def test_every_code_has_a_default_message() -> None:
         "photo_too_large",
         "photo_too_many_pixels",
         "photo_unreadable",
+        "storage_unavailable",
     }
 
 

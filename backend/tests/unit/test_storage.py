@@ -9,13 +9,15 @@ import asyncio
 import hashlib
 import io
 import re
+import threading
+import warnings
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 from botocore.exceptions import ClientError
-from PIL import Image
+from PIL import Image, ImageCms, ImageOps
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -24,6 +26,9 @@ from app.core import clock, db, storage
 from app.core.enums import PhotoKind
 from app.core.errors import DomainError, ErrorCode
 from tests import photos
+
+# Écriture réelle (client S3), gardée avant que la fixture `bucket` ne la remplace.
+REAL_PUT = storage._put
 
 
 class Boom(Exception):
@@ -124,6 +129,13 @@ def test_too_many_pixels_never_decodes(monkeypatch: pytest.MonkeyPatch) -> None:
     assert _refusal(photos.png_header_only(4000, 3001)).code is ErrorCode.PHOTO_TOO_MANY_PIXELS
 
 
+def test_12_to_24_mpx_header_is_too_many_pixels_with_warnings_as_errors() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        error = _refusal(photos.png_header_only(4000, 3001))
+    assert error.code is ErrorCode.PHOTO_TOO_MANY_PIXELS
+
+
 def test_pillow_format_must_match_the_signature(monkeypatch: pytest.MonkeyPatch) -> None:
     # Signature PNG, mais Pillow lirait un JPEG : refus en 415.
     monkeypatch.setattr(storage, "detect_format", lambda data: "PNG")
@@ -180,6 +192,72 @@ def test_transparency_becomes_white(data: bytes) -> None:
     assert isinstance(corner, tuple) and isinstance(background, tuple)
     assert min(background) >= 245, background
     assert max(corner) >= 200 and min(corner) <= 60, corner
+
+
+def test_smartphone_mpo_jpeg_is_accepted_as_jpeg() -> None:
+    data = photos.mpo((40, 20))
+    assert storage.detect_format(data) == "JPEG"
+    with Image.open(io.BytesIO(data)) as image:
+        assert image.format == "MPO"
+    body, width, height = storage.reencode(data)
+    assert (width, height) == (40, 20)
+    with Image.open(io.BytesIO(body)) as stored:
+        assert stored.format == "JPEG"
+        pixel = stored.getpixel((5, 5))
+    # Première image (rouge), pas la seconde (bleue).
+    assert isinstance(pixel, tuple) and pixel[0] > 200 and pixel[2] < 60, pixel
+
+
+@pytest.mark.parametrize(
+    "data",
+    [photos.png_color_key("L"), photos.png_color_key("RGB"), photos.png_color_key("I;16")],
+    ids=["L", "RGB", "I;16"],
+)
+def test_trns_color_key_becomes_white(data: bytes) -> None:
+    body, width, height = storage.reencode(data)
+    with Image.open(io.BytesIO(body)) as stored:
+        background = stored.getpixel((width - 2, height - 2))  # couleur transparente
+        corner = stored.getpixel((2, 2))  # couleur opaque sombre
+    assert isinstance(background, tuple) and min(background) >= 245, background
+    assert isinstance(corner, tuple) and max(corner) <= 80, corner
+
+
+def test_16_bit_png_is_scaled_not_clipped_to_white() -> None:
+    body, _, _ = storage.reencode(photos.png_16_bit_gray(value=32768))
+    with Image.open(io.BytesIO(body)) as stored:
+        pixel = stored.getpixel((4, 4))
+    assert isinstance(pixel, tuple) and 110 <= pixel[0] <= 145, pixel
+
+
+def test_corrupt_exif_keeps_the_photo_unrotated(monkeypatch: pytest.MonkeyPatch) -> None:
+    def broken(image: Image.Image, **kwargs: Any) -> Image.Image:
+        raise SyntaxError("EXIF illisible")
+
+    monkeypatch.setattr(ImageOps, "exif_transpose", broken)
+    body, width, height = storage.reencode(photos.jpeg_with_metadata((400, 300)))
+    assert (width, height) == (400, 300)
+    assert body.startswith(b"\xff\xd8\xff")
+
+
+def test_icc_profile_is_converted_to_srgb(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, str]] = []
+    real = ImageCms.profileToProfile
+
+    def spy(image: Image.Image, source: Any, target: Any, **kwargs: Any) -> Any:
+        calls.append((image.mode, kwargs["outputMode"]))
+        assert target is storage._SRGB
+        return real(image, source, target, **kwargs)
+
+    monkeypatch.setattr(ImageCms, "profileToProfile", spy)
+    body, width, height = storage.reencode(photos.jpeg_with_metadata((40, 30)))
+    assert calls == [("RGB", "RGB")]
+    with Image.open(io.BytesIO(body)) as stored:
+        assert "icc_profile" not in stored.info and stored.size == (width, height)
+
+
+def test_unusable_icc_profile_keeps_the_pixels() -> None:
+    body, width, height = storage.reencode(photos.encoded("JPEG", icc_profile=b"pas un profil"))
+    assert (width, height) == (48, 32) and body.startswith(b"\xff\xd8\xff")
 
 
 @pytest.mark.parametrize("fmt", ["WEBP", "PNG", "JPEG"])
@@ -282,7 +360,11 @@ def test_rollback_deletes_the_stored_object(bucket: FakeBucket, uow: None) -> No
     assert bucket.deleted == [stored.object_key]
 
 
-def test_failed_write_is_cleaned_up_on_rollback(
+KEY_A = "report/2031/02/00000000-0000-4000-8000-00000000000a.jpg"
+KEY_B = "proof/2031/02/00000000-0000-4000-8000-00000000000b.jpg"
+
+
+def test_failed_write_is_503_and_cleaned_up_on_rollback(
     bucket: FakeBucket, uow: None, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def put(key: str, body: bytes) -> None:
@@ -290,47 +372,139 @@ def test_failed_write_is_cleaned_up_on_rollback(
         raise TimeoutError
 
     monkeypatch.setattr(storage, "_put", put)
-    with pytest.raises(TimeoutError), db.unit_of_work():
+    with pytest.raises(DomainError) as exc_info, db.unit_of_work():
         storage.ingest_photo(PhotoKind.REPORT, photos.encoded("PNG"))
+    assert (exc_info.value.code, exc_info.value.http_status) == (
+        ErrorCode.STORAGE_UNAVAILABLE,
+        503,
+    )
     assert bucket.objects == {} and len(bucket.deleted) == 1
 
 
-def test_purge_runs_after_commit_only(bucket: FakeBucket, uow: None) -> None:
-    bucket.objects = {"a": b"1", "b": b"2"}
+def test_failed_write_is_cleaned_up_even_if_the_caller_commits(
+    bucket: FakeBucket, uow: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FailingClient:
+        def put_object(self, **kwargs: Any) -> None:
+            bucket.put(kwargs["Key"], kwargs["Body"])  # écriture faite, puis panne
+            raise ClientError({"Error": {"Code": "ServiceUnavailable"}}, "PutObject")
+
+    monkeypatch.setattr(storage, "_put", REAL_PUT)
+    monkeypatch.setattr(storage, "_client_and_bucket", lambda: (FailingClient(), "bucket"))
     with db.unit_of_work():
-        storage.purge(["a"])
+        with pytest.raises(DomainError) as exc_info:
+            storage.ingest_photo(PhotoKind.REPORT, photos.encoded("PNG"))
+        assert exc_info.value.code is ErrorCode.STORAGE_UNAVAILABLE
+        # L'appelant avale l'erreur et valide : l'objet ne doit pas rester orphelin.
+    assert bucket.objects == {} and len(bucket.deleted) == 1
+
+
+def test_missing_credentials_is_503(
+    bucket: FakeBucket, uow: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def no_client() -> tuple[Any, str]:
+        raise RuntimeError("Stockage non configuré : identifiants S3 absents.")
+
+    monkeypatch.setattr(storage, "_put", REAL_PUT)
+    monkeypatch.setattr(storage, "_client_and_bucket", no_client)
+    with pytest.raises(DomainError) as exc_info, db.unit_of_work():
+        storage.ingest_photo(PhotoKind.REPORT, photos.encoded("PNG"))
+    assert exc_info.value.http_status == 503
+
+
+def test_oversize_upload_is_never_hashed(
+    bucket: FakeBucket, uow: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def sha256(data: bytes) -> Any:
+        raise AssertionError("empreinte calculée avant les contrôles")
+
+    monkeypatch.setattr(storage.hashlib, "sha256", sha256)
+    with pytest.raises(DomainError) as exc_info, db.unit_of_work():
+        storage.ingest_photo(PhotoKind.REPORT, b"x" * (storage.MAX_PHOTO_BYTES + 1))
+    assert exc_info.value.code is ErrorCode.PHOTO_TOO_LARGE
+
+
+def test_purge_runs_after_commit_only(bucket: FakeBucket, uow: None) -> None:
+    bucket.objects = {KEY_A: b"1", KEY_B: b"2"}
+    with db.unit_of_work():
+        storage.purge([KEY_A])
         assert bucket.deleted == []  # rien avant le commit
-    assert bucket.objects == {"b": b"2"}
+    assert bucket.objects == {KEY_B: b"2"}
 
     with pytest.raises(Boom), db.unit_of_work():
-        storage.purge(["b"])
+        storage.purge([KEY_B])
         raise Boom
-    assert bucket.objects == {"b": b"2"}
+    assert bucket.objects == {KEY_B: b"2"}
 
 
 def test_purge_continues_after_a_failed_deletion(
     bucket: FakeBucket, uow: None, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
     def delete(key: str) -> None:
-        if key == "a":
+        if key == KEY_A:
             raise ConnectionError
         bucket.delete(key)
 
     monkeypatch.setattr(storage, "_delete", delete)
-    bucket.objects = {"a": b"1", "b": b"2"}
+    bucket.objects = {KEY_A: b"1", KEY_B: b"2"}
     with db.unit_of_work():
-        storage.purge(["a", "b"])
-    assert bucket.objects == {"a": b"1"}
+        storage.purge([KEY_A, KEY_B])
+    assert bucket.objects == {KEY_A: b"1"}
     out = capsys.readouterr().out
-    assert '"event": "photo_purged_failed"' in out and '"object_key": "a"' in out
+    assert '"event": "photo_purged_failed"' in out and f'"object_key": "{KEY_A}"' in out
 
 
-def test_purge_of_nothing_and_invalid_keys(bucket: FakeBucket, uow: None) -> None:
+def test_purge_of_nothing(bucket: FakeBucket, uow: None) -> None:
     with db.unit_of_work():
         storage.purge([])
-        with pytest.raises(ValueError, match="Clé"):
-            storage.purge([""])
     assert bucket.deleted == []
+
+
+@pytest.mark.parametrize("keys", [KEY_A, KEY_A.encode()], ids=["str", "bytes"])
+def test_purge_refuses_a_bare_string(bucket: FakeBucket, uow: None, keys: Any) -> None:
+    with db.unit_of_work(), pytest.raises(TypeError):
+        storage.purge(keys)
+    assert bucket.deleted == []
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        "",
+        "report/2031/02/x.jpg",
+        "thumb/2031/02/00000000-0000-4000-8000-00000000000a.jpg",
+        "report/31/02/00000000-0000-4000-8000-00000000000a.jpg",
+        "report/2031/02/00000000-0000-4000-8000-00000000000a.png",
+        "../report/2031/02/00000000-0000-4000-8000-00000000000a.jpg",
+        "report/2031/02/00000000-0000-4000-8000-00000000000A.jpg",
+        None,
+    ],
+)
+def test_purge_refuses_keys_of_another_shape(bucket: FakeBucket, uow: None, key: Any) -> None:
+    with db.unit_of_work(), pytest.raises(ValueError, match="Clé"):
+        storage.purge([KEY_A, key])
+    assert bucket.deleted == []
+
+
+def test_ingest_photo_async_runs_off_the_event_loop(
+    bucket: FakeBucket, uow: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    threads: list[int] = []
+
+    def put(key: str, body: bytes) -> None:
+        threads.append(threading.get_ident())
+        bucket.put(key, body)
+
+    monkeypatch.setattr(storage, "_put", put)
+
+    async def scenario() -> tuple[int, storage.StoredPhoto]:
+        async with db.async_unit_of_work():
+            stored = await storage.ingest_photo_async(PhotoKind.REPORT, photos.encoded("JPEG"))
+        return threading.get_ident(), stored
+
+    loop_thread, stored = asyncio.run(scenario())
+    assert threads and threads[0] != loop_thread
+    assert list(bucket.objects) == [stored.object_key]
 
 
 def test_async_unit_of_work_runs_s3_effects_off_the_event_loop(
@@ -354,7 +528,7 @@ def test_async_unit_of_work_runs_s3_effects_off_the_event_loop(
                 storage.ingest_photo(PhotoKind.REPORT, photos.encoded("JPEG"))
                 raise Boom
         async with db.async_unit_of_work():
-            storage.purge(["x"])
+            storage.purge([KEY_A])
 
     asyncio.run(scenario())
     assert threads == [True, True]

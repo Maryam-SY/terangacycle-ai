@@ -98,6 +98,7 @@
     "unsupported_media_type": "Cette photo n'est pas dans un format accepté. Reprenez-la avec l'appareil photo de l'application.",
     "photo_too_large": "Cette photo est trop lourde. Reprenez-la avec l'appareil photo de l'application.",
     "photo_too_many_pixels": "Cette photo est trop grande. Reprenez-la avec l'appareil photo de l'application.",
-    "photo_unreadable": "Cette photo n'a pas pu être lue. Reprenez-la."
+    "photo_unreadable": "Cette photo n'a pas pu être lue. Reprenez-la.",
+    "storage_unavailable": "Votre photo n'a pas pu être enregistrée pour le moment. Réessayez dans quelques minutes."
   }
 }

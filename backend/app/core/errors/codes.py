@@ -19,6 +19,7 @@ class ErrorCode(StrEnum):
     PHOTO_TOO_LARGE = "photo_too_large"
     PHOTO_TOO_MANY_PIXELS = "photo_too_many_pixels"
     PHOTO_UNREADABLE = "photo_unreadable"
+    STORAGE_UNAVAILABLE = "storage_unavailable"
 
 
 DEFAULT_MESSAGES: dict[ErrorCode, str] = {
@@ -34,6 +35,7 @@ DEFAULT_MESSAGES: dict[ErrorCode, str] = {
         "Photo trop grande (12 mégapixels au plus). Reprenez la photo."
     ),
     ErrorCode.PHOTO_UNREADABLE: "Photo illisible ou abîmée. Reprenez la photo.",
+    ErrorCode.STORAGE_UNAVAILABLE: "Stockage des photos indisponible. Réessayez plus tard.",
 }
 
 

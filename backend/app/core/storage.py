@@ -18,7 +18,10 @@ porte que la clé de l'objet.
 import asyncio
 import hashlib
 import io
+import re
+import threading
 import uuid
+import warnings
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from functools import lru_cache
@@ -27,7 +30,7 @@ from typing import Any
 import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
-from PIL import Image, ImageOps
+from PIL import Image, ImageCms, ImageMath, ImageOps
 
 from app.core import clock
 from app.core.config import get_settings
@@ -57,6 +60,18 @@ S3_MAX_ATTEMPTS = 3
 _JPEG = "JPEG"
 _PNG = "PNG"
 _WEBP = "WEBP"
+# Formats que Pillow peut lire pour chaque signature : un JPEG de smartphone portant un
+# index MPF (photos multiples) s'ouvre en « MPO » ; seule la première image est gardée.
+_PILLOW_FORMATS = {_JPEG: {"JPEG", "MPO"}, _PNG: {"PNG"}, _WEBP: {"WEBP"}}
+# Modes 16 bits (PNG en niveaux de gris 16 bits) : ramenés à 8 bits avant le RVB.
+_WIDE_MODES = frozenset({"I", "I;16", "I;16L", "I;16B", "I;16N"})
+_SRGB = ImageCms.createProfile("sRGB")
+
+# Clé produite par `object_key_for` : seule forme acceptée par `purge`.
+_OBJECT_KEY = re.compile(
+    "(?:" + "|".join(re.escape(kind.value) for kind in PhotoKind) + ")"
+    r"/[0-9]{4}/[0-9]{2}/[0-9a-f-]{36}\.jpg"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -102,13 +117,16 @@ def _open_checked(data: bytes) -> Image.Image:
         raise DomainError(ErrorCode.UNSUPPORTED_MEDIA_TYPE, 415)
     try:
         # Seul le décodeur de la signature est essayé : `Image.open` ne lit que l'en-tête.
-        image = Image.open(io.BytesIO(data), formats=[expected])
+        # Entre 12 et 24 Mpx, Pillow avertit seulement : le contrôle ci-dessous refuse.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", Image.DecompressionBombWarning)
+            image = Image.open(io.BytesIO(data), formats=[expected])
     except Image.DecompressionBombError:
         raise DomainError(ErrorCode.PHOTO_TOO_MANY_PIXELS, 422) from None
     except Exception:
         # Signature reconnue, en-tête illisible.
         raise _unreadable() from None
-    if image.format != expected:
+    if image.format not in _PILLOW_FORMATS[expected]:
         image.close()
         raise DomainError(ErrorCode.UNSUPPORTED_MEDIA_TYPE, 415)
     width, height = image.size
@@ -118,15 +136,46 @@ def _open_checked(data: bytes) -> Image.Image:
     return image
 
 
+def _upright(image: Image.Image) -> Image.Image:
+    """Orientation EXIF appliquée ; un EXIF illisible laisse l'image telle quelle."""
+    try:
+        return ImageOps.exif_transpose(image)
+    except Exception:
+        return image
+
+
+def _to_srgb(image: Image.Image) -> Image.Image:
+    """Pixels convertis vers sRGB si un profil ICC est joint (il ne sera pas stocké).
+
+    Profil illisible ou conversion impossible : pixels gardés tels quels.
+    """
+    icc = image.info.get("icc_profile")
+    if not icc or "transparency" in image.info:
+        return image
+    try:
+        source = ImageCms.ImageCmsProfile(io.BytesIO(icc))
+        mode = "RGBA" if "A" in image.getbands() else "RGB"
+        converted = ImageCms.profileToProfile(image, source, _SRGB, outputMode=mode)
+    except Exception:
+        return image
+    return converted or image
+
+
 def _flatten(image: Image.Image) -> Image.Image:
     """Image RVB neuve (aucune `info` héritée) ; une transparence devient un fond blanc."""
-    has_alpha = "A" in image.getbands() or (image.mode == "P" and "transparency" in image.info)
+    alpha: Image.Image | None = None
+    transparent = image.info.get("transparency")
+    if image.mode in _WIDE_MODES:
+        wide = image.convert("I")
+        if transparent is not None:
+            alpha = ImageMath.lambda_eval(lambda a: (a["v"] != transparent) * 255, v=wide)
+            alpha = alpha.convert("L")
+        image = wide.point(lambda v: v * (1 / 256)).convert("L")
+    elif "A" in image.getbands() or transparent is not None:
+        image = image.convert("RGBA")
+        alpha = image.getchannel("A")
     canvas = Image.new("RGB", image.size, (255, 255, 255))
-    if has_alpha:
-        rgba = image.convert("RGBA")
-        canvas.paste(rgba, mask=rgba.getchannel("A"))
-    else:
-        canvas.paste(image.convert("RGB"))
+    canvas.paste(image.convert("RGB"), mask=alpha)
     return canvas
 
 
@@ -138,8 +187,7 @@ def reencode(data: bytes) -> tuple[bytes, int, int]:
     with _open_checked(data) as image:
         try:
             image.load()
-            upright = ImageOps.exif_transpose(image)
-            clean = _flatten(upright)
+            clean = _flatten(_to_srgb(_upright(image)))
             out = io.BytesIO()
             # Image neuve, sans `info` : ni EXIF, ni profil ICC, ni XMP, ni commentaire.
             clean.save(out, format="JPEG", quality=JPEG_QUALITY, optimize=True)
@@ -179,16 +227,21 @@ def _s3_client(endpoint: str, region: str, access_key: str, secret_key: str) -> 
     )
 
 
+# La création d'un client (lru_cache, session boto3 partagée) n'est pas sûre entre threads.
+_client_lock = threading.Lock()
+
+
 def _client_and_bucket() -> tuple[Any, str]:
     settings = get_settings()
     if settings.s3_access_key_id is None or settings.s3_secret_access_key is None:
         raise RuntimeError("Stockage non configuré : identifiants S3 absents.")
-    client = _s3_client(
-        settings.s3_endpoint,
-        settings.s3_region,
-        settings.s3_access_key_id.get_secret_value(),
-        settings.s3_secret_access_key.get_secret_value(),
-    )
+    with _client_lock:
+        client = _s3_client(
+            settings.s3_endpoint,
+            settings.s3_region,
+            settings.s3_access_key_id.get_secret_value(),
+            settings.s3_secret_access_key.get_secret_value(),
+        )
     return client, settings.s3_bucket
 
 
@@ -247,31 +300,51 @@ def object_key_for(kind: PhotoKind) -> str:
 def ingest_photo(kind: PhotoKind, data: bytes) -> StoredPhoto:
     """Contrôle, nettoie et stocke une photo reçue, dans l'unité de travail en cours.
 
-    Lève `DomainError` si la photo est refusée (aucun objet n'est alors écrit) et
-    `RuntimeError` hors d'une unité de travail. L'objet est supprimé si l'unité est
-    annulée.
+    Lève `DomainError` si la photo est refusée (413, 415, 422 ; aucun objet n'est alors
+    écrit) ou si le stockage échoue (503 `storage_unavailable`), et `RuntimeError` hors
+    d'une unité de travail. L'objet est supprimé si l'unité est annulée.
+
+    Fonction bloquante : depuis la boucle asyncio, appeler `ingest_photo_async`.
     """
     _require_uow()
     kind = PhotoKind(kind)
-    digest = hashlib.sha256(data).hexdigest()
     body, width, height = reencode(data)
+    digest = hashlib.sha256(data).hexdigest()
     object_key = object_key_for(kind)
     # Nettoyage enregistré avant l'écriture : une écriture faite mais signalée en échec
     # (délai dépassé) ne laisse pas d'objet orphelin si l'unité est annulée.
     _register(after_rollback, _delete_all, (object_key,), "photo_rollback_deleted")
-    _put(object_key, body)
+    try:
+        _put(object_key, body)
+    except Exception as exc:
+        # Écriture peut-être faite : supprimée aussi si l'appelant valide malgré l'erreur.
+        _register(after_commit, _delete_all, (object_key,), "photo_orphan_deleted")
+        log.warning("photo_store_failed", object_key=object_key, reason=type(exc).__name__)
+        raise DomainError(ErrorCode.STORAGE_UNAVAILABLE, 503) from exc
     log.info("photo_stored", object_key=object_key)
     return StoredPhoto(object_key=object_key, sha256=digest, width=width, height=height)
+
+
+async def ingest_photo_async(kind: PhotoKind, data: bytes) -> StoredPhoto:
+    """`ingest_photo` dans le pool de threads, pour une unité de travail asynchrone.
+
+    Le contexte (donc l'unité de travail en cours) est copié dans le thread.
+    """
+    return await asyncio.to_thread(ingest_photo, kind, data)
 
 
 def purge(object_keys: Iterable[str]) -> None:
     """Supprime des objets du bucket après le commit de l'unité de travail en cours.
 
-    Rien n'est supprimé si l'unité est annulée. `RuntimeError` hors d'une unité de travail.
+    Rien n'est supprimé si l'unité est annulée. `RuntimeError` hors d'une unité de
+    travail, `TypeError` pour une chaîne seule, `ValueError` pour une clé qui n'a pas la
+    forme `<kind>/<aaaa>/<mm>/<uuid>.jpg`.
     """
     _require_uow()
+    if isinstance(object_keys, str | bytes):
+        raise TypeError("purge attend une collection de clés, pas une chaîne.")
     keys = tuple(object_keys)
-    if any(not isinstance(key, str) or not key for key in keys):
-        raise ValueError("Clé d'objet vide ou invalide.")
+    if any(not isinstance(key, str) or not _OBJECT_KEY.fullmatch(key) for key in keys):
+        raise ValueError("Clé d'objet invalide.")
     if keys:
         _register(after_commit, _delete_all, keys, "photo_purged")

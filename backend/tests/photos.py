@@ -68,6 +68,43 @@ def png_palette_transparent(size: tuple[int, int] = (32, 32)) -> bytes:
     return out.getvalue()
 
 
+def png_color_key(mode: str, size: tuple[int, int] = (32, 24)) -> bytes:
+    """PNG sans canal alpha dont une couleur (gris moyen) est transparente (tRNS).
+
+    Fond : la couleur transparente ; carré opaque très sombre en haut à gauche.
+    """
+    scale = 257 if mode == "I;16" else 1
+    background, dark = 100 * scale, 10 * scale
+    if mode == "RGB":
+        image = Image.new("RGB", size, (100, 100, 100))
+        ImageDraw.Draw(image).rectangle((0, 0, 7, 7), fill=(10, 10, 10))
+        transparency: object = (100, 100, 100)
+    else:
+        image = Image.new(mode, size, background)
+        for x in range(8):
+            for y in range(8):
+                image.putpixel((x, y), dark)
+        transparency = background
+    out = io.BytesIO()
+    image.save(out, format="PNG", transparency=transparency)
+    return out.getvalue()
+
+
+def png_16_bit_gray(value: int, size: tuple[int, int] = (16, 16)) -> bytes:
+    """PNG en niveaux de gris 16 bits, uniforme."""
+    out = io.BytesIO()
+    Image.new("I;16", size, value).save(out, format="PNG")
+    return out.getvalue()
+
+
+def mpo(size: tuple[int, int] = (40, 20)) -> bytes:
+    """JPEG à index MPF (comme certains smartphones) : rouge, puis une image bleue."""
+    out = io.BytesIO()
+    first, second = Image.new("RGB", size, (255, 0, 0)), Image.new("RGB", size, (0, 0, 255))
+    first.save(out, format="MPO", save_all=True, append_images=[second])
+    return out.getvalue()
+
+
 def encoded(fmt: str, size: tuple[int, int] = (48, 32), **params: object) -> bytes:
     out = io.BytesIO()
     image = _drawing(size)

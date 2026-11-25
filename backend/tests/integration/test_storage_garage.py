@@ -40,6 +40,7 @@ pytestmark = pytest.mark.integration
 
 DEFAULT_BUCKET = "terangacycle-photos"
 FIXED_NOW = datetime(2031, 2, 14, 10, 30, tzinfo=UTC)
+TEST_PREFIXES = tuple(f"{kind}/2031/02/" for kind in PhotoKind)
 UUID4 = r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
 KEY = re.compile(rf"report/2031/02/{UUID4}\.jpg")
 
@@ -62,11 +63,20 @@ class Garage:
     client: Any
     endpoint: str
     bucket: str
-    created: list[str]
+
+    def keys(self) -> list[str]:
+        """Objets des préfixes de test seulement (horloge fixée) : d'autres écrivains
+        peuvent travailler dans le même bucket."""
+        paginator = self.client.get_paginator("list_objects_v2")
+        return [
+            item["Key"]
+            for prefix in TEST_PREFIXES
+            for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix)
+            for item in page.get("Contents", [])
+        ]
 
     def count(self) -> int:
-        paginator = self.client.get_paginator("list_objects_v2")
-        return sum(page.get("KeyCount", 0) for page in paginator.paginate(Bucket=self.bucket))
+        return len(self.keys())
 
     def exists(self, key: str) -> bool:
         try:
@@ -87,6 +97,7 @@ def garage(monkeypatch: pytest.MonkeyPatch) -> Iterator[Garage]:
     access_key = _env("TEST_S3_ACCESS_KEY_ID")
     secret_key = _env("TEST_S3_SECRET_ACCESS_KEY")
     bucket = os.environ.get("TEST_S3_BUCKET", "").strip() or DEFAULT_BUCKET
+    region = os.environ.get("TEST_S3_REGION", "").strip() or "garage"
     database_url = make_url(_env("TEST_APP_DATABASE_URL"))
     if database_url.drivername in ("postgresql", "postgres"):
         database_url = database_url.set(drivername="postgresql+psycopg")
@@ -96,6 +107,7 @@ def garage(monkeypatch: pytest.MonkeyPatch) -> Iterator[Garage]:
     monkeypatch.setenv("S3_ACCESS_KEY_ID", access_key)
     monkeypatch.setenv("S3_SECRET_ACCESS_KEY", secret_key)
     monkeypatch.setenv("S3_BUCKET", bucket)
+    monkeypatch.setenv("S3_REGION", region)
     monkeypatch.setenv("DATABASE_URL", database_url.render_as_string(hide_password=False))
     monkeypatch.setattr(clock, "now", lambda: FIXED_NOW)
     caches = (get_settings, db.get_engine, db.get_sessionmaker, storage._s3_client)
@@ -105,7 +117,7 @@ def garage(monkeypatch: pytest.MonkeyPatch) -> Iterator[Garage]:
     client = boto3.session.Session().client(
         "s3",
         endpoint_url=endpoint,
-        region_name=os.environ.get("TEST_S3_REGION", "garage"),
+        region_name=region,
         aws_access_key_id=access_key,
         aws_secret_access_key=secret_key,
         config=Config(
@@ -114,15 +126,23 @@ def garage(monkeypatch: pytest.MonkeyPatch) -> Iterator[Garage]:
             response_checksum_validation="when_required",
         ),
     )
-    target = Garage(client=client, endpoint=endpoint.rstrip("/"), bucket=bucket, created=[])
+    target = Garage(client=client, endpoint=endpoint.rstrip("/"), bucket=bucket)
     try:
         yield target
     finally:
-        for key in target.created:
-            client.delete_object(Bucket=bucket, Key=key)
-        db.get_engine().dispose()
-        for cache in caches:
-            cache.cache_clear()
+        try:
+            # Nettoyage des seuls préfixes de test ; un échec n'arrête pas les suivants.
+            for key in target.keys():
+                try:
+                    client.delete_object(Bucket=bucket, Key=key)
+                except Exception as exc:
+                    print(f"nettoyage impossible : {key} ({type(exc).__name__})")
+        finally:
+            try:
+                db.get_engine().dispose()
+            finally:
+                for cache in caches:
+                    cache.cache_clear()
 
 
 def _ingest(garage: Garage, data: bytes, kind: PhotoKind = PhotoKind.REPORT) -> storage.StoredPhoto:
@@ -130,7 +150,6 @@ def _ingest(garage: Garage, data: bytes, kind: PhotoKind = PhotoKind.REPORT) -> 
     with unit_of_work():
         current_session().execute(text("SELECT 1"))
         stored = storage.ingest_photo(kind, data)
-    garage.created.append(stored.object_key)
     return stored
 
 
@@ -238,7 +257,6 @@ def test_rollback_deletes_the_object(garage: Garage) -> None:
     with pytest.raises(Boom), unit_of_work():
         current_session().execute(text("SELECT 1"))
         stored = storage.ingest_photo(PhotoKind.REPORT, photos.encoded("JPEG"))
-        garage.created.append(stored.object_key)
         assert garage.exists(stored.object_key)  # écrit pendant l'unité
         assert garage.count() == before + 1
         raise Boom

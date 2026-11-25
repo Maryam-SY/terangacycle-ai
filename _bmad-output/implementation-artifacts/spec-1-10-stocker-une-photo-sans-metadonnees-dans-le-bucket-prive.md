@@ -2,7 +2,7 @@
 title: 'Story 1.10 — Stocker une photo sans métadonnées dans le bucket privé'
 type: 'feature'
 created: '2026-11-25'
-status: 'in-review'
+status: 'done'
 baseline_commit: '20ed1f8c0fbec3607fc86020830492acd21993c6'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -104,6 +104,29 @@ Aucune route HTTP dans cette story : elle arrive avec la 1.11.
 ## Spec Change Log
 
 ## Review Triage Log
+
+Passe 1 (25/11/2026). Couches : Blind Hunter (B), Edge Case Hunter (E), Verification Gap (V). CI du premier commit verte (pip-audit et Trivy avec Pillow 13.0.0 compris).
+
+| # | Constat | Verdict | Preuve | Route |
+|---|---|---|---|---|
+| E1 | JPEG de smartphone avec index MPF ouvert comme « MPO » : refusé en 415 | high | Reproduit par la couche E ; `image.format != expected` | patch |
+| B4 / E2 / E3 | Transparence tRNS hors mode P non aplatie ; PNG 16 bits presque blanc ; EXIF corrompu → 422 | medium | `_flatten` ne regarde que l'alpha et le mode P ; `convert('RGB')` écrête ; `exif_transpose` lève | patch |
+| E4 | Profil ICC non sRGB retiré sans conversion : couleurs décalées | low | Le profil est abandonné au ré-encodage ; correction directe avec ImageCms | patch |
+| B5 / E5 | Avertissement DecompressionBomb entre 12 et 24 Mpx ; effet global | low | Avertissement sur stderr ; `photo_unreadable` sous `-W error`. Réglage global gardé (exigé par l'AC), avertissement ignoré localement | patch |
+| B6 | Empreinte calculée avant le contrôle de poids | low | `hashlib.sha256(data)` avant `reencode` ; correction directe | patch |
+| B2 / E6 | Création du client S3 non protégée entre threads | low | `lru_cache` ne sérialise pas les échecs de cache ; session boto3 partagée | patch |
+| B7 / E8 | Panne S3 → 500 brute ; objet orphelin si l'appelant valide malgré l'erreur | medium | `_put` sans traduction ; nettoyage enregistré en `after_rollback` seulement | patch (code `storage_unavailable` 503) |
+| B1 / V-autre / E7 | Pillow et `put_object` bloquent la boucle dans une unité asynchrone | medium | Seuls les hooks partent dans un thread | patch (`ingest_photo_async`) |
+| B3 / E9 | `purge("une-clé")` découpe la chaîne en clés d'un caractère | medium | `tuple(str)` ; clés non validées | patch |
+| B9 / E11 / B10 | Comptage du bucket entier (fragile) ; nettoyage interrompu ; `TEST_S3_REGION` à moitié branché | medium | `garage.count()` liste tout ; boucle de suppression sans protection | patch |
+| B8 / V-autre / E10 | README : port 3900 et bucket codés en dur ; phrase des ports incomplète | low | La recette de la base lit `DB_LOCAL_PORT`, pas celle de Garage | patch |
+| V1 | Aucun contrôle CI que les ports publiés (Garage, base) restent sur 127.0.0.1 | medium (non vérifié en CI) | Une liaison sur toutes les interfaces passerait la CI | defer |
+| B11 | Port S3 de Garage publié aussi en production | low | Sur 127.0.0.1 seulement, comme la base ; bucket privé (403 testé) | rejeté |
+| B12 | `wo.json` copie de `fr.json` | false | Interface wolof hors objectifs du hackathon (NFR-P3) | rejeté |
+| B13 | Nom `unsupported_media_type` trop générique | false | Nom imposé par le critère d'acceptation de la story | rejeté |
+| B14 | Fabrique de client S3 dupliquée avec la sonde | low | La spec impose un client distinct de celui de la sonde | rejeté |
+| B15 | Pas de métriques sur le stockage | low | Observabilité traitée par l'Epic 8 | rejeté |
+| E12 | Le test d'architecture ne couvre pas `tests/` | low | La garantie vise le code de production ; les tests appellent Garage directement par conception | rejeté |
 
 ## Verification
 
