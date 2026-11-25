@@ -29,6 +29,7 @@ def test_invalid_position_is_refused_without_values(lat: object, lng: object) ->
     for call in (
         lambda: geo.in_zone(_NoSession(), "dakar", lat, lng),  # type: ignore[arg-type]
         lambda: geo.zone_of(_NoSession(), lat, lng),  # type: ignore[arg-type]
+        lambda: geo.zones_covering(_NoSession(), lat, lng),  # type: ignore[arg-type]
     ):
         with pytest.raises(geo.InvalidPositionError) as exc_info:
             call()

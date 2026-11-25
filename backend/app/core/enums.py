@@ -30,6 +30,25 @@ class Role(StrEnum):
     MUNICIPAL_ADMIN = "municipal_admin"
 
 
+class OrganizationType(StrEnum):
+    """Type d'une Organisation (AD-31). `platform` : la ligne système de l'Organisation
+    plateforme, responsable des Signalements qu'aucune autre ne couvre."""
+
+    COMMUNE = "commune"
+    OPERATOR = "operator"
+    COLLECTOR_GROUP = "collector_group"
+    ENTERPRISE = "enterprise"
+    RECYCLER = "recycler"
+    PLATFORM = "platform"
+
+
+class OrganizationStatus(StrEnum):
+    """Statut d'une Organisation : seule une Organisation `active` reçoit des Signalements."""
+
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+
+
 class ReportStatus(StrEnum):
     """Statut d'un Signalement (AD-3)."""
 
@@ -64,8 +83,8 @@ class WasteType(StrEnum):
     MIXED = "mixed"
 
 
-class PileSize(StrEnum):
-    """Taille de tas."""
+class HeapSize(StrEnum):
+    """Taille de tas, obligatoire sur chaque Signalement."""
 
     SMALL = "small"
     MEDIUM = "medium"

@@ -83,12 +83,13 @@ Sur `APP_HOST`, Caddy sert la PWA, et relaie vers l'API `/v1/*`, `/healthz` et `
 | `/healthz` | Vivacité : `{"status": "ok"}`, sans aucune dépendance |
 | `/readyz` | `{"status": "ready"}` si la base, Valkey, le bucket et le battement du worker (moins de 60 s) répondent, sinon 503 `{"status": "not_ready"}` |
 | `/v1/config` | Configuration publique : `demo_mode`, `env`, `model_version` |
+| `POST /v1/reports` | Signalement anonyme (`X-Device-Id`, `multipart/form-data` : `meta` en JSON et `photo`) : 201 avec `id`, `tracking_number` (`TC-AAAA-NNNNNN`), `status`, `received_at`, `is_demo` |
 | `/metrics`, `/v1/ai/*` | Jamais relayées par Caddy (404) ; `/metrics` au format Prometheus sur le réseau Compose seulement (`http://api:8000/metrics`) |
 
 La documentation OpenAPI (`/docs`, `/redoc`, `/openapi.json`, absente quand `ENV=prod`) n'est plus relayée par Caddy : ces adresses servent la PWA. Elle reste servie par l'API sur le réseau Compose (`http://api:8000/docs`).
 
 En `ENV=demo` ou `prod`, l'API et le worker refusent de démarrer si un secret de l'inventaire manque dans `.env.secrets/` (le message nomme le secret). Tests de fumée, pile démarrée :
-- bord Caddy (chaque cas de la story 1.3 en HTTPS, certificat local non vérifié) : `python backend/scripts/smoke_edge.py` ;
+- bord Caddy (chaque cas de la story 1.3 en HTTPS, certificat local non vérifié, plus un `POST /v1/reports` au Plateau qui doit renvoyer 201, story 1.11) : `python backend/scripts/smoke_edge.py` ;
 - `/readyz` (arrête puis relance tour à tour `db`, `valkey`, `garage` et `worker`) : `python backend/scripts/smoke_readyz.py`.
 
 Les deux scripts se connectent à `127.0.0.1` en HTTPS avec `APP_HOST` et `HTTPS_PORT` (environnement, sinon `.env`).
@@ -178,7 +179,7 @@ Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tourne sur ch
 **Contrats d'import** (`[tool.importlinter]` dans `backend/pyproject.toml`) :
 - `layers` : dans chaque module, `router` → `service` → `repository`, jamais l'inverse ;
 - `acyclic_siblings` : aucun cycle entre les modules de `app.modules` ;
-- `protected` : un module n'importe d'un autre que son `service`, et seulement selon les flèches permises (`missions` → `reports`, `auth` ; `reports` → `ai`, `auth` ; `lots` → `missions`, `auth` ; `notifications` → `auth`) ; `app.core` n'importe aucun module. `app.main`, `app.worker` et `app.reactions`, racines de composition, en sont exclus.
+- `protected` : un module n'importe d'un autre que son `service`, et seulement selon les flèches permises (`missions` → `reports`, `auth` ; `reports` → `ai`, `auth`, `orgs` ; `lots` → `missions`, `auth` ; `notifications` → `auth`) ; `app.core` n'importe aucun module. `app.main`, `app.worker` et `app.reactions`, racines de composition, en sont exclus.
 - `s3_access` : seul `app.core.storage` importe `boto3`/`botocore`, plus la sonde `/readyz` (`app.core.health`) avec son propre client.
 
 Dans le web, `fetch` est interdit hors de `web/src/api/` et `web/src/offline/` (règle `no-restricted-globals` d'oxlint, `web/.oxlintrc.json`).

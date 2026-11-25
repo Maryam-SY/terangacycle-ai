@@ -145,6 +145,27 @@ def zone_of(session: Session, lat: float, lng: float) -> Zone | None:
     return Zone(id=row.id, name=row.name, kind=ZoneKind(row.kind), parent_id=row.parent_id)
 
 
+def zones_covering(session: Session, lat: float, lng: float) -> list[Zone]:
+    """Toutes les Zones qui couvrent le point, de la plus précise à la moins précise :
+    quartiers, puis communes d'arrondissement, puis la ville (commune sans parent) ; à
+    niveau égal, la plus petite d'abord. Liste vide hors de toute Zone."""
+    params = _point_params(lat, lng)
+    rows = session.execute(
+        text(
+            f"""
+            SELECT id, name, kind, parent_id FROM zones
+            WHERE ST_Covers(geog, {_POINT})
+            ORDER BY kind = 'quartier' DESC, parent_id IS NULL, ST_Area(geog) ASC, id
+            """  # noqa: S608
+        ),
+        params,
+    ).all()
+    return [
+        Zone(id=row.id, name=row.name, kind=ZoneKind(row.kind), parent_id=row.parent_id)
+        for row in rows
+    ]
+
+
 def load_active_zone(session: Session, zone_id: str) -> ActiveZone:
     """Identifiant, nom et GeoJSON de la Zone, simplifiée et élargie de 50 m.
 

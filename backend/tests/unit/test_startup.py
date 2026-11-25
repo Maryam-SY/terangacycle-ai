@@ -109,6 +109,33 @@ def test_lifespan_loads_the_active_zone_once(
     assert calls == ["dakar"]
 
 
+@pytest.mark.parametrize(
+    "pepper",
+    ["fake-device_id_pepper-Vq7", "c2hvcnQ="],
+    ids=["pas-du-base64", "trop-court"],
+)
+def test_malformed_device_id_pepper_refuses_startup(
+    pepper: str,
+    make_settings: Callable[..., Settings],
+    monkeypatch: pytest.MonkeyPatch,
+    exits: None,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Story 1.11 : DEVICE_ID_PEPPER doit faire 32 octets en base64 (AD-26), vérifié
+    avant toute requête ; le journal nomme le secret, jamais sa valeur."""
+    zone_reads: list[str] = []
+    monkeypatch.setattr(main, "read_active_zone", lambda s: zone_reads.append("lu"))
+    app = create_app(make_settings(device_id_pepper=pepper))
+    with pytest.raises(_Exited) as exc_info:
+        asyncio.run(_start(app))
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    (entry,) = [e for e in _journal(out) if e["event"] == "startup_refused"]
+    assert "DEVICE_ID_PEPPER" in entry["reason"]
+    assert pepper not in out
+    assert zone_reads == []
+
+
 def test_unknown_zone_refuses_startup(
     make_settings: Callable[..., Settings],
     monkeypatch: pytest.MonkeyPatch,

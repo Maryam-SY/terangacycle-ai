@@ -99,6 +99,10 @@
     "photo_too_large": "Cette photo est trop lourde. Reprenez-la avec l'appareil photo de l'application.",
     "photo_too_many_pixels": "Cette photo est trop grande. Reprenez-la avec l'appareil photo de l'application.",
     "photo_unreadable": "Cette photo n'a pas pu être lue. Reprenez-la.",
-    "storage_unavailable": "Votre photo n'a pas pu être enregistrée pour le moment. Réessayez dans quelques minutes."
+    "storage_unavailable": "Votre photo n'a pas pu être enregistrée pour le moment. Réessayez dans quelques minutes.",
+    "invalid_device_id": "Votre appareil n'a pas pu être reconnu. Fermez puis rouvrez l'application, et réessayez.",
+    "invalid_token": "Votre session n'est plus valide. Reconnectez-vous puis réessayez.",
+    "consent_required": "Pour envoyer un signalement, acceptez d'abord les conditions d'utilisation.",
+    "outside_active_zone": "TerangaCycle n'est pas encore actif ici. Merci de votre aide : vous pourrez signaler un dépôt dès que vous serez dans la zone couverte."
   }
 }

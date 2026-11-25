@@ -1,4 +1,4 @@
-"""Test de fumée du bord Caddy (story 1.3).
+"""Test de fumée du bord Caddy (stories 1.3 et 1.11).
 
 Depuis l'hôte, pile démarrée (`docker compose --profile demo up -d --build --wait`) :
 
@@ -16,6 +16,10 @@ local (CA interne de Caddy) :
   - API : `/v1/config`, `/healthz`, `/readyz` relayés vers l'API ; `/v1/config` publie la
     Zone active (`ACTIVE_ZONE_ID`, MultiPolygon GeoJSON qui couvre le Plateau et pas
     Thiès) et le seuil de précision (`REPORT_ACCURACY_FLAG_M`) ;
+  - Signalement (story 1.11) : `POST /v1/reports` en multipart à travers Caddy (photo PNG
+    générée, Position au Plateau, nouvel Identifiant d'appareil) → 201 avec un Numéro de
+    suivi `TC-AAAA-NNNNNN` ; sans `X-Device-Id` → 400 `invalid_device_id`. Vérifié pour
+    la Zone active par défaut seulement ; le Signalement créé reste dans la base ;
   - surfaces internes : `/metrics`, `/v1/ai/x` (et variantes) → 404 ;
   - photos : `GET`/`HEAD MEDIA_HOST/<bucket>/<clé>` relayé vers Garage → 403 sans
     signature ; tout autre chemin → 404, toute autre méthode → 405, sans atteindre Garage ;
@@ -35,12 +39,17 @@ import http.client
 import json
 import os
 import re
+import secrets
 import socket
 import ssl
+import struct
 import sys
 import time
+import uuid
+import zlib
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
@@ -58,6 +67,7 @@ PLATEAU = (-17.4381, 14.6708)
 THIES = (-16.9359, 14.7910)
 # /readyz peut mettre quelques secondes à passer à 200 juste après `up --wait`.
 READY_TIMEOUT_S = 60
+TRACKING_NUMBER = re.compile(r"TC-[0-9]{4}-[0-9]{6}")
 
 
 def _setting(name: str) -> str:
@@ -113,10 +123,11 @@ class Edge:
         path: str,
         method: str = "GET",
         headers: dict[str, str] | None = None,
+        body: bytes | None = None,
     ) -> Response:
         conn = _SniHTTPSConnection(self.address, self.https_port, host)
         host_header = host if self.https_port == 443 else f"{host}:{self.https_port}"
-        return _send(conn, method, host_header, path, headers)
+        return _send(conn, method, host_header, path, headers, body)
 
     def http(self, host: str, path: str) -> Response:
         conn = http.client.HTTPConnection(self.address, self.http_port, timeout=10)
@@ -130,9 +141,10 @@ def _send(
     host_header: str,
     path: str,
     headers: dict[str, str] | None = None,
+    body: bytes | None = None,
 ) -> Response:
     try:
-        conn.request(method, path, headers={"Host": host_header, **(headers or {})})
+        conn.request(method, path, body=body, headers={"Host": host_header, **(headers or {})})
         resp = conn.getresponse()
         return Response(resp.status, {k.lower(): v for k, v in resp.getheaders()}, resp.read())
     finally:
@@ -299,6 +311,88 @@ def check_api(edge: Edge) -> None:
     _expect("error" in json.loads(unknown.body), "/v1/inexistant : pas l'enveloppe de l'API")
 
 
+def _png_chunk(kind: bytes, payload: bytes) -> bytes:
+    crc = zlib.crc32(kind + payload) & 0xFFFFFFFF
+    return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", crc)
+
+
+def smoke_png(width: int = 32, height: int = 24) -> bytes:
+    """PNG RVB valide, d'un vert uni, construit sans dépendance."""
+    row = b"\x00" + bytes((24, 122, 80)) * width  # filtre 0, puis les pixels
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + _png_chunk(b"IHDR", header)
+        + _png_chunk(b"IDAT", zlib.compress(row * height))
+        + _png_chunk(b"IEND", b"")
+    )
+
+
+def multipart(
+    fields: dict[str, str], files: dict[str, tuple[str, bytes, str]]
+) -> tuple[bytes, str]:
+    """Corps `multipart/form-data` et son type de contenu."""
+    boundary = f"tc-smoke-{uuid.uuid4().hex}"
+    parts = [
+        f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n'.encode()
+        + value.encode("utf-8")
+        + b"\r\n"
+        for name, value in fields.items()
+    ]
+    parts += [
+        (
+            f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"; '
+            f'filename="{filename}"\r\nContent-Type: {content_type}\r\n\r\n'
+        ).encode()
+        + content
+        + b"\r\n"
+        for name, (filename, content, content_type) in files.items()
+    ]
+    body = b"".join(parts) + f"--{boundary}--\r\n".encode()
+    return body, f"multipart/form-data; boundary={boundary}"
+
+
+def check_report(edge: Edge) -> None:
+    """Story 1.11 : un Signalement anonyme au Plateau, à travers Caddy."""
+    if _setting("ACTIVE_ZONE_ID") != DEFAULTS["ACTIVE_ZONE_ID"]:
+        print("       Signalement : Zone active personnalisée, Plateau non garanti (ignoré)")
+        return
+    lng, lat = PLATEAU
+    meta = {
+        "client_uuid": str(uuid.uuid4()),
+        "lat": lat,
+        "lng": lng,
+        "accuracy_m": 12.0,
+        "heap_size": "small",
+        "comment": "Test de fumée du bord",
+        "captured_at": datetime.now(UTC).isoformat(),
+        "consent": {"terms": True, "training": False},
+    }
+    body, content_type = multipart(
+        {"meta": json.dumps(meta)}, {"photo": ("fumee.png", smoke_png(), "image/png")}
+    )
+    path = "/v1/reports"
+
+    anonymous = edge.https(
+        edge.app_host, path, "POST", headers={"Content-Type": content_type}, body=body
+    )
+    _expect(anonymous.status == 400, f"sans X-Device-Id : statut {anonymous.status}, attendu 400")
+    code = json.loads(anonymous.body).get("error", {}).get("code")
+    _expect(code == "invalid_device_id", f"sans X-Device-Id : code {code!r}")
+
+    # 32 octets aléatoires en base64url : 43 caractères, comme la PWA.
+    headers = {"Content-Type": content_type, "X-Device-Id": secrets.token_urlsafe(32)}
+    resp = edge.https(edge.app_host, path, "POST", headers=headers, body=body)
+    _expect(resp.status == 201, f"{path} : statut {resp.status}, attendu 201 ({resp.text[:200]})")
+    created = json.loads(resp.body)
+    fields = {"id", "tracking_number", "status", "received_at", "is_demo"}
+    _expect(set(created) == fields, f"{path} : champs {sorted(created)}")
+    number = created["tracking_number"]
+    _expect(bool(TRACKING_NUMBER.fullmatch(number)), f"Numéro de suivi {number!r}")
+    _expect(created["status"] == "pending_review", f"statut {created['status']!r}")
+    _expect(created["received_at"].endswith("Z"), f"received_at {created['received_at']!r}")
+
+
 def check_internal(edge: Edge) -> None:
     for path in ("/metrics", "/metrics/", "/v1/ai", "/v1/ai/x", "/v1/ai/x/y"):
         resp = edge.https(edge.app_host, path)
@@ -352,6 +446,7 @@ def main() -> int:
         ("Coquille", lambda: check_shell(edge)),
         ("Route profonde", lambda: check_deep_route(edge)),
         ("API", lambda: check_api(edge)),
+        ("Signalement", lambda: check_report(edge)),
         ("Surfaces internes", lambda: check_internal(edge)),
         ("Photos", lambda: check_media(edge, bucket)),
         ("HTTP", lambda: check_http_redirect(edge)),
