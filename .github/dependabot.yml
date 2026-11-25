@@ -1,6 +1,8 @@
 # Mises à jour des dépendances (story 1.5) : chaque semaine, mises à jour mineures et
 # correctifs groupés en une PR par écosystème ; une version majeure arrive seule.
 # Délai de 3 jours après une publication avant de la proposer (version retirée ou piégée).
+# Les versions MAJEURES sont ignorées : elles passent par une décision d'architecture
+# (épine, AD-28), jamais par une PR automatique. Les correctifs de sécurité restent proposés.
 # Les PR de Dependabot passent par la même CI que les autres (aucun secret requis).
 version: 2
 
@@ -11,6 +13,9 @@ updates:
     directory: /backend
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     cooldown:
       default-days: 3
     groups:
@@ -21,6 +26,9 @@ updates:
     directory: /web
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     cooldown:
       default-days: 3
     groups:
@@ -34,6 +42,12 @@ updates:
       - /infra/caddy
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      # Python 3.12 est fixé par l'architecture : pas de 3.13+ via les tags d'image.
+      - dependency-name: "python"
+        versions: [">=3.13"]
     cooldown:
       default-days: 3
     groups:
@@ -45,6 +59,9 @@ updates:
     directory: /infra
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     cooldown:
       default-days: 3
     groups:
@@ -56,6 +73,9 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     cooldown:
       default-days: 3
     groups:
