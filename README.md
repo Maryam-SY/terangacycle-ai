@@ -142,13 +142,23 @@ uv run pytest tests/integration
 
 ## Intégration continue
 
-Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tourne sur chaque pull request vers `main` et chaque push sur `main`. Il ne demande aucun secret GitHub : les secrets de la pile sont générés à chaque exécution par `infra/gen-dev-secrets.py`. Trois jobs :
+Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tourne sur chaque pull request vers `main` et chaque push sur `main` ; le job `audit` tourne aussi seul chaque lundi à 06:00 UTC (et à la demande, `workflow_dispatch`), pour voir une faille publiée après la fusion. Il ne demande aucun secret GitHub : les secrets de la pile sont générés à chaque exécution par `infra/gen-dev-secrets.py`. Cinq jobs :
 
 | Job | Vérifications |
 |---|---|
 | `backend` | `ruff check`, `ruff format --check`, `lint-imports` (contrats d'import), puis la pile Docker Compose démarrée et `pytest --cov` : tests unitaires, d'architecture et d'intégration, couverture d'au moins 60 % |
 | `web` | `npm run lint` (oxlint), `npm test` (Vitest), `npm run build` (Node 26) |
 | `edge` | après `backend` et `web` : image Caddy construite, pile démarrée, `smoke_edge.py` puis `smoke_readyz.py` |
+| `hygiene` | Gitleaks 8.30.1 (commits de la PR, tout l'historique sur `main`) avec [`.gitleaks.toml`](.gitleaks.toml) ; `scripts/ci/check_pinning.py` (images par `tag@sha256:`, actions par SHA de commit) ; `scripts/ci/check_repo_hygiene.py` (aucun document interne ni `.env` suivi, motifs de `.gitignore`, `LICENSE`, exceptions d'audit non expirées) |
+| `audit` | `pip-audit` 2.10.1 sur les dépendances d'exécution du backend (`uv export --locked --no-dev`), `npm audit --omit=dev` (gravité `high` ou plus), Trivy 0.76.2 sur les images `api` et `caddy` construites (failles `HIGH` et `CRITICAL` corrigeables, secrets laissés dans les images) |
+
+**Secrets et adresses Figma.** Gitleaks applique ses règles par défaut, plus la règle `figma-file-url` : une adresse `figma.com/design/…` (ou `file`, `proto`, `board`, `slides`, `deck`, `make`, `site`) suivie d'une clé de 22 caractères fait échouer `hygiene` (les placeholders `<clé>` ou `{key}` passent). Avant le balayage, le job vérifie que Gitleaks détecte bien une adresse Figma fabriquée. Les faux positifs connus sont listés dans `.gitleaks.toml`, chacun justifié. Gitleaks et Trivy sont téléchargés en version épinglée et vérifiés par leur somme SHA-256 avant extraction.
+
+**Exceptions d'audit datées.** Une vulnérabilité acceptée (pas de correctif, code non atteint) se déclare dans [`security/audit-exceptions.toml`](security/audit-exceptions.toml) : outil (`pip-audit`, `npm-audit` ou `trivy`), identifiant, raison (une ligne) et date d'expiration, au plus 90 jours plus tard. Les jobs en tirent `--ignore-vuln` pour pip-audit, le `.trivyignore` de Trivy et le filtre du rapport de `npm audit`. Le lendemain de la date d'expiration, la CI échoue : il faut corriger, ou renouveler l'exception en la justifiant de nouveau.
+
+**Mises à jour.** [Dependabot](.github/dependabot.yml) propose chaque semaine les mises à jour du backend (`uv`), du web (`npm`), des images de base (`docker`), des images de la pile Compose (`docker-compose`) et des actions (`github-actions`) ; mineures et correctifs sont groupés, et une version n'est proposée que 3 jours après sa publication.
+
+**Licence et signalement.** Code sous [GNU AGPL-3.0](LICENSE). Les vulnérabilités se signalent en privé, voir [SECURITY.md](SECURITY.md).
 
 **Contrats d'import** (`[tool.importlinter]` dans `backend/pyproject.toml`) :
 - `layers` : dans chaque module, `router` → `service` → `repository`, jamais l'inverse ;
@@ -166,6 +176,7 @@ Dans le web, `fetch` est interdit hors de `web/src/api/` et `web/src/offline/` (
 cd backend
 uv sync --locked   # échoue si uv.lock n'est plus à jour de pyproject.toml
 uv run ruff check . && uv run ruff format --check . && uv run lint-imports
+uv run ruff check --config pyproject.toml ../scripts/ci && uv run ruff format --config pyproject.toml --check ../scripts/ci
 REQUIRE_INTEGRATION=1 uv run pytest --cov
 cd ..
 
@@ -178,9 +189,20 @@ docker compose --profile demo up -d --build --wait --wait-timeout 300
 python3 backend/scripts/smoke_edge.py
 python3 backend/scripts/smoke_readyz.py
 docker compose --profile demo down -v   # efface aussi les volumes, comme en fin de job
+
+# hygiene : scripts en bibliothèque standard, puis Gitleaks (image officielle)
+python3 scripts/ci/check_pinning.py && python3 scripts/ci/check_repo_hygiene.py
+docker run --rm -v "$PWD:/repo:ro" \
+  zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+  git --no-banner --redact --config /repo/.gitleaks.toml /repo
+
+# audit : backend (dans backend/) et web (dans web/)
+uv export --locked --no-dev --no-emit-project --format requirements-txt -o /tmp/requirements.txt
+uvx pip-audit==2.10.1 --disable-pip --strict -r /tmp/requirements.txt
+npm audit --omit=dev --audit-level=high
 ```
 
-**Protection de la branche `main`** (décision du 24/11/2026) : les contrôles `backend`, `web` et `edge` sont obligatoires pour fusionner, sans l'imposer aux administrateurs (`enforce_admins: false`). À activer une fois la CI verte sur une PR, par une personne administratrice du dépôt (`gh` remplace `{owner}/{repo}` par le dépôt courant ; `app_id` 15368 est GitHub Actions, seule source acceptée pour ces contrôles). `strict: false` permet de fusionner une PR qui n'est pas rebasée sur le dernier `main` : les fusions se font en local, depuis un `main` à jour, une fois la CI verte.
+**Protection de la branche `main`** (décisions du 24/11/2026, stories 1.4 et 1.5) : pull request obligatoire (sans approbation exigée), contrôles `backend`, `web`, `edge`, `hygiene` et `audit` obligatoires, force push et suppression de la branche interdits ; l'administratrice en est exemptée (`enforce_admins: false`). À appliquer une fois la CI verte sur une PR, par une personne administratrice du dépôt (`gh` remplace `{owner}/{repo}` par le dépôt courant ; `app_id` 15368 est GitHub Actions, seule source acceptée pour ces contrôles). `strict: false` permet de fusionner une PR qui n'est pas rebasée sur le dernier `main` : les fusions se font en local, depuis un `main` à jour, une fois la CI verte.
 
 ```bash
 gh api -X PUT repos/{owner}/{repo}/branches/main/protection \
@@ -192,14 +214,38 @@ gh api -X PUT repos/{owner}/{repo}/branches/main/protection \
     "checks": [
       { "context": "backend", "app_id": 15368 },
       { "context": "web", "app_id": 15368 },
-      { "context": "edge", "app_id": 15368 }
+      { "context": "edge", "app_id": 15368 },
+      { "context": "hygiene", "app_id": 15368 },
+      { "context": "audit", "app_id": 15368 }
     ]
   },
   "enforce_admins": false,
-  "required_pull_request_reviews": null,
-  "restrictions": null
+  "required_pull_request_reviews": {
+    "required_approving_review_count": 0,
+    "dismiss_stale_reviews": false,
+    "require_code_owner_reviews": false
+  },
+  "restrictions": null,
+  "allow_force_pushes": false,
+  "allow_deletions": false
 }
 EOF
+```
+
+**Réglages de sécurité du dépôt** (story 1.5), par une personne administratrice : secret scanning et push protection, puis signalement privé des vulnérabilités (le canal de [SECURITY.md](SECURITY.md)).
+
+```bash
+gh api -X PATCH repos/{owner}/{repo} \
+  -H "Accept: application/vnd.github+json" \
+  --input - <<'EOF'
+{
+  "security_and_analysis": {
+    "secret_scanning": { "status": "enabled" },
+    "secret_scanning_push_protection": { "status": "enabled" }
+  }
+}
+EOF
+gh api -X PUT repos/{owner}/{repo}/private-vulnerability-reporting
 ```
 
 ## Documentation
@@ -217,6 +263,8 @@ terangacycle-ai/
 ├── web/       PWA React + TypeScript (à venir)
 ├── ml/        Entraînement, export ONNX, fiche du modèle (à venir)
 ├── infra/     Docker Compose, Caddyfile, Terraform (à venir)
+├── scripts/   Contrôles de la CI (scripts/ci/, bibliothèque standard Python)
+├── security/  Exceptions d'audit datées
 └── docs/      Cahier des charges et dossier technique
 ```
 
@@ -231,3 +279,7 @@ terangacycle-ai/
 ## Équipe
 
 Projet porté par une équipe de trois personnes : développement fullstack, données et IA, design et pitch.
+
+## Licence
+
+**Licence :** [GNU Affero General Public License v3.0](LICENSE) (`AGPL-3.0-only`). Pour signaler une vulnérabilité, voir [SECURITY.md](SECURITY.md).

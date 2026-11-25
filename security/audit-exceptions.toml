@@ -1,0 +1,27 @@
+# Exceptions d'audit datées (story 1.5) : une vulnérabilité connue, acceptée pour un temps.
+#
+# Lues par scripts/ci/audit_exceptions.py :
+#   - job `hygiene` : une exception invalide ou expirée fait échouer la CI ;
+#   - job `audit`   : `--ignore-vuln` de pip-audit, `.trivyignore` de Trivy, filtre du
+#                     rapport de `npm audit`.
+#
+# Chaque exception porte :
+#   tool    = "pip-audit", "npm-audit" ou "trivy" ;
+#   id      = identifiant de la vulnérabilité (GHSA-…, CVE-…, PYSEC-…) : lettres, chiffres
+#             et « . _ : - » ; pour npm-audit, GHSA-xxxx-xxxx-xxxx ou numéro d'avis ;
+#   reason  = pourquoi elle est acceptée (pas de correctif, code non atteint…), une ligne ;
+#   expires = date ISO (AAAA-MM-JJ), au plus 90 jours après aujourd'hui : valable jusqu'à
+#             ce jour inclus, puis la CI échoue.
+#
+# Exemple (à recopier sans le dièse) :
+# [[exception]]
+# tool = "trivy"
+# id = "CVE-0000-00000"
+# reason = "Bibliothèque système non utilisée par l'application ; pas de correctif publié."
+# expires = 2027-01-31
+#
+[[exception]]
+tool = "trivy"
+id = "CVE-2026-78661"
+reason = "golang.org/x/net/html (DoS) embarqué dans Caddy 2.11.9, dernière version publiée ; notre Caddyfile n'analyse aucun HTML (pas de templates) ; à retirer dès une version de Caddy avec x/net >= 0.62.0."
+expires = 2026-12-26

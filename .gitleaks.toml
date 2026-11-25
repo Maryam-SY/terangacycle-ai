@@ -1,0 +1,39 @@
+# Configuration Gitleaks du dépôt (story 1.5), utilisée par le job `hygiene` de la CI
+# et en local :
+#   gitleaks git --config .gitleaks.toml
+#
+# Règles par défaut de Gitleaks, plus l'adresse d'un fichier Figma : la clé d'un fichier
+# Figma donne accès aux maquettes de l'équipe, elle ne doit jamais être publiée.
+
+title = "TerangaCycle AI"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "figma-file-url"
+description = "Adresse d'un fichier Figma, FigJam, Slides, Make ou Sites (clé de 22 caractères)"
+# Les placeholders (`figma.com/design/<clé>`, `figma.com/file/{key}`) ne correspondent
+# pas : `<` et `{` ne font pas partie d'une clé.
+regex = '''figma\.com/(?:design|file|proto|board|slides|deck|make|site)/[A-Za-z0-9]{22}'''
+keywords = ["figma.com"]
+
+# Faux positifs connus. Chaque entrée est la plus étroite possible (fichier ET valeur)
+# et justifiée : l'historique Git ne se réécrit pas, l'annotation `gitleaks:allow` ne
+# peut donc pas être ajoutée après coup.
+
+# Manifeste d'installation de BMad : empreintes SHA-256 des fichiers installés,
+# pas des secrets (règle generic-api-key).
+[[allowlists]]
+description = "Empreintes SHA-256 du manifeste BMad"
+condition = "AND"
+paths = ['''^_bmad/_config/files-manifest\.csv$''']
+regexes = ['''^[0-9a-f]{64}$''']
+
+# Mots de passe factices des tests de configuration (`# noqa: S105`), inventés pour ces
+# tests et sans usage réel (règle generic-api-key).
+[[allowlists]]
+description = "Mots de passe factices de backend/tests/unit/test_config.py"
+condition = "AND"
+paths = ['''^backend/tests/unit/test_config\.py$''']
+regexes = ['''^(?:app-pw-Zx9|migrator-pw-Qk4)$''']

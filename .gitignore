@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# Secrets de la pile, un fichier par secret (déjà couvert par .env.*, explicite ici).
+.env.secrets/
 
 # Python
 __pycache__/

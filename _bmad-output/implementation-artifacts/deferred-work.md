@@ -11,3 +11,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-3-coquille-pwa-et-bord-caddy.md`
   summary: Les tests de la PWA (`npm test`) ne tournent ni dans la construction de l'image Caddy ni en CI.
   evidence: `infra/caddy/Dockerfile` ne lance que `npm ci` et `npm run build`, et `.github/workflows/` est vide. À brancher par la story 1.4 (CI de qualité).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-5-hygiene-du-depot-public.md`
+  summary: Les verrous Trivy et pip-audit du job `audit` ne sont pas testés en négatif : rien ne prouve qu'ils échoueraient sur une vulnérabilité HIGH/CRITICAL.
+  evidence: Un test négatif exige une image ou un verrou volontairement vulnérable. À ajouter si une régression du câblage (`--exit-code`, `|| status=1`) devient un risque.
