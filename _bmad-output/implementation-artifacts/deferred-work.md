@@ -15,3 +15,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-5-hygiene-du-depot-public.md`
   summary: Les verrous Trivy et pip-audit du job `audit` ne sont pas testés en négatif : rien ne prouve qu'ils échoueraient sur une vulnérabilité HIGH/CRITICAL.
   evidence: Un test négatif exige une image ou un verrou volontairement vulnérable. À ajouter si une régression du câblage (`--exit-code`, `|| status=1`) devient un risque.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-9-photographier-le-depot-en-version-legere-et-sans-metadonnees.md`
+  summary: Prévenir le Citoyen quand Android décharge la page pendant la prise de vue (photo et Position perdues sans explication).
+  evidence: Non vérifié sur appareil ; demande de mémoriser un état « photo attendue » avant d'ouvrir l'appareil photo et d'afficher un message au retour (à traiter avec l'Epic 6 ou 8, sur téléphone réel).

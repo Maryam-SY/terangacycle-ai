@@ -56,12 +56,35 @@
       "configUnavailable": "Zone couverte inconnue : une connexion est requise.",
       "outsideZone": "Hors de la zone couverte : photo impossible à cet endroit.",
       "imprecise": "Position imprécise : patientez, ou continuez sans attendre.",
-      "ready": "Position vérifiée : vous pouvez prendre la photo."
+      "ready": "Position vérifiée : vous pouvez prendre la photo.",
+      "processing": "Préparation de la photo en cours.",
+      "preview": "Photo prête : vérifiez l'aperçu, puis continuez ou reprenez la photo.",
+      "photoError": "La photo n'a pas été gardée : lisez le message, puis reprenez la photo."
     },
     "retry": "Réessayer",
     "trigger": "Prendre la photo",
-    "photoSoon": "Merci ! La prise de photo arrive à l'étape suivante de l'application.",
+    "rule": {
+      "title": "Ni personne ni plaque",
+      "body": "Photographiez seulement le dépôt : aucun visage, aucune personne, aucune plaque d'immatriculation."
+    },
+    "photo": {
+      "processing": "Préparation de la photo…",
+      "unreadable": "Cette photo n'a pas pu être lue. Reprenez-la.",
+      "stale": "Cette photo n'a pas été prise à l'instant. Photographiez le dépôt maintenant, sur place, avec l'appareil photo.",
+      "position": "Votre position n'était plus vérifiée au retour de l'appareil photo. Attendez qu'elle le soit, puis reprenez la photo.",
+      "alt": "Aperçu de votre photo du dépôt",
+      "retake": "Reprendre la photo",
+      "continue": "Continuer",
+      "saveError": "La photo n'a pas pu être gardée sur ce téléphone. Réessayez."
+    },
     "back": "Retour à l'accueil"
+  },
+  "details": {
+    "title": "Votre signalement",
+    "photoAlt": "Photo du dépôt à signaler",
+    "position": "Position enregistrée, précision ± {{accuracy}} m",
+    "soon": "Merci ! La taille du tas, le type de déchet et l'envoi arrivent à l'étape suivante de l'application.",
+    "back": "Reprendre une photo"
   },
   "notFound": {
     "title": "Cette page est introuvable",

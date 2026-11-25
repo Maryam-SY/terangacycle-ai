@@ -1,13 +1,13 @@
 // Base locale de l'appareil (Dexie, IndexedDB). Version 1 : la table `meta`, réglages
 // clé → valeur (Identifiant d'appareil, consentement, dernière configuration publique
-// reçue de l'API). Les tables suivantes (file
+// reçue de l'API, brouillon du signalement en cours). Les tables suivantes (file
 // hors-ligne, Mes Signalements) arriveront par de nouvelles versions du schéma.
 import Dexie, { type EntityTable } from 'dexie'
 
 export const DB_NAME = 'terangacycle'
 
 /** Clés connues de `meta` : une faute de frappe est refusée à la compilation. */
-export type MetaKey = 'deviceId' | 'consent' | 'publicConfig'
+export type MetaKey = 'deviceId' | 'consent' | 'publicConfig' | 'draft'
 
 export interface MetaRow {
   key: MetaKey
@@ -26,6 +26,10 @@ export async function getMeta(key: MetaKey): Promise<unknown> {
 
 export async function setMeta(key: MetaKey, value: unknown): Promise<void> {
   await db.meta.put({ key, value })
+}
+
+export async function deleteMeta(key: MetaKey): Promise<void> {
+  await db.meta.delete(key)
 }
 
 /** Demande au navigateur de ne pas effacer la base sous pression d'espace. Sans attente

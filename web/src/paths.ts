@@ -5,4 +5,6 @@ export const PATHS = {
   report: '/signaler',
   consent: '/signaler/consentement',
   capture: '/signaler/capture',
+  /** Écran 3 · Détails : provisoire, lit le brouillon (story 1.13 pour la suite). */
+  details: '/signaler/details',
 } as const
