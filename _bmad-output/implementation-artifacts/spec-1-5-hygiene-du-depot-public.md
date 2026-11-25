@@ -2,7 +2,7 @@
 title: 'Story 1.5 — Hygiène du dépôt public'
 type: 'chore'
 created: '2026-11-24'
-status: 'in-review'
+status: 'done'
 baseline_commit: '8d72ec80e2075f03e01a741c535d284b847e9226'
 route: 'dispatch'
 review_loop_iteration: 0
