@@ -2,7 +2,7 @@
 title: 'Story 1.12 — Renvoyer un Signalement sans doublon ni fuite'
 type: 'feature'
 created: '2026-11-25'
-status: 'in-review'
+status: 'done'
 baseline_commit: '61eb579624d12a28591e8c786850bd6a4001e93e'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -96,6 +96,9 @@ Les critères d'acceptation de référence sont ceux de la section `### Story 1.
 - **Contrainte :** `uq_reports_client_uuid_owner_key`, `UNIQUE (client_uuid, owner_key)` ; nom exporté par `reports.repository.CLIENT_UUID_CONSTRAINT` et vérifié contre la migration.
 - **Recherche préalable :** deux requêtes indexées : le Signalement de l'auteur (`client_uuid` et `owner_key`), puis, s'il n'y en a pas, la seule existence de l'Identifiant client (préfixe de l'index) : rien du Signalement d'un autre auteur n'est lu.
 - **Course :** `insert_report` traduit la seule violation de `CLIENT_UUID_CONSTRAINT` (`UniqueViolation` et nom de contrainte) en `ClientUuidTakenError`. `create_report` reste `@transactional` ; un décorateur privé (`_settle_parallel_sends`) placé autour de son unité intercepte cette erreur après l'annulation (ligne, compteur, photo par `after_rollback`) et relit l'existant dans une nouvelle unité (`_reread_after_race`, `@transactional`). Si l'appelant avait déjà ouvert une unité (`core.db.in_unit_of_work()`, ajouté), l'erreur est relevée : son unité est perdue.
+- **Verrou (relecture, passe 1) :** l'unité de la création prend d'abord `pg_advisory_xact_lock(hashtextextended(client_uuid::text, 0))`, avant la recherche : deux envois simultanés du même `client_uuid` (même auteur ou non) se suivent ; le second obtient 200 sans traiter de photo, ou 409. La violation de contrainte reste un filet de sécurité ; si la relecture ne trouve aucun Signalement de l'auteur, 409 (jamais 500).
+- **Identifiant client :** UUID version 4 exigé (`UUID4` de Pydantic, 422 `meta.client_uuid`), tiré par `crypto.randomUUID()`.
+- **Migration 0004 :** refuse de poser la contrainte s'il existe des paires en double (`DuplicateClientUuidError`, nombre et remède), sans dédoublonnage automatique.
 - **Photo :** le service reçoit `read_photo` (lecture bornée à 1 Mo + 1 octet faite par le router), appelée seulement pour une création : un renvoi ne lit ni ne stocke la photo.
 - **Réponse :** le service renvoie `ReportOutcome(report, replayed)` ; le router passe à 200 quand `replayed`. OpenAPI : `200` (modèle `ReportCreated`) et `409` dans `responses=`.
 - **Principal :** `Principal(kind, owner_key)` ; `owner_key` doit commencer par `<kind>:` ; `device_hash` devient une propriété (`None` pour `user`) ; pas de `touch_device()` pour un Principal `user`.
@@ -105,6 +108,24 @@ Les critères d'acceptation de référence sont ceux de la section `### Story 1.
 ## Spec Change Log
 
 ## Review Triage Log
+
+Passe 1 (26/11/2026). Couches : Blind Hunter (B), Edge Case Hunter (E), Verification Gap (V).
+
+| # | Constat | Verdict | Preuve | Route |
+|---|---|---|---|---|
+| E1 / B1 / E6 | Deux auteurs envoient le même Identifiant client au même instant : deux 201 | medium | La contrainte vaut par auteur ; le 409 dépend d'une lecture préalable sans verrou | patch (verrou consultatif par Identifiant client) |
+| B6 | Les envois perdants stockent puis suppriment une photo pour rien | low | 9 envois et 9 suppressions dans le test à 10 | patch (réglé par le verrou) |
+| E3 / B7 | `ClientUuidTakenError` peut remonter en 500 | low | Relecture vide après la course | patch (409) |
+| B9 | Identifiant client de toute version accepté ; existence révélée par le 409 | low | Aucun contrôle de version | patch (UUID v4 exigé, documenté) |
+| E2 / B2 | Migration bloquée par d'éventuels doublons existants, erreur opaque | low | Aucune vérification avant `ADD CONSTRAINT` | patch (message clair, sans dédoublonnage automatique) |
+| B8 | Message 409 propre à l'appareil, alors que les comptes arrivent | low | « depuis cet appareil » | patch |
+| B3 / B11 | Ligne 409 absente du tableau principal du README ; ordre des réponses OpenAPI | low | README et `ERROR_RESPONSES` | patch |
+| V1 / B12 / B13 | Non testés : renvoi reconnu avant consentement, zone et lecture de la photo sur la route ; intention du test de 201 perdu | medium | Déplacer la recherche ne fait échouer aucun test | patch |
+| E4 | Un renvoi ne revérifie ni consentement ni zone | false | Ordre voulu par la spec : le contenu renvoyé est ignoré | rejeté |
+| B4 | Aucune gestion côté application (Identifiant client, 200, 409) | low | Objet de la story 1.13 | rejeté (story 1.13) |
+| B5 | `wo.json` copie de `fr.json` | false | Interface wolof hors objectifs du hackathon | rejeté |
+| B10 | `ReportOutcome` dans `schemas.py` | low | Rangement sans effet | rejeté |
+| B2b | Index construit sans `CONCURRENTLY` | low | Table encore petite, aucune donnée de production | rejeté |
 
 ## Verification
 

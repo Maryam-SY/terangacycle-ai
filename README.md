@@ -88,9 +88,9 @@ Sur `APP_HOST`, Caddy sert la PWA, et relaie vers l'API `/v1/*`, `/healthz` et `
 
 **`POST /v1/reports`** (story 1.11). En-tête `X-Device-Id` : 32 octets aléatoires en base64url, 43 caractères ; aucun `Authorization`. Corps `multipart/form-data` de 2 Mo au plus (Caddy et l'API) :
 - `photo` : JPEG, PNG ou WebP, 1 Mo au plus, 12 mégapixels au plus ; stockée ré-encodée en JPEG sans métadonnées ;
-- `meta` (JSON, champs inconnus refusés) : `client_uuid` (UUID), `lat` (−90 à 90), `lng` (−180 à 180), `accuracy_m` (> 0 ; au-delà de `REPORT_ACCURACY_FLAG_M`, drapeau « position imprécise »), `heap_size` (`small`, `medium`, `large`), `comment` facultatif (280 caractères au plus après retrait des blancs de bord ; vide = aucun), `waste_type` facultatif (`plastic`, `metal`, `glass`, `organic`, `mixed`), `captured_at` (ISO 8601 avec fuseau, entre le 01/01/2000 et maintenant + 1 jour ; jamais utilisée pour décider), `consent` : `{terms, training}`.
+- `meta` (JSON, champs inconnus refusés) : `client_uuid` (Identifiant client : UUID version 4, tiré une fois par Signalement avec un générateur cryptographique, `crypto.randomUUID()` ; toute autre version → 422 `meta.client_uuid`), `lat` (−90 à 90), `lng` (−180 à 180), `accuracy_m` (> 0 ; au-delà de `REPORT_ACCURACY_FLAG_M`, drapeau « position imprécise »), `heap_size` (`small`, `medium`, `large`), `comment` facultatif (280 caractères au plus après retrait des blancs de bord ; vide = aucun), `waste_type` facultatif (`plastic`, `metal`, `glass`, `organic`, `mixed`), `captured_at` (ISO 8601 avec fuseau, entre le 01/01/2000 et maintenant + 1 jour ; jamais utilisée pour décider), `consent` : `{terms, training}`.
 
-Erreurs (enveloppe `{"error": {"code", "message", "request_id"}}` ; une requête refusée n'écrit rien). Ordre des contrôles : en-têtes (400, 401, taille du corps 413), `meta` et photo présents (422), consentement, Zone active, puis la photo elle-même (413, 415, 422) :
+Erreurs (enveloppe `{"error": {"code", "message", "request_id"}}` ; une requête refusée n'écrit rien). Ordre des contrôles : en-têtes (400, 401, taille du corps 413), `meta` et photo présents (422), Identifiant client déjà reçu (200 ou 409, voir plus bas), consentement, Zone active, puis la photo elle-même (413, 415, 422) :
 
 | Statut | Code | Cas |
 |---|---|---|
@@ -98,6 +98,7 @@ Erreurs (enveloppe `{"error": {"code", "message", "request_id"}}` ; une requête
 | 401 | `invalid_token` | en-tête `Authorization` présent (aucun jeton vérifiable avant l'Epic 2) |
 | 413 | `photo_too_large` | corps de plus de 2 Mio (`Content-Length`, avant lecture) ou photo de plus de 1 Mo ; Caddy refuse aussi en 413 tout corps de plus de 2 Mo |
 | 422 | `validation_error` | `meta` absent, illisible ou invalide, ou photo absente ; le message nomme le champ (`meta.lat`, `photo`), jamais sa valeur |
+| 409 | `client_uuid_conflict` | `meta.client_uuid` déjà utilisé par un autre auteur ; l'enveloppe d'erreur seule (contrôlé avant le consentement, la Zone et la photo) |
 | 422 | `consent_required` | `consent.terms` absent ou faux |
 | 422 | `outside_active_zone` | Position hors de la Zone active (`ACTIVE_ZONE_ID`) |
 | 415 | `unsupported_media_type` | photo ni JPEG, ni PNG, ni WebP (format lu dans les octets) |
@@ -106,14 +107,14 @@ Erreurs (enveloppe `{"error": {"code", "message", "request_id"}}` ; une requête
 
 L'Organisation responsable (commune ou opérateur dont la Zone couvre la Position, sinon l'Organisation plateforme) n'est jamais renvoyée.
 
-**Renvoi sans doublon** (story 1.12). `meta.client_uuid` (Identifiant client, généré une fois par Signalement sur le téléphone) rend la route idempotente par auteur ; aucune clé `Idempotency-Key` n'est demandée. Après les contrôles des en-têtes et de `meta`, le Signalement est cherché par son Identifiant client :
+**Renvoi sans doublon** (story 1.12). `meta.client_uuid` (Identifiant client, généré une fois par Signalement sur le téléphone) rend la route idempotente par auteur ; aucune clé `Idempotency-Key` n'est demandée. Après les contrôles des en-têtes et de `meta`, et avant le consentement, la Zone active et la photo, le Signalement est cherché par son Identifiant client :
 
 | Statut | Cas | Réponse |
 |---|---|---|
 | 200 | même auteur (même `X-Device-Id`), même `client_uuid` | le Signalement déjà enregistré : mêmes champs qu'en 201, valeurs de la première réception et Statut actuel. Rien n'est écrit (ni ligne, ni photo, ni Numéro consommé) et le contenu renvoyé (photo, Position, commentaire…) est ignoré, même s'il diffère |
 | 409 | `client_uuid_conflict` : autre auteur, même `client_uuid` | l'enveloppe d'erreur seule, rien du Signalement existant |
 
-Le client peut donc renvoyer sans risque un envoi dont il n'a pas reçu la réponse (coupure réseau) : il obtient le Numéro de suivi attribué à la première réception. L'unicité `(client_uuid, owner_key)` est garantie par la base (migration `0004`) : des envois parallèles du même Signalement donnent un seul 201 et des 200, une seule ligne et une seule photo.
+Le client peut donc renvoyer sans risque un envoi dont il n'a pas reçu la réponse (coupure réseau) : il obtient le Numéro de suivi attribué à la première réception. Des envois simultanés du même `client_uuid` se suivent (verrou de transaction sur l'Identifiant client) : un seul 201, puis des 200 pour le même auteur, sans photo stockée, ou 409 pour un autre ; l'unicité `(client_uuid, owner_key)` est en outre garantie par la base (migration `0004`, refusée avec le nombre de paires en double s'il en existe déjà).
 
 La documentation OpenAPI (`/docs`, `/redoc`, `/openapi.json`, absente quand `ENV=prod`) n'est plus relayée par Caddy : ces adresses servent la PWA. Elle reste servie par l'API sur le réseau Compose (`http://api:8000/docs`).
 

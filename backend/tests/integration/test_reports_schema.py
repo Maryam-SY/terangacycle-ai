@@ -56,7 +56,7 @@ def _engine(var: str) -> Engine:
     url = make_url(raw)
     if url.drivername in ("postgresql", "postgres"):
         url = url.set(drivername="postgresql+psycopg")
-    return create_engine(url, hide_parameters=True)
+    return create_engine(url, hide_parameters=True, connect_args={"connect_timeout": 10})
 
 
 @pytest.fixture(scope="module")
@@ -326,22 +326,27 @@ def test_client_uuid_unique_constraint_and_column_order(app_engine: Engine) -> N
     assert index.endswith("USING btree (client_uuid, owner_key)"), index
 
 
-def test_same_client_uuid_is_refused_for_one_owner_only(rolled_back: Connection) -> None:
-    owner = "device:" + "a" * 64
-    client_uuid = "6f1c2a4e-1b2c-4d3e-8f90-a1b2c3d4e5f6"
-    insert = text(
-        """
-        INSERT INTO reports (
-            id, tracking_number, owner_key, client_uuid, organization_id, geog, accuracy_m,
-            heap_size, zone_id, received_at, client_captured_at, training_consent
-        ) VALUES (
-            gen_random_uuid(), :number, :owner, CAST(:client_uuid AS uuid),
-            CAST(:org AS uuid), ST_GeogFromText('POINT(-17.4381 14.6708)'), 10, 'small',
-            'dakar', now(), now(), false
-        )
-        """
+_INSERT_REPORT = text(
+    """
+    INSERT INTO reports (
+        id, tracking_number, owner_key, client_uuid, organization_id, geog, accuracy_m,
+        heap_size, zone_id, received_at, client_captured_at, training_consent
+    ) VALUES (
+        gen_random_uuid(), :number, :owner, CAST(:client_uuid AS uuid),
+        CAST(:org AS uuid), ST_GeogFromText('POINT(-17.4381 14.6708)'), 10, 'small',
+        'dakar', now(), now(), false
     )
-    params = {"owner": owner, "client_uuid": client_uuid, "org": str(PLATFORM_ORGANIZATION_ID)}
+    """
+)
+_REPORT_PARAMS = {
+    "owner": "device:" + "a" * 64,
+    "client_uuid": "6f1c2a4e-1b2c-4d3e-8f90-a1b2c3d4e5f6",
+    "org": str(PLATFORM_ORGANIZATION_ID),
+}
+
+
+def test_same_client_uuid_is_refused_for_one_owner_only(rolled_back: Connection) -> None:
+    insert, params = _INSERT_REPORT, _REPORT_PARAMS
     rolled_back.execute(insert, {**params, "number": "TC-9999-999998"})
     # Autre auteur, même Identifiant client : accepté par la base (le 409 vient du service).
     rolled_back.execute(
@@ -372,5 +377,31 @@ def test_migration_0004_adds_only_the_constraint(migrator_engine: Engine) -> Non
                 migration.upgrade()
             assert _schema_objects(conn) == with_constraint
             assert _columns(conn) == columns
+        finally:
+            transaction.rollback()
+
+
+def test_migration_0004_refuses_existing_duplicates_with_a_clear_message(
+    migrator_engine: Engine,
+) -> None:
+    migration = _migration(MIGRATION_0004, "migration_0004_reports_client_uuid_unique")
+    with migrator_engine.connect() as conn:
+        transaction = conn.begin()
+        try:
+            conn.execute(text("SET LOCAL lock_timeout = '5s'"))
+            with Operations.context(MigrationContext.configure(conn)):
+                migration.downgrade()
+                # Une paire (client_uuid, owner_key) reçue deux fois, comme avant 1.12.
+                for number in ("TC-9999-999998", "TC-9999-999999"):
+                    conn.execute(_INSERT_REPORT, {**_REPORT_PARAMS, "number": number})
+                with pytest.raises(migration.DuplicateClientUuidError) as exc_info:
+                    migration.upgrade()
+            message = str(exc_info.value)
+            assert "1 paire(s)" in message and "Remède" in message
+            assert _REPORT_PARAMS["client_uuid"] not in message
+            assert not conn.scalar(
+                text("SELECT count(*) FROM pg_constraint WHERE conname = :n"),
+                {"n": CLIENT_UUID_CONSTRAINT},
+            )
         finally:
             transaction.rollback()

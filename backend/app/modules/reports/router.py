@@ -52,12 +52,12 @@ def _error(description: str) -> dict[str, Any]:
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     400: _error("`invalid_device_id` : X-Device-Id absent ou invalide."),
     401: _error("`invalid_token` : en-tête Authorization présent (non vérifiable)."),
-    413: _error("`photo_too_large` : photo de plus de 1 Mo, ou corps de plus de 2 Mio."),
-    415: _error("`unsupported_media_type` : photo ni JPEG, ni PNG, ni WebP."),
     409: _error(
         "`client_uuid_conflict` : Identifiant client déjà utilisé par un autre auteur "
         "(rien du Signalement existant n'est renvoyé)."
     ),
+    413: _error("`photo_too_large` : photo de plus de 1 Mo, ou corps de plus de 2 Mio."),
+    415: _error("`unsupported_media_type` : photo ni JPEG, ni PNG, ni WebP."),
     422: _error(
         "`validation_error` (champ nommé), `consent_required`, `outside_active_zone`, "
         "`photo_too_many_pixels`, `photo_unreadable`."

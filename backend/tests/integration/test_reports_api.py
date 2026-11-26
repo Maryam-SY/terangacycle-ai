@@ -19,8 +19,8 @@ import json
 import os
 import re
 import threading
-from collections.abc import Iterator
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable, Iterator, Sequence
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -68,6 +68,9 @@ TEST_YEARS = (2026, 2027, 2032)
 UUID4 = r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
 OBJECT_KEY = re.compile(rf"report/2032/05/({UUID4})\.jpg")
 TRACKING_NUMBER = re.compile(r"TC-[0-9]{4}-[0-9]{6}")
+# Bornes d'attente : une connexion ou un envoi bloqué fait échouer le test, sans le figer.
+CONNECT_TIMEOUT_S = 10
+THREADS_TIMEOUT_S = 120
 RESPONSE_FIELDS = {"id", "tracking_number", "status", "received_at", "is_demo"}
 
 
@@ -276,7 +279,11 @@ def stack(monkeypatch: pytest.MonkeyPatch) -> Iterator[Stack]:
     for cache in caches:
         cache.cache_clear()
 
-    engine = create_engine(database_url, hide_parameters=True)
+    engine = create_engine(
+        database_url,
+        hide_parameters=True,
+        connect_args={"connect_timeout": CONNECT_TIMEOUT_S},
+    )
     s3 = boto3.session.Session().client(
         "s3",
         endpoint_url=endpoint,
@@ -301,6 +308,20 @@ def stack(monkeypatch: pytest.MonkeyPatch) -> Iterator[Stack]:
             db.get_engine().dispose()
             for cache in caches:
                 cache.cache_clear()
+
+
+def _in_threads[T](send: Callable[[T], Response], items: Sequence[T]) -> list[Response]:
+    """Un envoi par thread réel ; échoue au-delà de `THREADS_TIMEOUT_S` au lieu d'attendre."""
+    pool = ThreadPoolExecutor(max_workers=len(items))
+    try:
+        futures = [pool.submit(send, item) for item in items]
+        _, pending = wait(futures, timeout=THREADS_TIMEOUT_S)
+        assert not pending, (
+            f"{len(pending)} envoi(s) toujours bloqué(s) après {THREADS_TIMEOUT_S} s"
+        )
+        return [future.result() for future in futures]
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
 
 def _error(response: Response, status: int, code: ErrorCode) -> str:
@@ -668,8 +689,7 @@ def test_twenty_simultaneous_reports_get_twenty_distinct_numbers(stack: Stack) -
         barrier.wait(timeout=30)
         return stack.post(device_id=device_id)
 
-    with ThreadPoolExecutor(max_workers=count) as pool:
-        responses = list(pool.map(send, devices))
+    responses = _in_threads(send, devices)
     numbers = [stack.created(response)["tracking_number"] for response in responses]
     assert len(set(numbers)) == count
     assert all(TRACKING_NUMBER.fullmatch(number) for number in numbers)
@@ -769,10 +789,18 @@ def _log_lines(out: str, event: str) -> list[dict[str, Any]]:
     return [json.loads(line) for line in out.splitlines() if f'"event": "{event}"' in line]
 
 
-def _contains(exc: BaseException, kind: type[BaseException]) -> bool:
-    if isinstance(exc, BaseExceptionGroup):
-        return exc.subgroup(kind) is not None
-    return isinstance(exc, kind)
+def _count_ingests(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    """Clés des photos stockées par `ingest_photo()` pendant le test (appel réel)."""
+    keys: list[str] = []
+    original = storage.ingest_photo
+
+    def counting(*args: Any, **kwargs: Any) -> storage.StoredPhoto:
+        stored = original(*args, **kwargs)
+        keys.append(stored.object_key)
+        return stored
+
+    monkeypatch.setattr(storage, "ingest_photo", counting)
+    return keys
 
 
 def test_resend_returns_the_existing_report_and_writes_nothing(
@@ -853,19 +881,21 @@ def test_ten_resends_in_a_row_keep_one_report(stack: Stack) -> None:
     assert stack.counter(FIXED_NOW.year) == counter_before + 1
 
 
-def test_ten_parallel_sends_give_one_201_and_nine_200(stack: Stack) -> None:
+def test_ten_parallel_sends_give_one_201_and_nine_200(
+    stack: Stack, monkeypatch: pytest.MonkeyPatch
+) -> None:
     device_id = stack.device()
     meta = report_meta()
     count = 10
     counter_before = stack.counter(FIXED_NOW.year) or 0
     barrier = threading.Barrier(count)
+    ingested = _count_ingests(monkeypatch)
 
     def send(_: int) -> Response:
         barrier.wait(timeout=30)
         return stack.post(meta, device_id=device_id)
 
-    with ThreadPoolExecutor(max_workers=count) as pool:
-        responses = list(pool.map(send, range(count)))
+    responses = _in_threads(send, range(count))
 
     statuses = sorted(response.status for response in responses)
     assert statuses == [200] * 9 + [201], [response.text for response in responses]
@@ -875,7 +905,9 @@ def test_ten_parallel_sends_give_one_201_and_nine_200(stack: Stack) -> None:
     (row,) = _rows_of(stack, meta["client_uuid"])
     assert row.tracking_number == bodies[0]["tracking_number"]
     assert len(stack.photos_of(str(row.id))) == 1
-    # Un seul objet : ceux des insertions perdues sont supprimés (after_rollback).
+    # Verrou sur l'Identifiant client : les neuf renvois attendent le premier commit et ne
+    # lisent ni ne stockent de photo.
+    assert len(ingested) == 1
     assert len(stack.objects()) == 1
     # Un seul Numéro consommé : le compteur des insertions perdues est annulé avec elles.
     assert stack.counter(FIXED_NOW.year) == counter_before + 1
@@ -1018,10 +1050,14 @@ def test_lost_201_then_resend_gets_the_first_tracking_number(
     # Effet `after_commit` de la création : il lève après le commit, la réponse est perdue.
     with monkeypatch.context() as patch:
         patch.setattr(reports_service, "_log_created", cut)
-        with pytest.raises(BaseException) as exc_info:  # noqa: PT011 (coupure simulée)
+        with pytest.raises(ConnectionCut):
             stack.post(meta, device_id=device_id)
-    assert _contains(exc_info.value, ConnectionCut), exc_info.value
+    # Juste après la coupure, avant tout renvoi : le Signalement est bien enregistré.
     (row,) = _rows_of(stack, meta["client_uuid"])
+    assert TRACKING_NUMBER.fullmatch(row.tracking_number)
+    assert row.received_at == FIXED_NOW
+    (photo_row,) = stack.photos_of(str(row.id))
+    assert photo_row.object_key in stack.objects()
     before = stack.footprint()
     monkeypatch.setattr(clock, "now", lambda: datetime(2032, 5, 10, 9, 45, tzinfo=UTC))
 
@@ -1029,4 +1065,77 @@ def test_lost_201_then_resend_gets_the_first_tracking_number(
     assert replay["id"] == str(row.id)
     assert replay["tracking_number"] == row.tracking_number
     assert replay["received_at"] == "2032-05-10T08:30:00Z"  # première réception
+    assert stack.footprint() == before
+
+
+def test_two_devices_sending_one_client_uuid_together_get_201_and_409(stack: Stack) -> None:
+    meta = report_meta()
+    devices = [stack.device(), stack.device()]
+    barrier = threading.Barrier(len(devices))
+
+    def send(device_id: str) -> Response:
+        barrier.wait(timeout=30)
+        return stack.post(meta, device_id=device_id)
+
+    responses = _in_threads(send, devices)
+
+    assert sorted(response.status for response in responses) == [201, 409], [
+        response.text for response in responses
+    ]
+    winner = next(response for response in responses if response.status == 201).json()
+    loser = next(response for response in responses if response.status == 409)
+    _error(loser, 409, ErrorCode.CLIENT_UUID_CONFLICT)
+    assert winner["tracking_number"] not in loser.text
+    (row,) = _rows_of(stack, meta["client_uuid"])
+    assert str(row.id) == winner["id"]
+    assert len(stack.objects()) == 1
+
+
+@pytest.mark.parametrize(
+    ("overrides", "photo"),
+    [
+        ({"consent": {"terms": False, "training": False}}, None),
+        ({"lat": THIES[0], "lng": THIES[1]}, None),
+        ({}, b"pas une image"),
+        ({}, _padded(1_048_577)),
+    ],
+    ids=["conditions-refusees", "hors-zone", "photo-illisible", "photo-1-mo-plus-1"],
+)
+def test_resend_is_recognised_before_consent_zone_and_photo(
+    stack: Stack,
+    monkeypatch: pytest.MonkeyPatch,
+    overrides: dict[str, Any],
+    photo: bytes | None,
+) -> None:
+    device_id = stack.device()
+    meta = report_meta()
+    first = stack.created(stack.post(meta, device_id=device_id))
+    before = stack.footprint()
+    ingested = _count_ingests(monkeypatch)
+
+    resent = report_meta(client_uuid=meta["client_uuid"], **overrides)
+    assert _replayed(stack.post(resent, photo, device_id=device_id)) == first
+    assert ingested == []
+    assert stack.footprint() == before
+
+
+def test_other_device_out_of_zone_with_a_taken_client_uuid_gets_409(stack: Stack) -> None:
+    meta = report_meta()
+    stack.created(stack.post(meta))
+    before = stack.footprint()
+    outside = report_meta(client_uuid=meta["client_uuid"], lat=THIES[0], lng=THIES[1])
+    _error(stack.post(outside, device_id=stack.device()), 409, ErrorCode.CLIENT_UUID_CONFLICT)
+    assert stack.footprint() == before
+
+
+def test_race_without_any_own_report_to_reread_is_409_not_500(
+    stack: Stack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Filet de sécurité : insertion refusée par l'unicité, mais rien à relire pour l'auteur."""
+    device_id = stack.device()
+    meta = report_meta()
+    stack.created(stack.post(meta, device_id=device_id))
+    before = stack.footprint()
+    monkeypatch.setattr(reports_service, "_existing_outcome", lambda *_: None)
+    _error(stack.post(meta, device_id=device_id), 409, ErrorCode.CLIENT_UUID_CONFLICT)
     assert stack.footprint() == before

@@ -57,8 +57,7 @@ DEFAULT_MESSAGES: dict[ErrorCode, str] = {
     ),
     # Story 1.12 : même texte que `errors.client_uuid_conflict` de web/src/i18n/fr.json.
     ErrorCode.CLIENT_UUID_CONFLICT: (
-        "Ce signalement n'a pas pu être envoyé depuis cet appareil. Recommencez un nouveau "
-        "signalement."
+        "Ce signalement n'a pas pu être enregistré. Recommencez-le comme un nouveau signalement."
     ),
 }
 

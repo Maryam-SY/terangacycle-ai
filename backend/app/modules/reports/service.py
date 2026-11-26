@@ -14,12 +14,18 @@ conditions (422 `consent_required`), Position dans la Zone active (422
 `device` seulement), Numéro de suivi, Signalement et photo. Une exception après le
 stockage annule tout et supprime l'objet (`after_rollback`, story 1.10).
 
-Envois parallèles du même Signalement : tous peuvent passer la recherche, un seul insère.
-Les autres violent l'unicité `(client_uuid, owner_key)` (migration 0004) : leur unité de
-travail est annulée en entier (ni ligne, ni Numéro consommé, photo supprimée), puis
-l'existant est relu dans une nouvelle unité et renvoyé (200). Seule la violation de cette
-contrainte est traitée ainsi, et seulement quand `create_report()` a ouvert sa propre
-unité : un appelant qui l'a rejointe reçoit l'erreur, son unité étant perdue.
+Envois simultanés du même Identifiant client, du même auteur ou de deux auteurs : l'unité
+de la création prend d'abord un verrou de transaction sur le `client_uuid`
+(`pg_advisory_xact_lock`), avant la recherche. Le second envoi attend le commit du premier,
+puis la recherche le résout : 200 (même auteur, sans lire ni stocker la photo) ou 409
+(autre auteur).
+
+Filet de sécurité : une insertion qui viole quand même l'unicité `(client_uuid, owner_key)`
+(migration 0004) annule toute son unité (ni ligne, ni Numéro consommé, photo supprimée),
+puis l'existant est relu dans une nouvelle unité : 200, ou 409 si aucun Signalement de
+l'auteur n'y est. Seule la violation de cette contrainte est traitée ainsi, et seulement
+quand `create_report()` a ouvert sa propre unité : un appelant qui l'a rejointe reçoit
+l'erreur, son unité étant perdue.
 
 Calculés par le serveur (AD-6) : `received_at`, lu une fois (`core.clock`, UTC), qui donne
 l'année du Numéro et l'année et le mois de la clé de la photo ; Zones qui couvrent la
@@ -119,7 +125,8 @@ def _settle_parallel_sends(create: CreateReport) -> CreateReport:
                 raise
             outcome = _reread_after_race(principal, meta.client_uuid)
             if outcome is None:
-                raise
+                # Aucun Signalement de l'auteur à relire : l'Identifiant client reste pris.
+                raise DomainError(ErrorCode.CLIENT_UUID_CONFLICT, 409) from None
             return outcome
 
     return settle
@@ -137,6 +144,9 @@ def create_report(
     `read_photo` : lecture des octets de la photo, appelée seulement pour une création.
     `settings` : les réglages avec lesquels l'application a été construite.
     """
+    # Verrou d'abord : un envoi simultané du même `client_uuid` attend notre commit, puis
+    # nous trouve à la recherche.
+    repository.lock_client_uuid(meta.client_uuid)
     existing = _existing_outcome(principal, meta.client_uuid)
     if existing is not None:
         return existing

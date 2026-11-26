@@ -40,6 +40,12 @@ _INSERT_REPORT = text(
     """
 )
 
+# Verrou de transaction sur l'Identifiant client, levé au commit ou à l'annulation : deux
+# envois du même `client_uuid`, de n'importe quels auteurs, se suivent au lieu de se croiser.
+_LOCK_CLIENT_UUID = text(
+    "SELECT pg_advisory_xact_lock(hashtextextended(CAST(:client_uuid AS text), 0))"
+)
+
 # Signalement de cet auteur pour cet Identifiant client (index unique complet).
 _OWN_REPORT = text(
     """
@@ -112,6 +118,12 @@ class NewPhoto:
 def next_tracking_sequence(year: int) -> int:
     """Rang suivant de l'année dans le compteur des Numéros de suivi (1 pour le premier)."""
     return current_session().execute(_NEXT_TRACKING_SEQUENCE, {"year": year}).scalar_one()
+
+
+def lock_client_uuid(client_uuid: UUID) -> None:
+    """Attend, puis tient jusqu'à la fin de l'unité de travail, le verrou de l'Identifiant
+    client : un envoi concurrent du même `client_uuid` attend le commit du premier."""
+    current_session().execute(_LOCK_CLIENT_UUID, {"client_uuid": client_uuid})
 
 
 def find_own_report(owner_key: str, client_uuid: UUID) -> StoredReport | None:

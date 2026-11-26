@@ -10,7 +10,15 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    UUID4,
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+)
 
 from app.core import clock
 from app.core.enums import HeapSize, ReportStatus, WasteType
@@ -43,7 +51,9 @@ class ReportMeta(BaseModel):
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    client_uuid: UUID
+    # Identifiant client : UUID version 4, tiré par un générateur cryptographique sur
+    # l'appareil (`crypto.randomUUID()`), une fois par Signalement (story 1.12).
+    client_uuid: UUID4
     lat: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
     lng: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
     accuracy_m: Annotated[float, Field(gt=0, allow_inf_nan=False)]
