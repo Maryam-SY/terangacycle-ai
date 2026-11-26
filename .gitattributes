@@ -16,3 +16,6 @@ uv.lock text eol=lf
 *.dockerignore text eol=lf
 # Données des migrations (Zones) : octets identiques sous Windows et dans l'image.
 *.geojson text eol=lf
+# Client API généré (story 1.13) : comparé octet pour octet à l'export, en CI et en test.
+web/src/api/openapi.json text eol=lf
+web/src/api/schema.d.ts text eol=lf

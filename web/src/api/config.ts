@@ -1,6 +1,6 @@
-// Lecteur de GET /v1/config (configuration publique de l'instance, AD-14).
-// Petit client écrit à la main en attendant le client généré depuis l'OpenAPI
-// (story 1.13) : la réponse est validée champ par champ avant tout usage.
+// Lecteur de GET /v1/config (configuration publique de l'instance, AD-14), par le client
+// généré (client.ts, story 1.13) : la réponse est validée champ par champ avant tout usage.
+import { client, send } from './client.ts'
 
 /** Position GeoJSON : [longitude, latitude]. */
 export type Position = [number, number]
@@ -104,22 +104,18 @@ export function parsePublicConfig(value: unknown): PublicConfig {
   }
 }
 
-/** GET /v1/config, validée. Lève une erreur (réseau, statut, délai, contenu) sans
+/** GET /v1/config, validée. Lève une erreur (`NetworkError` sans réponse ou après le
+ *  délai, `ApiError` pour un statut d'erreur, `InvalidConfigError` pour le contenu) sans
  *  autre détail : l'appelant se replie sur la configuration gardée. */
 export async function fetchPublicConfig(timeoutMs = CONFIG_TIMEOUT_MS): Promise<PublicConfig> {
-  // AbortController et setTimeout plutôt que AbortSignal.timeout, absent des navigateurs
-  // plus anciens (Android 8). Le minuteur est arrêté dès que la lecture se termine.
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const response = await fetch(CONFIG_PATH, {
-      headers: { Accept: 'application/json' },
-      cache: 'no-store',
-      signal: controller.signal,
-    })
-    if (!response.ok) throw new Error(`GET ${CONFIG_PATH} : statut ${response.status}`)
-    return parsePublicConfig(await response.json())
-  } finally {
-    clearTimeout(timer)
-  }
+  const { data } = await send(
+    (signal) =>
+      client.GET(CONFIG_PATH, {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+        signal,
+      }),
+    timeoutMs,
+  )
+  return parsePublicConfig(data)
 }

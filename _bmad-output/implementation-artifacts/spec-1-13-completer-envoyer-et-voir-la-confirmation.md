@@ -2,7 +2,7 @@
 title: 'Story 1.13 — Compléter, envoyer et voir la confirmation'
 type: 'feature'
 created: '2026-11-26'
-status: 'ready-for-dev'
+status: 'in-review'
 baseline_commit: 'd1ebcca5ccaa748d5bbf264ff8f9dcebd85e585d'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -145,23 +145,32 @@ Les critères d'acceptation de référence sont ceux de la section `### Story 1.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `backend/scripts/export_openapi.py`, `app/main.py`, `modules/reports/router.py` : export stable et schéma `ReportMeta` publié ; test unitaire (composants présents, `meta` → `ReportMeta`, `encoding`, deux exports identiques, fichier versionné égal à l'export).
-- [ ] `web/package.json`, `scripts/gen-api-types.mjs`, `src/api/openapi.json`, `src/api/schema.d.ts` : génération, override, script `api:types`.
-- [ ] `web/src/api/client.ts`, `reports.ts`, `config.ts` : instance unique, `X-Device-Id`, `ApiError`/`NetworkError`, délai ; `sendReport` construit le `FormData` (`meta` en JSON, `photo`).
-- [ ] `web/src/offline/draft.ts` : `clientUuid`.
-- [ ] `web/src/features/classify/*`, `features/report/*` (écrans 3 et 4, Frise, Taille), `paths.ts`, `routes.tsx`, `ui/icons.tsx`.
-- [ ] `web/src/theme/theme.css`, `contrast-pairs.json`, `i18n/fr.json`, `wo.json`.
-- [ ] `.github/workflows/ci.yml` : contrôles de dérive (OpenAPI et types).
-- [ ] **Tests :**
+- [x] `backend/scripts/export_openapi.py`, `app/main.py`, `modules/reports/router.py` : export stable et schéma `ReportMeta` publié ; test unitaire (composants présents, `meta` → `ReportMeta`, `encoding`, deux exports identiques, fichier versionné égal à l'export).
+- [x] `web/package.json`, `scripts/gen-api-types.mjs`, `src/api/openapi.json`, `src/api/schema.d.ts` : génération, override, script `api:types`.
+- [x] `web/src/api/client.ts`, `reports.ts`, `config.ts` : instance unique, `X-Device-Id`, `ApiError`/`NetworkError`, délai ; `sendReport` construit le `FormData` (`meta` en JSON, `photo`).
+- [x] `web/src/offline/draft.ts` : `clientUuid`.
+- [x] `web/src/features/classify/*`, `features/report/*` (écrans 3 et 4, Frise, Taille), `paths.ts`, `routes.tsx`, `ui/icons.tsx`.
+- [x] `web/src/theme/theme.css`, `contrast-pairs.json`, `i18n/fr.json`, `wo.json`.
+- [x] `.github/workflows/ci.yml` : contrôles de dérive (OpenAPI et types).
+- [x] **Tests :**
   - Vitest : client (en-tête, traduction des codes, enveloppe absente, coupure, délai), `sendReport` (champs, octets exacts), brouillon (`clientUuid` v4, stable, complété), `details.ts` (raisons, points de code, décision par code d'erreur), contraste ;
   - Playwright `report.spec.ts` (`POST /v1/reports` intercepté, 390×844, axe sans violation `critical` ni `serious`, pas de débordement horizontal, cibles ≥ 44 px) : chaque ligne de la matrice.
-- [ ] `README.md` et `web/README.md` : régénérer le client (`uv run python scripts/export_openapi.py` puis `npm run api:types`) et contrôle CI.
+- [x] `README.md` et `web/README.md` : régénérer le client (`uv run python scripts/export_openapi.py` puis `npm run api:types`) et contrôle CI.
 
 **Acceptance Criteria:**
 - Tous les critères d'acceptation de la story 1.13 d'`epics.md` sont couverts par au moins un test qui tourne en CI. Lighthouse est lancé à la main avant la démo, comme décidé à la story 1.7 ; en CI, axe le remplace.
 - Modifier un champ de `ReportCreated` sans régénérer les fichiers fait échouer la CI.
 
 ## Implementation Notes
+
+- **OpenAPI :** `reports.router.document_report_body()` publie `ReportMeta` (et ses `$defs` : `ReportConsent`, `HeapSize`, `WasteType` ; un nom déjà publié sous une autre forme lève une erreur), fait pointer `meta` vers `ReportMeta`, pose `encoding.meta.contentType = application/json` et ajoute `format: binary` à la photo (FastAPI ne publie que `contentMediaType`, la transformation `Blob` de `gen-api-types.mjs` s'appuie sur `format`). `create_app` enveloppe `app.openapi` (`_post_process_openapi`), résultat gardé en cache comme FastAPI.
+- **Export :** `export_openapi.py` ajoute `backend/` à `sys.path` (lancé comme `python scripts/…`), réglages `ENV=dev` sans `DEMO_MODE` (secrets éphémères, journal coupé), écriture en octets UTF-8/LF ; `--output` pour les tests. `.gitattributes` force LF sur `openapi.json` et `schema.d.ts` (comparaison octet pour octet sous Windows avec `core.autocrlf=true`).
+- **Client :** origine fictive `http://localhost` sous Node (pas de `location`, `Request` refuse une adresse relative) ; dans le navigateur, `location.origin`. `send()` enveloppe chaque appel (délai, traduction). `ApiError.isServerError` : 5xx ou enveloppe absente. Une réponse 2xx illisible devient `NetworkError`. `fetchPublicConfig` lève désormais `NetworkError`/`ApiError` (l'appelant se replie toujours sur la configuration gardée).
+- **Multipart :** `meta` part en texte (un `Blob` serait lu comme un fichier par Starlette et refusé par `Form`), `encoding` reste documentaire ; `Content-Type` laissé au navigateur (FormData).
+- **Brouillon :** `saveDraft(NewDraft)` tire l'Identifiant client et renvoie le brouillon ; la complétion d'un ancien brouillon se fait dans une transaction Dexie (`rw`), seulement si `clientUuid` est absent (un `clientUuid` invalide n'est jamais remplacé).
+- **Écran 3 :** commentaire borné par `limitComment(précédent, saisi)` : au maximum, toute frappe est ignorée ; un collage trop long est tronqué (pas d'attribut `maxlength`, qui compte en UTF-16). Après une erreur réseau/5xx, le bouton principal devient « Réessayer ». Garde de double appui par `useRef` en plus du bouton désactivé.
+- **Couleurs provisoires :** plastique `#1F6FB2`, métal `#59656F`, verre `#0F7C8C`, organique `#8A5A2B`, mixte `#7B4FA0` (≥ 4,3:1 sur surface, blanc et mint) ; paires déclarées aussi face à mint (fond de l'option choisie). Étiquette démo en Ambre (`warning-ink`/`warning-bg`).
+- **e2e :** le corps envoyé est lu par un espion de `fetch` dans la page (copies gardées dans `sessionStorage` pour survivre au rechargement), le serveur simulé répond 201 puis 200.
 
 ## Spec Change Log
 

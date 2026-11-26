@@ -3,6 +3,7 @@ import 'fake-indexeddb/auto'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { NetworkError } from '../api/client.ts'
 import {
   CONFIG_PATH,
   CONFIG_TIMEOUT_MS,
@@ -87,46 +88,54 @@ describe('parsePublicConfig', () => {
   })
 })
 
+/** `fetch` qui ne répond jamais : rejette seulement quand la requête est abandonnée. */
+function hangingFetch() {
+  return vi.fn(
+    (request: Request) =>
+      new Promise<Response>((_resolve, reject) => {
+        const abort = () => reject(new DOMException('abandon', 'AbortError'))
+        if (request.signal.aborted) abort()
+        request.signal.addEventListener('abort', abort)
+      }),
+  )
+}
+
 describe('fetchPublicConfig', () => {
-  it('GET /v1/config, réponse validée', async () => {
-    const fetchSpy = vi.fn(async () => jsonResponse(CONFIG))
+  it('GET /v1/config par le client généré, réponse validée', async () => {
+    const fetchSpy = vi.fn(async (_request: Request) => jsonResponse(CONFIG))
     vi.stubGlobal('fetch', fetchSpy)
     await expect(fetchPublicConfig()).resolves.toEqual(CONFIG)
     expect(fetchSpy).toHaveBeenCalledOnce()
-    const [path, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit]
-    expect(path).toBe(CONFIG_PATH)
-    expect(init.cache).toBe('no-store')
-    expect(init.signal).toBeInstanceOf(AbortSignal)
-    expect(init.signal?.aborted).toBe(false)
+    const [request] = fetchSpy.mock.calls[0]
+    expect(request).toBeInstanceOf(Request)
+    expect(request.method).toBe('GET')
+    expect(new URL(request.url).pathname).toBe(CONFIG_PATH)
+    expect(request.cache).toBe('no-store')
+    expect(request.headers.get('Accept')).toBe('application/json')
+    expect(request.headers.get('X-Device-Id')).toMatch(/^[A-Za-z0-9_-]{43}$/)
+    expect(request.signal.aborted).toBe(false)
   })
 
   it('sans réponse : abandonnée après CONFIG_TIMEOUT_MS (sans AbortSignal.timeout)', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(
-        (_path: string, init: RequestInit) =>
-          new Promise<Response>((_resolve, reject) => {
-            init.signal?.addEventListener('abort', () =>
-              reject(new DOMException('abandon', 'AbortError')),
-            )
-          }),
-      ),
-    )
+    const fetchSpy = hangingFetch()
+    vi.stubGlobal('fetch', fetchSpy)
     let settled = false
     const result = fetchPublicConfig().finally(() => {
       settled = true
     })
     result.catch(() => undefined)
+    // L'Identifiant d'appareil est lu dans Dexie (minuteurs réels) avant l'appel.
+    while (fetchSpy.mock.calls.length === 0) await new Promise((resolve) => setImmediate(resolve))
     await vi.advanceTimersByTimeAsync(CONFIG_TIMEOUT_MS - 1)
     expect(settled).toBe(false)
     await vi.advanceTimersByTimeAsync(1)
-    await expect(result).rejects.toThrow('abandon')
+    await expect(result).rejects.toBeInstanceOf(NetworkError)
   })
 
-  it('statut d’erreur : rejetée', async () => {
+  it('statut d’erreur : rejetée (ApiError)', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ error: {} }, 503)))
-    await expect(fetchPublicConfig()).rejects.toThrow('503')
+    await expect(fetchPublicConfig()).rejects.toMatchObject({ name: 'ApiError', status: 503 })
   })
 })
 
@@ -175,14 +184,7 @@ describe('loadPublicConfig : réseau d’abord, puis Dexie', () => {
 
   it('sans configuration gardée et sans réponse : connexion nécessaire après le délai', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-    const fetchSpy = vi.fn(
-      (_path: string, init: RequestInit) =>
-        new Promise<Response>((_resolve, reject) => {
-          init.signal?.addEventListener('abort', () =>
-            reject(new DOMException('abandon', 'AbortError')),
-          )
-        }),
-    )
+    const fetchSpy = hangingFetch()
     vi.stubGlobal('fetch', fetchSpy)
     let settled = false
     const result = loadPublicConfig().finally(() => {

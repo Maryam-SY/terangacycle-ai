@@ -5,6 +5,8 @@ export const PATHS = {
   report: '/signaler',
   consent: '/signaler/consentement',
   capture: '/signaler/capture',
-  /** Écran 3 · Détails : provisoire, lit le brouillon (story 1.13 pour la suite). */
+  /** Écran 3 · Détails : Taille de tas, Type de déchet, commentaire et envoi (story 1.13). */
   details: '/signaler/details',
+  /** Écran 4 · Confirmation : Numéro de suivi et Frise de suivi, après l'envoi. */
+  confirmation: '/signaler/confirmation',
 } as const

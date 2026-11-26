@@ -19,6 +19,11 @@ construite (`request.app.state.settings`).
 Renvoi idempotent (story 1.12) : le même auteur qui renvoie le même `meta.client_uuid`
 reçoit 200 avec le Signalement déjà enregistré (mêmes champs qu'en 201), sans que rien ne
 soit écrit ; un autre auteur reçoit 409 `client_uuid_conflict`, l'enveloppe d'erreur seule.
+
+OpenAPI (story 1.13) : `meta` arrive en texte (`Form`) et reste validé par `parse_meta()`.
+Pour le client généré de la PWA, `document_report_body()` décrit ce champ par le schéma
+`ReportMeta` (JSON, `encoding.meta.contentType`) et la photo en binaire ; seule la
+description change, jamais le traitement de la requête.
 """
 
 from typing import Annotated, Any
@@ -32,7 +37,7 @@ from app.core.errors import DomainError, ErrorCode, ErrorResponse, error_respons
 from app.core.security import Principal
 from app.core.storage import MAX_PHOTO_BYTES
 from app.modules.reports import service
-from app.modules.reports.schemas import ReportCreated, parse_meta
+from app.modules.reports.schemas import ReportCreated, ReportMeta, parse_meta
 
 router = APIRouter(prefix="/v1", tags=["reports"])
 
@@ -141,3 +146,38 @@ def create_report(
     if outcome.replayed:
         response.status_code = 200
     return outcome.report
+
+
+SCHEMA_REF = "#/components/schemas/{model}"
+MULTIPART = "multipart/form-data"
+
+
+def document_report_body(openapi: dict[str, Any]) -> dict[str, Any]:
+    """Post-traitement de `app.openapi()` (posé par `create_app`) : publie `ReportMeta` et
+    ses schémas (`ReportConsent`, `HeapSize`, `WasteType`) dans `components.schemas`, fait
+    pointer le champ `meta` du corps multipart vers `ReportMeta` (envoyé en JSON :
+    `encoding.meta.contentType`) et décrit la photo en binaire (`format: binary`).
+
+    Modifie et renvoie le même dictionnaire. Sans la route (application de test), rien ne
+    change."""
+    operation = openapi.get("paths", {}).get(REPORTS_PATH, {}).get("post")
+    if operation is None:
+        return openapi
+    schemas = openapi.setdefault("components", {}).setdefault("schemas", {})
+    meta_schema = ReportMeta.model_json_schema(ref_template=SCHEMA_REF)
+    for name, definition in meta_schema.pop("$defs", {}).items():
+        existing = schemas.setdefault(name, definition)
+        if existing != definition:
+            raise RuntimeError(f"OpenAPI : schéma {name} déjà publié sous une autre forme")
+    schemas["ReportMeta"] = meta_schema
+
+    content = operation["requestBody"]["content"][MULTIPART]
+    body = schemas[content["schema"]["$ref"].rsplit("/", 1)[-1]]
+    meta = body["properties"]["meta"]
+    body["properties"]["meta"] = {
+        "$ref": SCHEMA_REF.format(model="ReportMeta"),
+        "description": meta.get("description", ""),
+    }
+    body["properties"]["photo"]["format"] = "binary"
+    content["encoding"] = {"meta": {"contentType": "application/json"}}
+    return openapi

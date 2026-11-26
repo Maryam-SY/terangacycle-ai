@@ -18,4 +18,12 @@
   --color-warning-ink: #7A5C00;
   --color-warning-bg: #FFF4CC;
   --color-danger: #D9482B;
+
+  /* Types de déchet (story 1.13) : couleurs provisoires, définitives à l'Epic 8. Éléments
+     non textuels (pictogrammes), chacune ≥ 3:1 face à surface, au blanc et à mint. */
+  --color-waste-plastic: #1F6FB2;
+  --color-waste-metal: #59656F;
+  --color-waste-glass: #0F7C8C;
+  --color-waste-organic: #8A5A2B;
+  --color-waste-mixed: #7B4FA0;
 }

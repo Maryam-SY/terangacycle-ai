@@ -3,7 +3,7 @@
 // Couleur : currentColor, réglée par la classe text-* du parent ou une classe stroke-*.
 import type { ReactNode } from 'react'
 
-interface IconProps {
+export interface IconProps {
   className?: string
 }
 
@@ -102,6 +102,153 @@ export function AlertIcon({ className }: IconProps) {
     <Icon className={className}>
       <path d="M12 3l9.5 17h-19L12 3z" />
       <path d="M12 10v4M12 17h.01" />
+    </Icon>
+  )
+}
+
+/** Coche cerclée : option choisie, étape actuelle de la Frise de suivi. */
+export function CheckIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12.5l2.7 2.7L16 9.8" />
+    </Icon>
+  )
+}
+
+/** Avion en papier : envoi du Signalement. */
+export function SendIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M21 3L3 10.5l7.5 3L13.5 21 21 3z" />
+      <path d="M10.5 13.5L21 3" />
+    </Icon>
+  )
+}
+
+/** Petit tas : Taille de tas « petit ». */
+export function HeapSmallIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M8 19a4 4 0 0 1 8 0" />
+      <path d="M3 19h18" />
+    </Icon>
+  )
+}
+
+/** Tas moyen : Taille de tas « moyen ». */
+export function HeapMediumIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M5 19a7 6 0 0 1 14 0" />
+      <path d="M3 19h18" />
+    </Icon>
+  )
+}
+
+/** Grand tas : Taille de tas « grand ». */
+export function HeapLargeIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M2.5 19C4 12 7.5 6 12 6s8 6 9.5 13" />
+      <path d="M2 19h20" />
+      <path d="M9 13h.01M14 11h.01M12 16h.01" />
+    </Icon>
+  )
+}
+
+/** Bouteille : plastique. */
+export function BottleIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M10 2h4v3l2 3v12a2 2 0 0 1-2 2h-4a2 2 0 0 1-2-2V8l2-3V2z" />
+      <path d="M8 12h8" />
+    </Icon>
+  )
+}
+
+/** Canette : métal. */
+export function CanIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M7 5h10v14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V5z" />
+      <path d="M8 2h8l1 3H7l1-3z" />
+      <path d="M10 10v6" />
+    </Icon>
+  )
+}
+
+/** Bocal : verre. */
+export function JarIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M8 3h8v3H8z" />
+      <path d="M7 6h10a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" />
+      <path d="M9 11v5" />
+    </Icon>
+  )
+}
+
+/** Feuille : organique. */
+export function LeafIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M5 19C5 10 10 4 20 4c0 10-6 15-15 15z" />
+      <path d="M5 19l8-8" />
+    </Icon>
+  )
+}
+
+/** Couches empilées : mixte. */
+export function LayersIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M12 3l9 5-9 5-9-5 9-5z" />
+      <path d="M3 12.5l9 5 9-5" />
+      <path d="M3 16.5l9 5 9-5" />
+    </Icon>
+  )
+}
+
+/** Drapeau : étape « Signalé » de la Frise de suivi. */
+export function FlagIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M5 21V4" />
+      <path d="M5 4h11l-2 4 2 4H5" />
+    </Icon>
+  )
+}
+
+/** Bouclier coché : étape « Validé par la modération ». */
+export function ShieldCheckIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M12 3l8 3v5c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6l8-3z" />
+      <path d="M9 12l2 2 4-4" />
+    </Icon>
+  )
+}
+
+/** Camion : étape « Assigné à un collecteur ». */
+export function TruckIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M2 6h12v10H2z" />
+      <path d="M14 9h4l3 3v4h-7" />
+      <circle cx="6" cy="18" r="2" />
+      <circle cx="17" cy="18" r="2" />
+    </Icon>
+  )
+}
+
+/** Photo cochée : étape « Collecté, preuve photo ». */
+export function PhotoCheckIcon({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M12 20H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v6" />
+      <path d="M3 15l5-5 4 4" />
+      <path d="M15 18l2 2 4-4" />
     </Icon>
   )
 }

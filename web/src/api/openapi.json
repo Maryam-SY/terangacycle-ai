@@ -1,0 +1,594 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "TerangaCycle AI",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/healthz": {
+      "get": {
+        "tags": [
+          "sondes"
+        ],
+        "summary": "Healthz",
+        "description": "Vivacité : 200 tant que le processus répond, sans aucune dépendance.",
+        "operationId": "healthz_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Healthz Healthz Get"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Enveloppe d'erreur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "tags": [
+          "sondes"
+        ],
+        "summary": "Readyz",
+        "description": "Prêt : base, Valkey, bucket et battement du worker répondent.",
+        "operationId": "readyz_readyz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "Enveloppe d'erreur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Une dépendance n'est pas prête (aucun détail)."
+          }
+        }
+      }
+    },
+    "/v1/config": {
+      "get": {
+        "tags": [
+          "config"
+        ],
+        "summary": "Get Public Config",
+        "operationId": "get_public_config_v1_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicConfig"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Enveloppe d'erreur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/reports": {
+      "post": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Envoyer un Signalement",
+        "operationId": "create_report_v1_reports_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_create_report_v1_reports_post"
+              },
+              "encoding": {
+                "meta": {
+                  "contentType": "application/json"
+                }
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Signalement créé, avec son Numéro de suivi.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportCreated"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Enveloppe d'erreur",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Renvoi idempotent : même auteur, même `meta.client_uuid`. Le Signalement déjà enregistré (Statut actuel), sans rien écrire ; le contenu renvoyé est ignoré.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportCreated"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid_device_id` : X-Device-Id absent ou invalide.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "`invalid_token` : en-tête Authorization présent (non vérifiable).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`client_uuid_conflict` : Identifiant client déjà utilisé par un autre auteur (rien du Signalement existant n'est renvoyé).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`photo_too_large` : photo de plus de 1 Mo, ou corps de plus de 2 Mio.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`unsupported_media_type` : photo ni JPEG, ni PNG, ni WebP.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`validation_error` (champ nommé), `consent_required`, `outside_active_zone`, `photo_too_many_pixels`, `photo_unreadable`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`storage_unavailable` : stockage des photos indisponible.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActiveZone": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "geometry": {
+            "$ref": "#/components/schemas/MultiPolygon"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "geometry"
+        ],
+        "title": "ActiveZone",
+        "description": "Zone active publiée par `GET /v1/config` : polygone simplifié, élargi de 50 m."
+      },
+      "Body_create_report_v1_reports_post": {
+        "properties": {
+          "meta": {
+            "$ref": "#/components/schemas/ReportMeta",
+            "description": "Métadonnées en JSON : client_uuid, lat, lng, accuracy_m, heap_size, comment, waste_type, captured_at, consent {terms, training}."
+          },
+          "photo": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "Photo",
+            "description": "Photo du dépôt : JPEG, PNG ou WebP, 1 Mo au plus.",
+            "format": "binary"
+          }
+        },
+        "type": "object",
+        "required": [
+          "meta",
+          "photo"
+        ],
+        "title": "Body_create_report_v1_reports_post"
+      },
+      "Env": {
+        "type": "string",
+        "enum": [
+          "dev",
+          "demo",
+          "prod"
+        ],
+        "title": "Env"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/ErrorCode"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "request_id"
+        ],
+        "title": "ErrorBody"
+      },
+      "ErrorCode": {
+        "type": "string",
+        "enum": [
+          "not_found",
+          "method_not_allowed",
+          "validation_error",
+          "internal_error",
+          "unsupported_media_type",
+          "photo_too_large",
+          "photo_too_many_pixels",
+          "photo_unreadable",
+          "storage_unavailable",
+          "invalid_device_id",
+          "invalid_token",
+          "consent_required",
+          "outside_active_zone",
+          "client_uuid_conflict"
+        ],
+        "title": "ErrorCode"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "description": "Enveloppe unique de toute réponse d'erreur."
+      },
+      "MultiPolygon": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "MultiPolygon",
+            "title": "Type"
+          },
+          "coordinates": {
+            "items": {
+              "items": {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Coordinates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "coordinates"
+        ],
+        "title": "MultiPolygon",
+        "description": "Géométrie GeoJSON (RFC 7946) : polygones → anneaux → positions [longitude, latitude]."
+      },
+      "PublicConfig": {
+        "properties": {
+          "demo_mode": {
+            "type": "boolean",
+            "title": "Demo Mode"
+          },
+          "env": {
+            "$ref": "#/components/schemas/Env"
+          },
+          "model_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Version"
+          },
+          "active_zone": {
+            "$ref": "#/components/schemas/ActiveZone"
+          },
+          "report_accuracy_flag_m": {
+            "type": "integer",
+            "title": "Report Accuracy Flag M"
+          }
+        },
+        "type": "object",
+        "required": [
+          "demo_mode",
+          "env",
+          "model_version",
+          "active_zone",
+          "report_accuracy_flag_m"
+        ],
+        "title": "PublicConfig"
+      },
+      "ReportCreated": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "tracking_number": {
+            "type": "string",
+            "title": "Tracking Number"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReportStatus"
+          },
+          "received_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Received At"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tracking_number",
+          "status",
+          "received_at",
+          "is_demo"
+        ],
+        "title": "ReportCreated",
+        "description": "Réponse 201, et 200 d'un renvoi (story 1.12) : exactement ces champs. Ni\n`owner_key`, ni empreinte, ni Identifiant d'appareil, ni Organisation responsable."
+      },
+      "ReportStatus": {
+        "type": "string",
+        "enum": [
+          "pending_review",
+          "validated",
+          "assigned",
+          "collected",
+          "rejected"
+        ],
+        "title": "ReportStatus",
+        "description": "Statut d'un Signalement (AD-3)."
+      },
+      "HeapSize": {
+        "description": "Taille de tas, obligatoire sur chaque Signalement.",
+        "enum": [
+          "small",
+          "medium",
+          "large"
+        ],
+        "title": "HeapSize",
+        "type": "string"
+      },
+      "ReportConsent": {
+        "additionalProperties": false,
+        "description": "Consentements donnés sur l'appareil (AD-24).",
+        "properties": {
+          "terms": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Terms"
+          },
+          "training": {
+            "title": "Training",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "training"
+        ],
+        "title": "ReportConsent",
+        "type": "object"
+      },
+      "WasteType": {
+        "description": "Type de déchet ; l'ordre est celui des classes du Modèle (AD-7).",
+        "enum": [
+          "plastic",
+          "metal",
+          "glass",
+          "organic",
+          "mixed"
+        ],
+        "title": "WasteType",
+        "type": "string"
+      },
+      "ReportMeta": {
+        "additionalProperties": false,
+        "description": "Métadonnées d'un Signalement. `captured_at` (heure de l'appareil) est gardée à part\net ne sert jamais à décider : le serveur date la réception par `core.clock`.",
+        "properties": {
+          "client_uuid": {
+            "format": "uuid4",
+            "title": "Client Uuid",
+            "type": "string"
+          },
+          "lat": {
+            "maximum": 90,
+            "minimum": -90,
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "maximum": 180,
+            "minimum": -180,
+            "title": "Lng",
+            "type": "number"
+          },
+          "accuracy_m": {
+            "exclusiveMinimum": 0,
+            "title": "Accuracy M",
+            "type": "number"
+          },
+          "heap_size": {
+            "$ref": "#/components/schemas/HeapSize"
+          },
+          "comment": {
+            "anyOf": [
+              {
+                "maxLength": 280,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Comment"
+          },
+          "waste_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WasteType"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "captured_at": {
+            "format": "date-time",
+            "title": "Captured At",
+            "type": "string"
+          },
+          "consent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReportConsent"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "client_uuid",
+          "lat",
+          "lng",
+          "accuracy_m",
+          "heap_size",
+          "captured_at"
+        ],
+        "title": "ReportMeta",
+        "type": "object"
+      }
+    }
+  }
+}

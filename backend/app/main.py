@@ -17,7 +17,7 @@ import os
 import sys
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import NoReturn
+from typing import Any, NoReturn
 
 from fastapi import FastAPI
 from sqlalchemy import create_engine
@@ -136,4 +136,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(public.router)
     app.include_router(reports_router.router)
+    _post_process_openapi(app)
     return app
+
+
+def _post_process_openapi(app: FastAPI) -> None:
+    """`app.openapi()` complété par `reports.router.document_report_body()` (schéma
+    `ReportMeta` du corps multipart, story 1.13), une fois, puis gardé en cache comme le
+    fait FastAPI. Le traitement des requêtes ne change pas."""
+    generate = app.openapi
+
+    def openapi() -> dict[str, Any]:
+        if app.openapi_schema is None:
+            app.openapi_schema = reports_router.document_report_body(generate())
+        return app.openapi_schema
+
+    app.openapi = openapi  # type: ignore[method-assign]
