@@ -65,11 +65,10 @@ PUBLIC_ROUTES: frozenset[RouteKey] = frozenset(
     }
 )
 
-# Entrées publiques réservées à des stories ultérieures (création de Signalement, carte
-# publique de la story 7.6) : leur route peut ne pas encore exister.
+# Entrées publiques réservées à des stories ultérieures (carte publique de la story 7.6) :
+# leur route peut ne pas encore exister. `POST /v1/reports` existe depuis la story 1.11.
 RESERVED_PUBLIC_ROUTES: frozenset[RouteKey] = frozenset(
     {
-        ("POST", "/v1/reports"),
         ("GET", "/v1/public/map"),
     }
 )

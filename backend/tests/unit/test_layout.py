@@ -20,6 +20,8 @@ CORE_MODULES = [
     "public",
     "geo",
     "storage",
+    "security",
+    "demo",
 ]
 BUSINESS_MODULES = ["auth", "reports", "missions", "lots", "analytics", "ai", "notifications"]
 

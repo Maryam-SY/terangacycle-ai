@@ -19,6 +19,11 @@ class ErrorCode(StrEnum):
     UNSUPPORTED_MEDIA_TYPE = "unsupported_media_type"
     PHOTO_TOO_MANY_PIXELS = "photo_too_many_pixels"
     PHOTO_UNREADABLE = "photo_unreadable"
+    # Identité et Signalement (story 1.11).
+    INVALID_DEVICE_ID = "invalid_device_id"
+    INVALID_TOKEN = "invalid_token"  # noqa: S105 - code d'erreur, pas un secret
+    CONSENT_REQUIRED = "consent_required"
+    OUTSIDE_ACTIVE_ZONE = "outside_active_zone"
 
 
 DEFAULT_MESSAGES: dict[ErrorCode, str] = {
@@ -38,6 +43,15 @@ DEFAULT_MESSAGES: dict[ErrorCode, str] = {
         "Reprenez-la depuis l'application, qui la réduit avant l'envoi."
     ),
     ErrorCode.PHOTO_UNREADABLE: "Cette photo n'a pas pu être lue. Reprenez-la.",
+    ErrorCode.INVALID_DEVICE_ID: (
+        "Cet appareil n'a pas pu être reconnu. Fermez puis rouvrez l'application, puis réessayez."
+    ),
+    ErrorCode.INVALID_TOKEN: "Votre session n'est plus valable. Reconnectez-vous, puis réessayez.",
+    ErrorCode.CONSENT_REQUIRED: (
+        "Pour envoyer un signalement, acceptez d'abord les conditions "
+        "d'utilisation de votre position et de votre photo."
+    ),
+    ErrorCode.OUTSIDE_ACTIVE_ZONE: "TerangaCycle n'est pas encore actif ici.",
 }
 
 

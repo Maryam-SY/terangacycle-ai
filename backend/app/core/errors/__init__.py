@@ -19,6 +19,8 @@ from app.core.logging import get_logger
 
 __all__ = [
     "DomainError",
+    "field_name",
+    "validation_error",
     "ErrorBody",
     "ErrorCode",
     "ErrorResponse",
@@ -109,8 +111,34 @@ async def _http_exception_handler(request: Request, exc: StarletteHTTPException)
     )
 
 
+# Premier segment d'un emplacement d'erreur FastAPI : la partie de la requête, pas un champ.
+_REQUEST_PARTS = {"body", "query", "path", "header", "cookie"}
+
+
+def field_name(location: tuple[Any, ...] | list[Any], prefix: str = "") -> str:
+    """Nom lisible d'un champ fautif (`photo`, `meta.consent.terms`) ; jamais sa valeur."""
+    parts = [str(part) for part in location]
+    if parts and parts[0] in _REQUEST_PARTS:
+        parts = parts[1:]
+    name = ".".join(parts)
+    if prefix:
+        return f"{prefix}.{name}" if name else prefix
+    return name or "requête"
+
+
+def validation_error(fields: list[str]) -> DomainError:
+    """422 `validation_error` dont le message nomme les champs fautifs, sans leurs valeurs."""
+    names = list(dict.fromkeys(fields))  # ordre gardé, sans doublon
+    message = default_message(ErrorCode.VALIDATION_ERROR)
+    if names:
+        message = f"{message} Champs : {', '.join(names)}."
+    return DomainError(ErrorCode.VALIDATION_ERROR, 422, message)
+
+
 async def _validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    return error_response(422, ErrorCode.VALIDATION_ERROR, request_id_of(request))
+    errors = exc.errors() if isinstance(exc, RequestValidationError) else []
+    error = validation_error([field_name(item.get("loc", ())) for item in errors])
+    return error_response(422, error.code, request_id_of(request), error.message)
 
 
 async def _domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:

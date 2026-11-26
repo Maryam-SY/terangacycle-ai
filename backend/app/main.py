@@ -1,8 +1,9 @@
 """Point d'entrée HTTP : application FastAPI.
 
 `create_app()` assemble les briques de `core` : gestionnaires d'erreurs, middleware
-de requête, sondes, `/metrics` et `GET /v1/config`. Les routers des modules
-arrivent avec leurs stories. Une configuration refusée arrête le processus (code 1).
+de requête, sondes, `/metrics` et `GET /v1/config`, puis les routers des modules
+(`reports` : `POST /v1/reports`, story 1.11). Une configuration refusée arrête le
+processus (code 1).
 
 Au démarrage (lifespan), l'API charge la Zone active une fois (`app.state.active_zone`).
 Zone inconnue ou base injoignable : journal `startup_refused` et code de sortie 1.
@@ -32,6 +33,7 @@ from app.core.errors import ErrorResponse, install_error_handlers
 from app.core.geo import ActiveZone, UnknownZoneError, load_active_zone
 from app.core.http import RequestContextMiddleware
 from app.core.logging import configure_logging, get_logger
+from app.modules.reports.router import router as reports_router
 
 log = get_logger(__name__)
 
@@ -125,4 +127,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
     app.include_router(public.router)
+    app.include_router(reports_router)
     return app

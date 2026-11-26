@@ -164,6 +164,11 @@ def test_every_code_has_a_default_message() -> None:
         "unsupported_media_type",
         "photo_too_many_pixels",
         "photo_unreadable",
+        # Story 1.11 : identité et Signalement.
+        "invalid_device_id",
+        "invalid_token",
+        "consent_required",
+        "outside_active_zone",
     }
 
 

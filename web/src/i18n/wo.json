@@ -75,6 +75,10 @@
     "photo_too_large": "Cette photo est trop lourde. Reprenez-la depuis l'application, qui l'allège avant l'envoi.",
     "unsupported_media_type": "Ce fichier n'est pas une photo acceptée. Reprenez la photo avec l'appareil photo de l'application.",
     "photo_too_many_pixels": "Cette photo est trop grande. Reprenez-la depuis l'application, qui la réduit avant l'envoi.",
-    "photo_unreadable": "Cette photo n'a pas pu être lue. Reprenez-la."
+    "photo_unreadable": "Cette photo n'a pas pu être lue. Reprenez-la.",
+    "invalid_device_id": "Cet appareil n'a pas pu être reconnu. Fermez puis rouvrez l'application, puis réessayez.",
+    "invalid_token": "Votre session n'est plus valable. Reconnectez-vous, puis réessayez.",
+    "consent_required": "Pour envoyer un signalement, acceptez d'abord les conditions d'utilisation de votre position et de votre photo.",
+    "outside_active_zone": "TerangaCycle n'est pas encore actif ici."
   }
 }

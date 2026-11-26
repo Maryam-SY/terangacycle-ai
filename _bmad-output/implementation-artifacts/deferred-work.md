@@ -23,3 +23,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-10-stocker-une-photo-sans-metadonnees-dans-le-bucket-prive.md`
   summary: `sprint-status.yaml` garde la story 1.8 en `in-progress` alors que sa spec est `done` et sa PR #12 fusionnée.
   evidence: Relevé en revue de la story 1.10 (B14) ; antérieur à cette story. À passer en `done` au prochain passage de `bmad-sprint-planning`.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11-recevoir-un-signalement-anonyme-et-attribuer-son-numero-de-suivi.md`
+  summary: Miniature de la photo de Signalement (tâche arq `thumb:<photo_id>` par `after_commit`, JPEG ≤ 30 Ko sous `report_thumb/<yyyy>/<mm>/<uuid>.jpg`, `report_photos.thumb_key`, rejeu sans second objet ; test sur 10 photos de 1 Mo), extraite de la story 1.11.
+  evidence: Découpage décidé le 26/11/2026 (action ouverte « redécouper 1.11 ») : la 1.11 livre l'enregistrement du Signalement ; la colonne `thumb_key` nullable est créée par sa migration. À livrer juste après la 1.11.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11-recevoir-un-signalement-anonyme-et-attribuer-son-numero-de-suivi.md`
+  summary: Aucun test automatique d'aller-retour des migrations (upgrade, downgrade, upgrade, liste des tables) ; le downgrade de 0003 n'est vérifié qu'à la main.
+  evidence: Revue de la 1.11 (V, B). Aucun test de migration dans le dépôt, pour 0001 et 0002 non plus : un test commun, en intégration, avec le rôle teranga_migrator.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-11-recevoir-un-signalement-anonyme-et-attribuer-son-numero-de-suivi.md`
+  summary: Limite de taille du corps de `POST /v1/reports` au bord HTTP (Caddy `request_body max_size`), au-dessus de 1 Mo pour la photo plus `meta`.
+  evidence: Revue de la 1.11 (B, E) : python-multipart reçoit toute la partie avant la route ; la lecture bornée ne protège que la mémoire du service. Relève de la story 8.4 (bord HTTP durci).

@@ -45,9 +45,7 @@ EXPECTED_PUBLIC_ROUTES: frozenset[RouteKey] = frozenset(
         ("GET", "/v1/public/map"),
     }
 )
-EXPECTED_RESERVED: frozenset[RouteKey] = frozenset(
-    {("POST", "/v1/reports"), ("GET", "/v1/public/map")}
-)
+EXPECTED_RESERVED: frozenset[RouteKey] = frozenset({("GET", "/v1/public/map")})
 IGNORED_METHODS = {"HEAD", "OPTIONS"}
 CADDYFILE = Path(__file__).resolve().parents[3] / "infra" / "Caddyfile"
 INTERNAL_MATCHER = re.compile(r"^\s*@internal\s+path\s+(.+?)\s*$", re.MULTILINE)
@@ -249,7 +247,6 @@ def test_reserved_public_entries_may_be_absent(make_settings: Callable[..., Sett
     errors = route_table_errors(app, reserved=frozenset())
     assert errors == [
         "GET /v1/public/map : entrée publique orpheline, aucune route de ce nom",
-        "POST /v1/reports : entrée publique orpheline, aucune route de ce nom",
     ]
 
 
