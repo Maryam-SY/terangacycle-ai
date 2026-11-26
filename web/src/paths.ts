@@ -7,4 +7,6 @@ export const PATHS = {
   capture: '/signaler/capture',
   /** Écran 3 : détails (taille du tas, type, commentaire) et envoi. */
   details: '/signaler/details',
+  /** Écran 4 : confirmation et Numéro de suivi. */
+  confirmation: '/signaler/confirmation',
 } as const

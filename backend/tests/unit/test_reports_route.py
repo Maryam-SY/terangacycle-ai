@@ -197,7 +197,9 @@ def test_absent_consent_parses_as_refused() -> None:
 def test_valid_request_reaches_the_service(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
     seen: dict[str, Any] = {}
 
-    def fake_create(principal: Any, report_meta: Any, data: bytes, settings: Any) -> Any:
+    def fake_create(
+        principal: Any, report_meta: Any, data: bytes, settings: Any, **kwargs: Any
+    ) -> Any:
         seen.update(principal=principal, meta=report_meta, size=len(data))
         raise service_error
 
@@ -215,7 +217,9 @@ def test_valid_request_reaches_the_service(app: FastAPI, monkeypatch: pytest.Mon
 def test_photo_is_read_with_a_bounded_size(app: FastAPI, monkeypatch: pytest.MonkeyPatch) -> None:
     sizes: list[int] = []
 
-    def fake_create(principal: Any, report_meta: Any, data: bytes, settings: Any) -> Any:
+    def fake_create(
+        principal: Any, report_meta: Any, data: bytes, settings: Any, **kwargs: Any
+    ) -> Any:
         sizes.append(len(data))
         raise AssertionError
 

@@ -26,7 +26,14 @@ from app.main import create_app
 from app.modules.reports import service
 from tests.asgi import Response
 from tests.photos import encode, noise
-from tests.reports_support import THIES, meta, new_device_id, post_report, small_jpeg
+from tests.reports_support import (
+    THIES,
+    WEBM_VOICE,
+    meta,
+    new_device_id,
+    post_report,
+    small_jpeg,
+)
 from tests.support import sample_active_zone
 
 pytestmark = pytest.mark.integration
@@ -100,7 +107,14 @@ def created(stack: Engine) -> Iterator[list[str]]:
             ),
             {"numbers": numbers},
         ).scalars()
-        for key in list(keys):
+        voices = conn.execute(
+            text(
+                "SELECT voice_key FROM reports WHERE tracking_number = ANY(:numbers) "
+                "AND voice_key IS NOT NULL"
+            ),
+            {"numbers": numbers},
+        ).scalars()
+        for key in [*keys, *voices]:
             client.delete_object(Bucket=bucket, Key=key)
         owners = conn.execute(
             text("SELECT owner_key FROM reports WHERE tracking_number = ANY(:numbers)"),
@@ -404,3 +418,52 @@ def test_same_device_updates_consent_only_on_change(
         # Même choix : date gardée ; choix changé : date du changement.
         expected_consent_at = instants[2] if training else instants[0]
         assert row.consent_at == expected_consent_at
+
+
+# --- Note vocale (story 1.13) -------------------------------------------------------------
+
+
+def test_voice_note_is_stored_with_the_report(
+    make_app: Callable[..., FastAPI], stack: Engine, created: list[str]
+) -> None:
+    body = _ok(post_report(make_app(), voice=WEBM_VOICE), created)
+    with stack.connect() as conn:
+        voice_key = conn.execute(
+            text("SELECT voice_key FROM reports WHERE tracking_number = :n"),
+            {"n": body["tracking_number"]},
+        ).scalar_one()
+    assert re.fullmatch(r"voice/\d{4}/\d{2}/[0-9a-f-]{36}\.webm", voice_key)
+    client, bucket = storage._client_and_bucket()
+    head = client.head_object(Bucket=bucket, Key=voice_key)
+    assert head["ContentType"] == "audio/webm"
+
+
+def test_report_without_voice_has_no_voice_key(
+    make_app: Callable[..., FastAPI], stack: Engine, created: list[str]
+) -> None:
+    body = _ok(post_report(make_app()), created)
+    with stack.connect() as conn:
+        voice_key = conn.execute(
+            text("SELECT voice_key FROM reports WHERE tracking_number = :n"),
+            {"n": body["tracking_number"]},
+        ).scalar_one()
+    assert voice_key is None
+
+
+@pytest.mark.parametrize(
+    ("voice", "status", "code"),
+    [
+        (b"pas un son", 415, "unsupported_voice_type"),
+        (b"OggS" + b"\x00" * 700_000, 413, "voice_too_large"),
+    ],
+    ids=["type", "trop-longue"],
+)
+def test_refused_voice_writes_nothing(
+    make_app: Callable[..., FastAPI], stack: Engine, voice: bytes, status: int, code: str
+) -> None:
+    app = make_app()
+    before = _counts(stack)
+    response = post_report(app, voice=voice)
+    assert response.status == status, response.text
+    assert response.json()["error"]["code"] == code
+    assert _counts(stack) == before

@@ -169,6 +169,9 @@ def test_every_code_has_a_default_message() -> None:
         "invalid_token",
         "consent_required",
         "outside_active_zone",
+        # Story 1.13 : note vocale.
+        "voice_too_large",
+        "unsupported_voice_type",
     }
 
 

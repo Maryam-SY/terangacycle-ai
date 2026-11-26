@@ -45,7 +45,7 @@ class FakeS3:
         self.missing_error: str | None = None
 
     def put_object(self, *, Bucket: str, Key: str, Body: bytes, ContentType: str) -> dict:
-        assert ContentType == "image/jpeg"
+        assert ContentType in ("image/jpeg", "audio/ogg", "audio/webm", "audio/mp4")
         self.calls.append(("put", Key))
         self.objects[Key] = Body
         return {}
@@ -409,3 +409,43 @@ def test_s3_client_is_configured_for_garage() -> None:
         assert config.retries["total_max_attempts"] == 3
     finally:
         storage._s3_client.cache_clear()
+
+
+# --- Note vocale -----------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("data", "expected"),
+    [
+        (b"\x1a\x45\xdf\xa3" + b"\x00" * 8, ("webm", "audio/webm")),
+        (b"OggS" + b"\x00" * 8, ("ogg", "audio/ogg")),
+        (b"\x00\x00\x00\x18ftypM4A " + b"\x00" * 8, ("m4a", "audio/mp4")),
+        (b"RIFF\x00\x00\x00\x00WAVEfmt ", None),
+        (b"", None),
+    ],
+    ids=["webm", "ogg", "mp4", "wav", "vide"],
+)
+def test_sniff_voice(data: bytes, expected: tuple[str, str] | None) -> None:
+    assert storage.sniff_voice(data) == expected
+
+
+def test_voice_checks_happen_before_storage(s3: FakeS3, uow_db: None) -> None:
+    with pytest.raises(DomainError) as too_large, unit_of_work():
+        storage.ingest_voice(b"OggS" + b"\x00" * 600_000)
+    assert (too_large.value.http_status, too_large.value.code.value) == (413, "voice_too_large")
+    with pytest.raises(DomainError) as wrong_type, unit_of_work():
+        storage.ingest_voice(b"pas un son")
+    assert wrong_type.value.http_status == 415
+    assert s3.calls == []
+
+
+def test_voice_is_stored_and_removed_on_rollback(
+    s3: FakeS3, uow_db: None, frozen_now: datetime
+) -> None:
+    voice_id = uuid.uuid4()
+    with pytest.raises(Boom), unit_of_work():
+        stored = storage.ingest_voice(b"OggS" + b"\x00" * 100, voice_id)
+        assert stored.object_key == f"voice/2026/11/{voice_id}.ogg"
+        assert stored.content_type == "audio/ogg"
+        raise Boom
+    assert [call[0] for call in s3.calls] == ["put", "delete"]

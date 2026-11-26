@@ -43,7 +43,11 @@ def is_imprecise(accuracy_m: float, threshold_m: int) -> bool:
 
 @transactional
 def create(
-    principal: Principal, meta: ReportMeta, photo: bytes, settings: Settings
+    principal: Principal,
+    meta: ReportMeta,
+    photo: bytes,
+    settings: Settings,
+    voice: bytes | None = None,
 ) -> CreatedReport:
     """Enregistre un Signalement `pending_review` et renvoie son Numéro de suivi."""
     if not meta.consent.terms:
@@ -59,6 +63,8 @@ def create(
     report_id = uuid.uuid4()
     photo_id = uuid.uuid4()
     stored = storage.ingest_photo(PhotoKind.REPORT, photo, photo_id=photo_id)
+    # Note vocale facultative, rangée seulement si tout le reste est accepté.
+    voice_key = storage.ingest_voice(voice, report_id).object_key if voice else None
 
     received_at = now()
     number = tracking_number(received_at.year, repository.next_tracking_n(received_at.year))
@@ -84,6 +90,7 @@ def create(
             training_consent=meta.consent.training,
             is_demo=is_demo,
             flag_imprecise_position=is_imprecise(meta.accuracy_m, settings.report_accuracy_flag_m),
+            voice_key=voice_key,
         )
     )
     repository.insert_photo(

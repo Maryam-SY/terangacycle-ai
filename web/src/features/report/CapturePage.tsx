@@ -240,7 +240,7 @@ function CaptureScreen() {
       const jpeg = await preparePhoto(file, browserCodec)
       setPhoto({
         stage: 'preview',
-        draft: { photo: jpeg, ...at, capturedAt },
+        draft: { clientUuid: crypto.randomUUID(), photo: jpeg, ...at, capturedAt },
         url: URL.createObjectURL(jpeg),
       })
     } catch {

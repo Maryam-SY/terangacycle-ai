@@ -92,9 +92,64 @@
     "invalid_device_id": "Cet appareil n'a pas pu être reconnu. Fermez puis rouvrez l'application, puis réessayez.",
     "invalid_token": "Votre session n'est plus valable. Reconnectez-vous, puis réessayez.",
     "consent_required": "Pour envoyer un signalement, acceptez d'abord les conditions d'utilisation de votre position et de votre photo.",
-    "outside_active_zone": "TerangaCycle n'est pas encore actif ici."
+    "outside_active_zone": "TerangaCycle n'est pas encore actif ici.",
+    "voice_too_large": "Votre message vocal est trop long. Réenregistrez-le en moins de 30 secondes.",
+    "unsupported_voice_type": "Ce message vocal n'a pas pu être lu. Réenregistrez-le."
   },
   "details": {
-    "title": "Décrire le dépôt"
+    "title": "Décrire le dépôt",
+    "optional": "(facultatif)",
+    "pileSize": {
+      "label": "Taille du tas",
+      "small": "Petit",
+      "medium": "Moyen",
+      "large": "Grand"
+    },
+    "wasteType": {
+      "label": "Type de déchet"
+    },
+    "describe": {
+      "label": "Description",
+      "placeholder": "Écrivez ici…",
+      "hint": "Écrivez, ou touchez le micro pour parler en wolof ou en français. Ne dites ni nom ni numéro de téléphone.",
+      "record": "Parler pour décrire le dépôt",
+      "stop": "Arrêter l'enregistrement",
+      "recording": "Enregistrement… {{elapsed}} / {{max}}",
+      "listen": "Écouter votre message vocal",
+      "deleteVoice": "Effacer le message vocal",
+      "micDenied": "Le micro n'est pas autorisé. Autorisez-le pour ce site dans les réglages du navigateur, ou écrivez votre description."
+    },
+    "missingPileSize": "Choisissez la taille du tas pour pouvoir envoyer.",
+    "send": "Envoyer le signalement",
+    "sending": "Envoi en cours…",
+    "retry": "Réessayer",
+    "errors": {
+      "network": "Envoi impossible pour l'instant. Votre saisie est gardée, réessayez.",
+      "photo": "La photo n'a pas pu être acceptée. Reprenez-la, puis renvoyez le signalement.",
+      "backToCapture": "Revenir à la photo"
+    }
+  },
+  "waste": {
+    "plastic": "Plastique",
+    "metal": "Métal",
+    "glass": "Verre",
+    "organic": "Organique",
+    "mixed": "Mixte"
+  },
+  "confirmation": {
+    "title": "Merci ! Votre signalement est bien arrivé.",
+    "trackingLabel": "Votre numéro de suivi",
+    "timeline": "Suivi de votre signalement",
+    "current": "Étape actuelle",
+    "steps": {
+      "reported": "Signalé",
+      "validated": "Validé par la modération",
+      "assigned": "Assigné à un collecteur",
+      "collected": "Collecté, preuve photo"
+    },
+    "home": "Retour à l'accueil"
+  },
+  "demo": {
+    "label": "Données de démonstration"
   }
 }

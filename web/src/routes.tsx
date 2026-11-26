@@ -4,6 +4,7 @@ import { ConsentPage } from './features/consent/ConsentPage.tsx'
 import { HomePage } from './features/home/HomePage.tsx'
 import { NotFoundPage } from './features/not-found/NotFoundPage.tsx'
 import { CapturePage } from './features/report/CapturePage.tsx'
+import { ConfirmationPage } from './features/report/ConfirmationPage.tsx'
 import { DetailsPage } from './features/report/DetailsPage.tsx'
 import { ReportEntry } from './features/report/ReportEntry.tsx'
 import { PATHS } from './paths.ts'
@@ -16,5 +17,6 @@ export const routes: RouteObject[] = [
   { path: PATHS.consent, element: <ConsentPage /> },
   { path: PATHS.capture, element: <CapturePage /> },
   { path: PATHS.details, element: <DetailsPage /> },
+  { path: PATHS.confirmation, element: <ConfirmationPage /> },
   { path: '*', element: <NotFoundPage /> },
 ]

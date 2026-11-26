@@ -74,6 +74,7 @@ def post_report(
     photo: bytes | None = b"",
     device_id: str | None = "",
     extra_headers: dict[str, str] | None = None,
+    voice: bytes | None = None,
 ) -> Response:
     """`POST /v1/reports`. Par défaut, tout est valide. `meta_value=None` ou `photo=None`
     omettent la partie ; `device_id=None` omet l'en-tête."""
@@ -85,8 +86,15 @@ def post_report(
     files: dict[str, tuple[str, bytes, str]] = {}
     if photo is not None:
         files["photo"] = ("depot.jpg", photo or small_jpeg(), "image/jpeg")
+    if voice is not None:
+        files["voice"] = ("note.webm", voice, "audio/webm")
     headers = {"content-type": f"multipart/form-data; boundary={BOUNDARY}"}
     if device_id is not None:
         headers["x-device-id"] = device_id or new_device_id()
     headers.update(extra_headers or {})
     return request(app, "POST", "/v1/reports", body=multipart(fields, files), headers=headers)
+
+
+# En-tête EBML d'un conteneur WebM, suivi d'octets quelconques : assez pour le serveur, qui
+# ne décode pas l'audio.
+WEBM_VOICE = b"\x1a\x45\xdf\xa3" + b"\x00" * 2_000

@@ -2,7 +2,11 @@
 // envoi, story 1.13). Gardé en mémoire seulement : un rechargement le perd, le Citoyen
 // reprend la photo. La file hors-ligne (epic 6) gardera les Signalements à envoyer.
 
+import type { ReportCreated } from '../../api/reports.ts'
+
 export interface ReportDraft {
+  /** Identifiant client (UUID v4), attribué à la création du brouillon, gardé pour tout renvoi. */
+  clientUuid: string
   /** Octets exacts qui seront envoyés : JPEG ≤ 300 Ko, sans métadonnées. */
   photo: Blob
   lat: number
@@ -25,4 +29,19 @@ export function getDraft(): ReportDraft | null {
 
 export function clearDraft(): void {
   current = null
+}
+
+// Dernier Signalement accepté, pour l'écran 4 · Confirmation.
+let lastReport: ReportCreated | null = null
+
+export function setLastReport(report: ReportCreated): void {
+  lastReport = report
+}
+
+export function getLastReport(): ReportCreated | null {
+  return lastReport
+}
+
+export function clearLastReport(): void {
+  lastReport = null
 }

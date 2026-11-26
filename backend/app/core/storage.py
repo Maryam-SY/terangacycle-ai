@@ -246,6 +246,59 @@ def ingest_photo(
     return StoredPhoto(photo_id=photo_id, object_key=key, sha256=digest, width=width, height=height)
 
 
+# --- Note vocale ----------------------------------------------------------------------
+
+# 30 s en Opus à 32 kbit/s font environ 120 Ko : 600 Ko laisse la marge des encodeurs.
+MAX_VOICE_BYTES = 600_000
+VOICE_KIND = "voice"
+
+
+@dataclass(frozen=True)
+class StoredVoice:
+    object_key: str
+    sha256: str
+    size: int
+    content_type: str
+
+
+def sniff_voice(data: bytes) -> tuple[str, str] | None:
+    """(extension, type MIME) lus dans les octets : WebM, Ogg ou MP4 ; sinon None."""
+    if data.startswith(b"\x1a\x45\xdf\xa3"):
+        return "webm", "audio/webm"
+    if data.startswith(b"OggS"):
+        return "ogg", "audio/ogg"
+    if len(data) >= 12 and data[4:8] == b"ftyp":
+        return "m4a", "audio/mp4"
+    return None
+
+
+def ingest_voice(data: bytes, voice_id: uuid.UUID | None = None) -> StoredVoice:
+    """Contrôle et range une note vocale dans le bucket privé (dans une unité de travail).
+
+    Refus avant toute écriture : plus de 600 Ko → 413 `voice_too_large` ; ni WebM, ni Ogg,
+    ni MP4 d'après les octets → 415 `unsupported_voice_type`. L'audio n'est pas
+    ré-encodé : ces conteneurs ne portent ni position ni identité de l'appareil.
+    """
+    current_session()
+    if len(data) > MAX_VOICE_BYTES:
+        raise DomainError(ErrorCode.VOICE_TOO_LARGE, 413)
+    sniffed = sniff_voice(data)
+    if sniffed is None:
+        raise DomainError(ErrorCode.UNSUPPORTED_VOICE_TYPE, 415)
+    extension, content_type = sniffed
+    at = now()
+    key = f"{VOICE_KIND}/{at:%Y}/{at:%m}/{voice_id or uuid.uuid4()}.{extension}"
+    client, bucket = _client_and_bucket()
+    after_rollback(_off_loop, _delete, key)
+    client.put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)
+    return StoredVoice(
+        object_key=key,
+        sha256=hashlib.sha256(data).hexdigest(),
+        size=len(data),
+        content_type=content_type,
+    )
+
+
 def purge(object_keys: Iterable[str]) -> None:
     """Supprime ces objets après le commit de l'unité de travail en cours, jamais avant."""
     current_session()

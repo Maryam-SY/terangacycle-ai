@@ -24,6 +24,9 @@ class ErrorCode(StrEnum):
     INVALID_TOKEN = "invalid_token"  # noqa: S105 - code d'erreur, pas un secret
     CONSENT_REQUIRED = "consent_required"
     OUTSIDE_ACTIVE_ZONE = "outside_active_zone"
+    # Note vocale (story 1.13).
+    VOICE_TOO_LARGE = "voice_too_large"
+    UNSUPPORTED_VOICE_TYPE = "unsupported_voice_type"
 
 
 DEFAULT_MESSAGES: dict[ErrorCode, str] = {
@@ -52,6 +55,10 @@ DEFAULT_MESSAGES: dict[ErrorCode, str] = {
         "d'utilisation de votre position et de votre photo."
     ),
     ErrorCode.OUTSIDE_ACTIVE_ZONE: "TerangaCycle n'est pas encore actif ici.",
+    ErrorCode.VOICE_TOO_LARGE: (
+        "Votre message vocal est trop long. Réenregistrez-le en moins de 30 secondes."
+    ),
+    ErrorCode.UNSUPPORTED_VOICE_TYPE: "Ce message vocal n'a pas pu être lu. Réenregistrez-le.",
 }
 
 

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-24-2026 09:00
-last_updated: 11-26-2026 12:00
+last_updated: 11-26-2026 12:35
 project: TerangaCycleAI
 project_key: NOKEY
 tracking_system: file-system
@@ -48,7 +48,7 @@ development_status:
   1-10-stocker-une-photo-sans-métadonnées-dans-le-bucket-privé: review
   1-11-recevoir-un-signalement-anonyme-et-attribuer-son-numéro-de-s: review
   1-12-renvoyer-un-signalement-sans-doublon-ni-fuite: backlog
-  1-13-compléter-envoyer-et-voir-la-confirmation: backlog
+  1-13-compléter-envoyer-et-voir-la-confirmation: review
   1-14-repérer-les-doublons-probables-à-la-réception: backlog
   1-15-limiter-les-abus-de-signalement: backlog
   1-16-retirer-son-consentement-au-réentraînement: backlog

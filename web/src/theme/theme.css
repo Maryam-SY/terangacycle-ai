@@ -18,4 +18,12 @@
   --color-warning-ink: #7A5C00;
   --color-warning-bg: #FFF4CC;
   --color-danger: #D9482B;
+
+  /* Types de déchet : jetons provisoires (story 1.13), définitifs avec la story 8.1.
+     Éléments non textuels (pictogrammes) : 3:1 face au fond, vérifié par contrast.test. */
+  --color-waste-plastic: #1D6FB8;
+  --color-waste-metal: #B5391F;
+  --color-waste-glass: #0F7C6B;
+  --color-waste-organic: #5B7A1E;
+  --color-waste-mixed: #6D4C9F;
 }

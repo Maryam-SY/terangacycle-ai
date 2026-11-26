@@ -35,3 +35,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-11-recevoir-un-signalement-anonyme-et-attribuer-son-numero-de-suivi.md`
   summary: Limite de taille du corps de `POST /v1/reports` au bord HTTP (Caddy `request_body max_size`), au-dessus de 1 Mo pour la photo plus `meta`.
   evidence: Revue de la 1.11 (B, E) : python-multipart reçoit toute la partie avant la route ; la lecture bornée ne protège que la mémoire du service. Relève de la story 8.4 (bord HTTP durci).
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-13-completer-envoyer-et-voir-la-confirmation.md`
+  summary: Client API généré depuis l'OpenAPI (`backend/scripts/export_openapi.py`, `openapi-typescript`, instance `openapi-fetch`), versionné et vérifié en CI, à la place du client écrit à la main `web/src/api/reports.ts`.
+  evidence: Reporté le 26/11/2026 (mode allégé pour la démo de 14 h). Le contrat est couvert par les tests d'intégration du serveur et par `reports.test.ts`.

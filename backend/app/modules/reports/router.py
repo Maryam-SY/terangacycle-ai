@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from app.core.db import UowSession
 from app.core.errors import ErrorResponse, field_name, validation_error
 from app.core.security import CurrentPrincipal
-from app.core.storage import MAX_PHOTO_BYTES
+from app.core.storage import MAX_PHOTO_BYTES, MAX_VOICE_BYTES
 from app.modules.reports import service
 from app.modules.reports.schemas import ReportCreated, ReportMeta
 
@@ -52,6 +52,10 @@ def create_report(
     session: UowSession,
     meta: Annotated[str, Form(description="ReportMeta en JSON")],
     photo: Annotated[UploadFile, File(description="Photo JPEG, PNG ou WebP, 1 Mo au plus")],
+    voice: Annotated[
+        UploadFile | None,
+        File(description="Note vocale facultative (WebM, Ogg ou MP4), 600 Ko au plus"),
+    ] = None,
 ) -> ReportCreated:
     """Crée un Signalement anonyme et renvoie son Numéro de suivi."""
     report_meta = parse_meta(meta)
@@ -59,7 +63,10 @@ def create_report(
     # python-multipart a déjà reçu la partie (sur disque au-delà de son seuil) : la
     # limite de taille du corps relève du bord HTTP (Caddy, story 8.4).
     data = photo.file.read(MAX_PHOTO_BYTES + 1)
-    created = service.create(principal, report_meta, data, request.app.state.settings)
+    voice_data = voice.file.read(MAX_VOICE_BYTES + 1) if voice is not None else None
+    created = service.create(
+        principal, report_meta, data, request.app.state.settings, voice=voice_data or None
+    )
     return ReportCreated(
         id=created.id,
         tracking_number=created.tracking_number,

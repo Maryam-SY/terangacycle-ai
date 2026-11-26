@@ -24,12 +24,12 @@ _INSERT_REPORT = text(
     INSERT INTO reports (
         id, tracking_number, owner_key, client_uuid, geog, accuracy_m, client_captured_at,
         pile_size, comment, citizen_type, zone_id, status, received_at, training_consent,
-        is_demo, flag_imprecise_position
+        is_demo, flag_imprecise_position, voice_key
     ) VALUES (
         :id, :tracking_number, :owner_key, :client_uuid,
         ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography, :accuracy_m,
         :client_captured_at, :pile_size, :comment, :citizen_type, :zone_id, :status,
-        :received_at, :training_consent, :is_demo, :flag_imprecise_position
+        :received_at, :training_consent, :is_demo, :flag_imprecise_position, :voice_key
     )
     """
 )
@@ -61,6 +61,7 @@ class NewReport:
     training_consent: bool
     is_demo: bool
     flag_imprecise_position: bool
+    voice_key: str | None = None
 
 
 @dataclass(frozen=True)

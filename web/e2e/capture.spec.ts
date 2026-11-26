@@ -40,7 +40,18 @@ interface Texts {
     photo: { unreadable: string }
     preview: { alt: string; continue: string; retake: string }
   }
-  details: { title: string }
+  details: {
+    title: string
+    send: string
+    missingPileSize: string
+    pileSize: { medium: string }
+    describe: { placeholder: string; record: string }
+    errors: { network: string }
+  }
+  waste: { plastic: string }
+  confirmation: { title: string; home: string; steps: { reported: string } }
+  demo: { label: string }
+  errors: { outside_active_zone: string }
 }
 
 const fr = JSON.parse(
@@ -208,17 +219,27 @@ const test = base.extend<{ capture: Capture }>({
       )
       expect(leaked).toEqual([])
 
-      // Rien d'autre ne quitte la page que la coquille (même origine, GET) et
-      // GET /v1/config : ni Position envoyée, ni autre route de l'API, ni autre site.
+      // Rien d'autre ne quitte la page que la coquille (même origine, GET), GET /v1/config
+      // et, depuis la story 1.13, l'envoi du Signalement (POST /v1/reports, qui porte la
+      // Position par construction) : ni autre route de l'API, ni autre site.
+      const isReportSend = ({ method, url }: { method: string; url: string }) => {
+        const target = new URL(url)
+        return target.origin === APP_ORIGIN && method === 'POST' && target.pathname === '/v1/reports'
+      }
       const unexpected = outgoing.filter(({ method, url }) => {
         const target = new URL(url)
         if (target.protocol === 'data:' || target.protocol === 'blob:') return false
+        if (isReportSend({ method, url })) return false
         if (target.origin !== APP_ORIGIN || method !== 'GET') return true
         return target.pathname.startsWith('/v1/') && target.pathname !== '/v1/config'
       })
       expect(unexpected).toEqual([])
-      const withCoordinates = outgoing.filter(({ url, body }) =>
-        COORDINATE_TEXTS.some((coordinate) => url.includes(coordinate) || body.includes(coordinate)),
+      const withCoordinates = outgoing.filter(
+        (request) =>
+          !isReportSend(request) &&
+          COORDINATE_TEXTS.some(
+            (coordinate) => request.url.includes(coordinate) || request.body.includes(coordinate),
+          ),
       )
       expect(withCoordinates).toEqual([])
     },
@@ -526,3 +547,104 @@ test('quitter l’écran arrête le suivi de la Position', async ({ page }) => {
   await page.getByRole('link', { name: /accueil/i }).click()
   await expect.poll(() => page.evaluate(() => window.__geo?.watchers() ?? -1)).toBe(0)
 })
+
+// Story 1.13 : écran 3 (taille du tas, type, description écrite ou vocale), envoi, écran 4.
+async function reachDetails(page: Page) {
+  await openCapture(page)
+  await emit(page, PLATEAU, 12)
+  const chooser = page.waitForEvent('filechooser')
+  await trigger(page).click()
+  await (await chooser).setFiles(PHOTO)
+  await page.getByRole('button', { name: fr.capture.preview.continue }).click()
+  await expect(page.getByRole('heading', { name: fr.details.title })).toBeVisible()
+}
+
+test('écran 3 puis 4 : taille du tas exigée, envoi, numéro de suivi et frise', async ({ page }) => {
+  const sent: { meta?: Record<string, unknown>; deviceId?: string | null } = {}
+  await page.route('**/v1/reports', async (route: Route) => {
+    const request = route.request()
+    const body = request.postDataBuffer()?.toString('utf8') ?? ''
+    const meta = /name="meta"\r\n\r\n(\{.*?\})\r\n/s.exec(body)?.[1]
+    sent.meta = meta ? (JSON.parse(meta) as Record<string, unknown>) : undefined
+    sent.deviceId = request.headers()['x-device-id'] ?? null
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: '7f3c2a9e-1b64-4c0e-9a55-2d1f0c8e4a10',
+        tracking_number: 'TC-2026-004217',
+        status: 'pending_review',
+        received_at: '2026-11-26T09:30:01Z',
+        is_demo: true,
+      }),
+    })
+  })
+  await reachDetails(page)
+
+  // Sans taille du tas : envoi impossible, raison annoncée.
+  const send = page.getByRole('button', { name: fr.details.send })
+  await expect(send).toBeDisabled()
+  await expect(send).toHaveAccessibleDescription(fr.details.missingPileSize)
+  // Le micro est proposé tant que rien n'est écrit, comme dans WhatsApp.
+  await expect(page.getByRole('button', { name: fr.details.describe.record })).toBeVisible()
+  await page.getByPlaceholder(fr.details.describe.placeholder).fill('Près du marché')
+  await expect(page.getByRole('button', { name: fr.details.describe.record })).toHaveCount(0)
+
+  await page.getByRole('button', { name: fr.details.pileSize.medium }).click()
+  await page.getByRole('button', { name: fr.waste.plastic }).click()
+  await expect(page.getByRole('button', { name: fr.waste.plastic })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await expectNoSeriousViolations(page)
+  await send.click()
+
+  await expect(page).toHaveURL(/\/signaler\/confirmation$/)
+  await expect(page.getByText('TC-2026-004217')).toBeVisible()
+  await expect(page.getByText(fr.demo.label)).toBeVisible()
+  await expect(page.locator('[aria-current="step"]')).toContainText(fr.confirmation.steps.reported)
+  await expectNoSeriousViolations(page)
+
+  expect(sent.deviceId).toMatch(/^[A-Za-z0-9_-]{43}$/)
+  expect(sent.meta).toMatchObject({
+    pile_size: 'medium',
+    waste_type: 'plastic',
+    comment: 'Près du marché',
+    consent: { terms: true, training: false },
+  })
+  expect(String(sent.meta?.client_uuid)).toMatch(/^[0-9a-f-]{36}$/)
+
+  await page.getByRole('button', { name: fr.confirmation.home }).click()
+  await expect(page).toHaveURL(/\/$/)
+})
+
+test('écran 3 : hors Zone ou réseau en panne, message et saisie gardée', async ({ page }) => {
+  let answer: 'zone' | 'down' = 'zone'
+  await page.route('**/v1/reports', async (route: Route) => {
+    if (answer === 'zone') {
+      await route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: { code: 'outside_active_zone', message: 'x', request_id: 'r' },
+        }),
+      })
+    } else {
+      await route.abort('internetdisconnected')
+    }
+  })
+  await reachDetails(page)
+  await page.getByRole('button', { name: fr.details.pileSize.medium }).click()
+  await page.getByRole('button', { name: fr.details.send }).click()
+  await expect(page.getByText(fr.errors.outside_active_zone)).toBeVisible()
+
+  answer = 'down'
+  await page.getByRole('button', { name: fr.details.send }).click()
+  await expect(page.getByText(fr.details.errors.network)).toBeVisible()
+  // Saisie gardée : la taille choisie reste sélectionnée.
+  await expect(page.getByRole('button', { name: fr.details.pileSize.medium })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+})
+
