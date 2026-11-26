@@ -10,31 +10,66 @@ file pleine, alors que la boucle prouve que le processus lui-même est vivant.
 
 Healthcheck : `python -m app.worker healthcheck` (code 0 si le battement est frais).
 
-Les tâches métier et les `cron_jobs` arrivent avec leurs stories.
+Tâches métier : `thumb` (miniature d'une photo de Signalement, story 1.18), mise en file
+par `reports.service` après le commit (`core.jobs`), d'identifiant `thumb:<photo_id>`. La
+tâche délègue à `reports.service.make_thumbnail` dans le pool de threads ; stockage
+indisponible : nouvel essai (`arq.Retry`) après un délai qui double, au plus
+`THUMB_MAX_TRIES` essais, puis échec journalisé (`thumb_failed`). Les `cron_jobs`
+arrivent avec leurs stories.
 """
 
 import asyncio
 import contextlib
 import sys
 from typing import Any, ClassVar
+from uuid import UUID
 
+from arq import Retry
 from arq.connections import RedisSettings
+from arq.worker import func
 from redis.asyncio import Redis
 
 from app.core.clock import now
 from app.core.config import load_settings_or_exit
+from app.core.errors import DomainError, ErrorCode
 from app.core.health import HEARTBEAT_KEY, heartbeat_is_fresh
 from app.core.logging import configure_logging, get_logger
+from app.modules.reports import service as reports_service
 
 log = get_logger(__name__)
 
 HEARTBEAT_INTERVAL_S = 15
 HEARTBEAT_TTL_S = 90
+# Miniature : essais au plus (le premier compris), et délai avant le deuxième essai, qui
+# double ensuite (5, 10, 20, 40 s).
+THUMB_MAX_TRIES = 5
+THUMB_RETRY_BASE_S = 5.0
 
 
 async def noop(ctx: dict[str, Any]) -> None:
     """Tâche vide, sans effet."""
     log.info("noop")
+
+
+async def thumb(ctx: dict[str, Any], photo_id: str) -> None:
+    """Miniature de la photo `photo_id` (`reports.service.make_thumbnail`, pool de threads).
+
+    Stockage indisponible : `Retry` après un délai croissant, jusqu'au `THUMB_MAX_TRIES`e
+    essai, qui échoue (journal `thumb_failed`). Les journaux ne portent que `photo_id`.
+    """
+    job_try = int(ctx.get("job_try", 1))
+    try:
+        await asyncio.to_thread(reports_service.make_thumbnail, UUID(photo_id))
+    except DomainError as exc:
+        if exc.code is not ErrorCode.STORAGE_UNAVAILABLE:
+            raise
+        if job_try >= THUMB_MAX_TRIES:
+            log.error("thumb_failed", photo_id=photo_id, job_try=job_try)
+            # Exception simple : arq conserve le résultat sérialisé (pickle) de la tâche.
+            raise RuntimeError(f"{exc.code.value} après {job_try} essais") from exc
+        defer_s = THUMB_RETRY_BASE_S * 2 ** (job_try - 1)
+        log.warning("thumb_retry", photo_id=photo_id, job_try=job_try, defer_s=defer_s)
+        raise Retry(defer=defer_s) from exc
 
 
 async def write_heartbeat(redis: Redis) -> None:
@@ -70,7 +105,10 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
-    functions: ClassVar[list] = [noop]
+    functions: ClassVar[list] = [
+        noop,
+        func(thumb, name=reports_service.THUMB_JOB, max_tries=THUMB_MAX_TRIES),
+    ]
     # Tâches planifiées de l'épine (AD-18), ajoutées par leurs stories.
     cron_jobs: ClassVar[list] = []
     on_startup = startup

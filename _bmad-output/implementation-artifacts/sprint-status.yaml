@@ -55,7 +55,7 @@ development_status:
   1-15-limiter-les-abus-de-signalement: backlog
   1-16-retirer-son-consentement-au-réentraînement: backlog
   1-17-charger-et-retirer-les-données-de-démonstration-en-une-comma: backlog
-  1-18-produire-la-miniature-d-une-photo-de-signalement: backlog   # sortie de 1.11 le 25/11/2026
+  1-18-produire-la-miniature-d-une-photo-de-signalement: in-review   # sortie de 1.11 le 25/11/2026
   epic-1-retrospective: optional
 
   epic-2: backlog   # P1 · Comptes, organisations, accès et journal d'audit

@@ -124,7 +124,7 @@ En `ENV=demo` ou `prod`, l'API et le worker refusent de démarrer si un secret d
 
 Les deux scripts se connectent à `127.0.0.1` en HTTPS avec `APP_HOST` et `HTTPS_PORT` (environnement, sinon `.env`).
 
-Si les ports 80, 443, 5432 ou 3900 sont déjà pris sur la machine, changer `HTTP_PORT`, `HTTPS_PORT`, `DB_LOCAL_PORT` et `GARAGE_LOCAL_PORT` dans `.env`.
+Si les ports 80, 443, 5432, 3900 ou 6379 sont déjà pris sur la machine, changer `HTTP_PORT`, `HTTPS_PORT`, `DB_LOCAL_PORT`, `GARAGE_LOCAL_PORT` et `VALKEY_LOCAL_PORT` dans `.env`.
 
 | Service | Rôle |
 |---|---|
@@ -133,7 +133,7 @@ Si les ports 80, 443, 5432 ou 3900 sont déjà pris sur la machine, changer `HTT
 | `worker` | Worker arq, même image que l'API |
 | `migrate` | `alembic upgrade head` avec le rôle `teranga_migrator`, puis s'arrête ; `api` et `worker` attendent sa réussite |
 | `db` | PostgreSQL 16 + PostGIS, port publié sur `127.0.0.1` seulement |
-| `valkey` | Valkey en AOF (file arq, limites de débit) |
+| `valkey` | Valkey en AOF (file arq, limites de débit), port publié sur `127.0.0.1` seulement (`VALKEY_LOCAL_PORT`) |
 | `garage` | Stockage objet S3, un nœud, bucket privé par défaut ; API S3 publiée sur `127.0.0.1` seulement (`GARAGE_LOCAL_PORT`) |
 
 Les rôles `teranga_migrator` et `teranga_app` sont créés par `infra/db/initdb/20-roles.sh` à la création du volume de la base. Après un changement de secret de base, recréer les volumes : `docker compose --profile demo down -v`.
@@ -146,7 +146,9 @@ uv run ruff check .
 uv run pytest tests/unit
 ```
 
-Tests d'intégration, pile démarrée : mots de passe dans `.env.secrets/`, ports `DB_LOCAL_PORT` (5432 par défaut) et `GARAGE_LOCAL_PORT` (3900 par défaut) et bucket `S3_BUCKET` du `.env`.
+Tests d'intégration, pile démarrée : mots de passe dans `.env.secrets/`, ports `DB_LOCAL_PORT` (5432 par défaut), `GARAGE_LOCAL_PORT` (3900 par défaut) et `VALKEY_LOCAL_PORT` (6379 par défaut) et bucket `S3_BUCKET` du `.env`.
+
+Les tests de la miniature (story 1.18) mettent des tâches `thumb` en file dans `TEST_VALKEY_URL` et attendent que le worker de la pile les exécute (30 s au plus) : ce worker doit tourner sur le code testé (pile reconstruite, `--build`). Sinon, pointer `TEST_VALKEY_URL` vers une autre base Valkey (`/1`) et y lancer un worker depuis `backend/` avec les mêmes réglages que les tests (`VALKEY_URL`, `DATABASE_URL`, `S3_*`) : `uv run arq app.worker.WorkerSettings`.
 
 ```bash
 # bash
@@ -160,6 +162,9 @@ export TEST_S3_ENDPOINT="http://127.0.0.1:${GARAGE_LOCAL_PORT}"
 export TEST_S3_BUCKET="${S3_BUCKET}"
 export TEST_S3_ACCESS_KEY_ID="$(cat ../.env.secrets/s3_access_key_id)"
 export TEST_S3_SECRET_ACCESS_KEY="$(cat ../.env.secrets/s3_secret_access_key)"
+# Valkey (file arq de la miniature) : publié sur 127.0.0.1:VALKEY_LOCAL_PORT.
+VALKEY_LOCAL_PORT="$(sed -n 's/^VALKEY_LOCAL_PORT=//p' ../.env)"; VALKEY_LOCAL_PORT="${VALKEY_LOCAL_PORT:-6379}"
+export TEST_VALKEY_URL="redis://127.0.0.1:${VALKEY_LOCAL_PORT}/0"
 uv run pytest tests/integration
 ```
 
@@ -179,6 +184,9 @@ $env:TEST_S3_ENDPOINT = "http://127.0.0.1:${s3Port}"
 $env:TEST_S3_BUCKET = $bucket
 $env:TEST_S3_ACCESS_KEY_ID = (Get-Content ..\.env.secrets\s3_access_key_id -Raw).Trim()
 $env:TEST_S3_SECRET_ACCESS_KEY = (Get-Content ..\.env.secrets\s3_secret_access_key -Raw).Trim()
+$valkeyPort = (Select-String -Path ..\.env -Pattern '^VALKEY_LOCAL_PORT=(.+)$').Matches.Groups[1].Value
+if (-not $valkeyPort) { $valkeyPort = '6379' }
+$env:TEST_VALKEY_URL = "redis://127.0.0.1:${valkeyPort}/0"
 uv run pytest tests/integration
 ```
 
@@ -214,7 +222,7 @@ Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tourne sur ch
 
 Dans le web, `fetch` est interdit hors de `web/src/api/` et `web/src/offline/` (règle `no-restricted-globals` d'oxlint, `web/.oxlintrc.json`).
 
-**Tests d'intégration obligatoires.** Avec `REQUIRE_INTEGRATION=1` (posé par la CI), un test marqué `integration` qui serait ignoré faute de `TEST_APP_DATABASE_URL`, `TEST_MIGRATOR_DATABASE_URL` ou des variables `TEST_S3_*` (Garage) échoue. Sans la variable, il est ignoré comme avant.
+**Tests d'intégration obligatoires.** Avec `REQUIRE_INTEGRATION=1` (posé par la CI), un test marqué `integration` qui serait ignoré faute de `TEST_APP_DATABASE_URL`, `TEST_MIGRATOR_DATABASE_URL`, des variables `TEST_S3_*` (Garage) ou de `TEST_VALKEY_URL` (Valkey) échoue. Sans la variable, il est ignoré comme avant.
 
 **Reproduire la CI en local**, depuis la racine du dépôt :
 

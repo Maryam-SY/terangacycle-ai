@@ -323,7 +323,11 @@ def test_ingest_and_purge_refuse_to_run_outside_a_unit_of_work(bucket: FakeBucke
     assert bucket.objects == {} and bucket.deleted == []
 
 
-@pytest.mark.parametrize("kind", list(PhotoKind))
+# Natures reçues d'un client : une miniature est dérivée, jamais reçue (story 1.18).
+RECEIVED_KINDS = [kind for kind in PhotoKind if kind is not PhotoKind.REPORT_THUMB]
+
+
+@pytest.mark.parametrize("kind", RECEIVED_KINDS)
 def test_ingest_stores_under_kind_year_month_uuid(
     bucket: FakeBucket, uow: None, fixed_clock: datetime, kind: PhotoKind
 ) -> None:
@@ -349,6 +353,21 @@ def test_key_is_dated_by_the_given_instant_not_the_clock(
     # Instant d'un autre fuseau : année et mois UTC.
     paris = datetime(2031, 1, 1, 0, 30, tzinfo=timezone(timedelta(hours=1)))
     assert storage.object_key_for(PhotoKind.REPORT, paris).startswith("report/2030/12/")
+
+
+def test_ingest_refuses_a_thumbnail_kind(bucket: FakeBucket, uow: None) -> None:
+    """Story 1.18 : une miniature n'est jamais un envoi."""
+    with db.unit_of_work(), pytest.raises(ValueError, match="miniature"):
+        storage.ingest_photo(PhotoKind.REPORT_THUMB, photos.encoded("JPEG"))
+    assert bucket.objects == {} and bucket.deleted == []
+
+
+def test_purge_accepts_a_thumbnail_key(bucket: FakeBucket, uow: None) -> None:
+    """La forme des clés suit `PhotoKind` : `purge` accepte `report_thumb/...`."""
+    thumb = storage.thumb_key_for(KEY_A)
+    with db.unit_of_work():
+        storage.purge([thumb])
+    assert bucket.deleted == [thumb]
 
 
 def test_two_photos_get_two_keys(bucket: FakeBucket, uow: None) -> None:

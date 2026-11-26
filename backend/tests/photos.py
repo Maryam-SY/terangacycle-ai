@@ -2,6 +2,8 @@
 et d'intégration de `core.storage`. Aucun fichier binaire dans le dépôt."""
 
 import io
+import math
+import random
 import struct
 import zlib
 
@@ -112,6 +114,26 @@ def encoded(fmt: str, size: tuple[int, int] = (48, 32), **params: object) -> byt
         image = image.convert("P")
     image.save(out, format=fmt, **params)
     return out.getvalue()
+
+
+def high_entropy_jpeg(
+    aspect: tuple[int, int], seed: int, max_bytes: int = 1_048_576, quality: int = 95
+) -> bytes:
+    """JPEG de bruit aléatoire (forte entropie, presque incompressible), le plus grand
+    possible aux proportions `aspect` sans dépasser `max_bytes` (photo de « 1 Mo »)."""
+    # Bruit reproductible pour un test, aucun usage cryptographique.
+    rng = random.Random(seed)  # noqa: S311
+    ratio_w, ratio_h = aspect
+    # Environ 1,2 octet par pixel en qualité 95 : point de départ, puis réduit de 3 %.
+    scale = math.sqrt(max_bytes / 1.15 / (ratio_w * ratio_h))
+    while True:
+        size = (max(1, int(ratio_w * scale)), max(1, int(ratio_h * scale)))
+        image = Image.frombytes("RGB", size, rng.randbytes(size[0] * size[1] * 3))
+        out = io.BytesIO()
+        image.save(out, format="JPEG", quality=quality)
+        if len(out.getvalue()) <= max_bytes:
+            return out.getvalue()
+        scale *= 0.97
 
 
 def _chunk(kind: bytes, payload: bytes) -> bytes:

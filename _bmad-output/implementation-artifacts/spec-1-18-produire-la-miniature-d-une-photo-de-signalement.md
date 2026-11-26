@@ -2,7 +2,7 @@
 title: 'Story 1.18 — Produire la miniature d''une photo de Signalement'
 type: 'feature'
 created: '2026-11-26'
-status: 'ready-for-dev'
+status: 'in-review'
 baseline_commit: 'd1ebcca5ccaa748d5bbf264ff8f9dcebd85e585d'
 route: 'dispatch'
 review_loop_iteration: 0
@@ -120,6 +120,11 @@ La story crée aussi :
 - Étant donné la pile Compose démarrée, quand un Signalement est créé, alors sa `thumb_key` est renseignée par le worker de la pile en moins de 30 s (test d'intégration avec attente bornée).
 
 ## Implementation Notes
+
+- **`core.jobs` :** un pool arq éphémère par mise en file (`conn_retries = 0`), le tout borné par `asyncio.wait_for` à `ENQUEUE_TIMEOUT_S = 2` s. Depuis une unité synchrone, la coroutine part dans la boucle de l'application par `anyio.from_thread.run` (route `def` de `POST /v1/reports`), sinon dans `asyncio.run` ; depuis une unité asynchrone, c'est un effet coroutine. Journaux : `job_enqueued`, `job_already_enqueued`, `job_enqueue_failed` (`job_id` et type d'exception seulement).
+- **Pas de nettoyage à l'annulation pour la miniature :** la clé est déterministe et un essai suivant réécrit le même objet. Supprimer l'objet après une annulation pourrait effacer celui qu'un autre essai, entré sous le verrou juste après, vient de référencer.
+- **Dernier essai :** au 5e échec de stockage, la tâche journalise `thumb_failed` et lève une `RuntimeError` simple (une `DomainError` ne se relit pas depuis le résultat sérialisé d'arq). Délais entre essais : 5, 10, 20, 40 s.
+- **Tests :** `tests/photos.py` gagne `high_entropy_jpeg()` (photos de bruit de « 1 Mo »), partagé par les tests unitaires et d'intégration. Le cas « Garage indisponible » fait tourner un vrai worker arq en rafale sur une file propre au test, contre un port local qui ferme chaque connexion. Les cas qui exécutent eux-mêmes la tâche partent d'un Signalement créé avec Valkey injoignable, pour que le worker de la pile ne leur fasse pas concurrence.
 
 ## Spec Change Log
 

@@ -1,11 +1,19 @@
-"""Worker : battement `worker:heartbeat`, cycle de vie et healthcheck (AD-27)."""
+"""Worker : battement `worker:heartbeat`, cycle de vie et healthcheck (AD-27) ; tâche
+`thumb` (story 1.18)."""
 
 import asyncio
+import json
+import threading
+from uuid import UUID, uuid4
 
 import pytest
+from arq import Retry
+from arq.worker import Function
 
 from app import worker
+from app.core.errors import DomainError, ErrorCode
 from app.core.health import HEARTBEAT_KEY, heartbeat_is_fresh
+from app.modules.reports import service as reports_service
 
 
 class FakeRedis:
@@ -90,3 +98,72 @@ def test_healthcheck_error_is_failure(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_main_without_command_is_usage_error() -> None:
     assert worker.main([]) == 2
+
+
+# --- Tâche thumb (story 1.18) ------------------------------------------------------------
+
+
+def test_worker_functions_are_noop_and_thumb() -> None:
+    noop, thumb = worker.WorkerSettings.functions
+    assert noop is worker.noop
+    assert isinstance(thumb, Function)
+    assert thumb.name == reports_service.THUMB_JOB == "thumb"
+    assert thumb.coroutine is worker.thumb
+    assert thumb.max_tries == worker.THUMB_MAX_TRIES == 5
+
+
+def test_thumb_delegates_to_the_service_in_a_thread(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[UUID, int]] = []
+
+    def make_thumbnail(photo_id: UUID) -> str:
+        calls.append((photo_id, threading.get_ident()))
+        return "report_thumb/2026/11/x.jpg"
+
+    monkeypatch.setattr(reports_service, "make_thumbnail", make_thumbnail)
+    photo_id = uuid4()
+
+    async def run() -> int:
+        await worker.thumb({"job_try": 1}, str(photo_id))
+        return threading.get_ident()
+
+    loop_thread = asyncio.run(run())
+    assert [call[0] for call in calls] == [photo_id]
+    assert calls[0][1] != loop_thread  # pool de threads, pas la boucle
+
+
+def _unavailable(photo_id: UUID) -> str:
+    raise DomainError(ErrorCode.STORAGE_UNAVAILABLE, 503)
+
+
+@pytest.mark.parametrize(("job_try", "defer_s"), [(1, 5.0), (2, 10.0), (3, 20.0), (4, 40.0)])
+def test_unavailable_storage_retries_with_a_growing_delay(
+    monkeypatch: pytest.MonkeyPatch, job_try: int, defer_s: float
+) -> None:
+    monkeypatch.setattr(reports_service, "make_thumbnail", _unavailable)
+    with pytest.raises(Retry) as exc_info:
+        asyncio.run(worker.thumb({"job_try": job_try}, str(uuid4())))
+    assert exc_info.value.defer_score == int(defer_s * 1000)
+
+
+def test_last_try_fails_and_is_logged(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(reports_service, "make_thumbnail", _unavailable)
+    photo_id = str(uuid4())
+    capsys.readouterr()
+    with pytest.raises(RuntimeError, match="storage_unavailable"):
+        asyncio.run(worker.thumb({"job_try": worker.THUMB_MAX_TRIES}, photo_id))
+    lines = [
+        json.loads(line) for line in capsys.readouterr().out.splitlines() if "thumb_failed" in line
+    ]
+    assert [(line["photo_id"], line["job_try"]) for line in lines] == [(photo_id, 5)]
+
+
+def test_other_domain_errors_are_not_retried(monkeypatch: pytest.MonkeyPatch) -> None:
+    def refused(photo_id: UUID) -> str:
+        raise DomainError(ErrorCode.VALIDATION_ERROR, 422)
+
+    monkeypatch.setattr(reports_service, "make_thumbnail", refused)
+    with pytest.raises(DomainError) as exc_info:
+        asyncio.run(worker.thumb({"job_try": 1}, str(uuid4())))
+    assert exc_info.value.code is ErrorCode.VALIDATION_ERROR

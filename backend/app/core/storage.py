@@ -1,7 +1,8 @@
 """Stockage des photos dans le bucket privé Garage (AD-13, story 1.10).
 
 Seul module de l'application qui parle S3 (la sonde `/readyz` de `core.health` garde
-son propre client). Deux fonctions, appelées dans une unité de travail (`core.db`) :
+son propre client). Les deux premières fonctions sont appelées dans une unité de travail
+(`core.db`) :
 
 - `ingest_photo(kind, data)` contrôle les octets reçus, dans l'ordre : poids (413
   `photo_too_large`), format reconnu à sa signature (415 `unsupported_media_type`),
@@ -10,6 +11,10 @@ son propre client). Deux fonctions, appelées dans une unité de travail (`core.
   métadonnée (orientation EXIF appliquée, transparence sur fond blanc) et la stocke sous
   `<kind>/<aaaa>/<mm>/<uuid>.jpg`. Si l'unité de travail est annulée, l'objet est supprimé.
 - `purge(object_keys)` supprime des objets, seulement après le commit.
+- `make_thumbnail(object_key)` (story 1.18) relit une photo de Signalement stockée (déjà
+  nettoyée) et écrit sa miniature JPEG sous la clé déterministe `thumb_key_for(object_key)`
+  (`report_thumb/<aaaa>/<mm>/<uuid>.jpg`) : plus grand côté de 320 px au plus, jamais
+  agrandie, sans aucune métadonnée, au plus `MAX_THUMB_BYTES` octets par construction.
 
 Confidentialité : ni octets ni métadonnées dans les journaux ; un journal de stockage ne
 porte que la clé de l'objet.
@@ -73,6 +78,18 @@ _OBJECT_KEY = re.compile(
     "(?:" + "|".join(re.escape(kind.value) for kind in PhotoKind) + ")"
     r"/[0-9]{4}/[0-9]{2}/[0-9a-f-]{36}\.jpg"
 )
+# Clé d'une photo de Signalement, source d'une miniature : année, mois et uuid capturés.
+_REPORT_KEY = re.compile(
+    re.escape(PhotoKind.REPORT.value) + r"/(?P<rest>[0-9]{4}/[0-9]{2}/[0-9a-f-]{36}\.jpg)"
+)
+
+# Miniature d'une photo de Signalement (story 1.18) : plafond de 30 Kio garanti par
+# construction, plus grand côté de 320 px, qualités essayées dans l'ordre, puis côtés
+# réduits de 25 % tant que la qualité la plus basse ne suffit pas.
+MAX_THUMB_BYTES = 30_720
+THUMB_MAX_SIDE = 320
+THUMB_QUALITIES = (75, 65, 55, 45, 35)
+THUMB_SHRINK = 0.75
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +214,52 @@ def reencode(data: bytes) -> tuple[bytes, int, int]:
     return out.getvalue(), clean.width, clean.height
 
 
+# --- Miniature (story 1.18) -----------------------------------------------------------
+
+
+class ThumbnailSourceError(Exception):
+    """Photo source absente du bucket ou illisible : aucune miniature possible, et un
+    nouvel essai n'y changerait rien."""
+
+
+def _jpeg(image: Image.Image, quality: int) -> bytes:
+    out = io.BytesIO()
+    # Image neuve, sans `info` : ni EXIF, ni profil ICC, ni XMP, ni commentaire.
+    image.save(out, format="JPEG", quality=quality, optimize=True)
+    return out.getvalue()
+
+
+def render_thumbnail(data: bytes) -> tuple[bytes, int, int]:
+    """Miniature JPEG d'une photo stockée : (octets, largeur, hauteur).
+
+    Plus grand côté de `THUMB_MAX_SIDE` px au plus, sans agrandir une image plus petite ;
+    qualités `THUMB_QUALITIES` dans l'ordre, puis côtés réduits de 25 % jusqu'à tenir dans
+    `MAX_THUMB_BYTES` (un JPEG de 1 × 1 y tient toujours : la boucle termine). Lève
+    `ThumbnailSourceError` si la photo source n'est pas un JPEG lisible.
+    """
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(data), formats=[_JPEG]) as source:
+                # Décodage JPEG à échelle réduite, encore au moins aussi grand que la cible.
+                source.draft("RGB", (THUMB_MAX_SIDE, THUMB_MAX_SIDE))
+                base = _flatten(source)
+    except Exception:
+        raise ThumbnailSourceError from None
+    # `thumbnail` garde les proportions et n'agrandit jamais.
+    base.thumbnail((THUMB_MAX_SIDE, THUMB_MAX_SIDE), Image.Resampling.LANCZOS)
+    image = base
+    while True:
+        for quality in THUMB_QUALITIES:
+            body = _jpeg(image, quality)
+            if len(body) <= MAX_THUMB_BYTES:
+                return body, image.width, image.height
+        if image.size == (1, 1):  # pragma: no cover - un JPEG de 1 × 1 fait moins de 1 Ko
+            raise RuntimeError("Miniature impossible sous le plafond.")
+        size = (max(1, int(image.width * THUMB_SHRINK)), max(1, int(image.height * THUMB_SHRINK)))
+        image = base.resize(size, Image.Resampling.LANCZOS)
+
+
 # --- Client S3 ----------------------------------------------------------------------
 
 
@@ -252,13 +315,27 @@ def _put(object_key: str, body: bytes) -> None:
     client.put_object(Bucket=bucket, Key=object_key, Body=body, ContentType=CONTENT_TYPE)
 
 
+def _get(object_key: str) -> bytes:
+    """Octets d'un objet ; `ClientError` (code `NoSuchKey`) s'il est absent."""
+    client, bucket = _client_and_bucket()
+    body = client.get_object(Bucket=bucket, Key=object_key)["Body"]
+    try:
+        return body.read()
+    finally:
+        body.close()
+
+
+def _is_missing(exc: ClientError) -> bool:
+    return exc.response.get("Error", {}).get("Code") in ("NoSuchKey", "404")
+
+
 def _delete(object_key: str) -> None:
     """Supprime un objet ; un objet absent n'est pas une erreur."""
     client, bucket = _client_and_bucket()
     try:
         client.delete_object(Bucket=bucket, Key=object_key)
     except ClientError as exc:
-        if exc.response.get("Error", {}).get("Code") not in ("NoSuchKey", "404"):
+        if not _is_missing(exc):
             raise
 
 
@@ -311,9 +388,12 @@ def ingest_photo(kind: PhotoKind, data: bytes, at: datetime | None = None) -> St
     d'une unité de travail. L'objet est supprimé si l'unité est annulée.
 
     Fonction bloquante : depuis la boucle asyncio, appeler `ingest_photo_async`.
+    Une miniature (`PhotoKind.REPORT_THUMB`) n'est jamais un envoi : `ValueError`.
     """
     _require_uow()
     kind = PhotoKind(kind)
+    if kind is PhotoKind.REPORT_THUMB:
+        raise ValueError("Une miniature n'est jamais reçue : elle est dérivée (make_thumbnail).")
     body, width, height = reencode(data)
     digest = hashlib.sha256(data).hexdigest()
     object_key = object_key_for(kind, at)
@@ -356,3 +436,49 @@ def purge(object_keys: Iterable[str]) -> None:
         raise ValueError("Clé d'objet invalide.")
     if keys:
         _register(after_commit, _delete_all, keys, "photo_purged")
+
+
+def thumb_key_for(object_key: str) -> str:
+    """Clé de la miniature d'une photo de Signalement, dérivée de sa clé : même année, même
+    mois, même uuid (`report/2026/11/<uuid>.jpg` → `report_thumb/2026/11/<uuid>.jpg`).
+
+    `ValueError` pour une clé qui n'est pas celle d'une photo de Signalement.
+    """
+    match = _REPORT_KEY.fullmatch(object_key) if isinstance(object_key, str) else None
+    if match is None:
+        raise ValueError("Clé de photo de Signalement invalide.")
+    return f"{PhotoKind.REPORT_THUMB.value}/{match['rest']}"
+
+
+def make_thumbnail(object_key: str) -> str:
+    """Produit et stocke la miniature de la photo de Signalement `object_key` ; renvoie sa
+    clé (`thumb_key_for(object_key)`).
+
+    La miniature vient de l'objet stocké (déjà nettoyé), jamais des octets reçus. Clé
+    déterministe : rejouer réécrit le même objet, jamais un second. Aucun nettoyage à
+    l'annulation : un objet écrit par une unité annulée est réécrit par l'essai suivant, et
+    le supprimer après coup pourrait effacer celui qu'un autre essai vient de référencer.
+
+    Lève `ThumbnailSourceError` si la photo source est absente ou illisible, et
+    `DomainError` 503 `storage_unavailable` si le stockage ne répond pas (lecture ou
+    écriture). Fonction bloquante.
+    """
+    thumb_key = thumb_key_for(object_key)
+    try:
+        data = _get(object_key)
+    except ClientError as exc:
+        if _is_missing(exc):
+            raise ThumbnailSourceError from None
+        log.warning("thumb_read_failed", object_key=object_key, reason=type(exc).__name__)
+        raise DomainError(ErrorCode.STORAGE_UNAVAILABLE, 503) from exc
+    except Exception as exc:
+        log.warning("thumb_read_failed", object_key=object_key, reason=type(exc).__name__)
+        raise DomainError(ErrorCode.STORAGE_UNAVAILABLE, 503) from exc
+    body, _, _ = render_thumbnail(data)
+    try:
+        _put(thumb_key, body)
+    except Exception as exc:
+        log.warning("thumb_store_failed", thumb_key=thumb_key, reason=type(exc).__name__)
+        raise DomainError(ErrorCode.STORAGE_UNAVAILABLE, 503) from exc
+    log.info("thumb_stored", object_key=object_key, thumb_key=thumb_key)
+    return thumb_key
