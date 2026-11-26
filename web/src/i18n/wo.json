@@ -103,6 +103,7 @@
     "invalid_device_id": "Votre appareil n'a pas pu être reconnu. Fermez puis rouvrez l'application, et réessayez.",
     "invalid_token": "Votre session n'est plus valide. Reconnectez-vous puis réessayez.",
     "consent_required": "Pour envoyer un signalement, acceptez d'abord les conditions d'utilisation.",
-    "outside_active_zone": "TerangaCycle n'est pas encore actif ici. Merci de votre aide : vous pourrez signaler un dépôt dès que vous serez dans la zone couverte."
+    "outside_active_zone": "TerangaCycle n'est pas encore actif ici. Merci de votre aide : vous pourrez signaler un dépôt dès que vous serez dans la zone couverte.",
+    "client_uuid_conflict": "Ce signalement n'a pas pu être enregistré. Recommencez-le comme un nouveau signalement."
   }
 }

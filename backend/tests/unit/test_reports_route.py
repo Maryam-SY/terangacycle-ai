@@ -192,7 +192,16 @@ def test_openapi_describes_a_multipart_body_and_the_error_contract(app: FastAPI)
     content = operation["requestBody"]["content"]
     assert list(content) == ["multipart/form-data"]
     responses = operation["responses"]
-    assert "201" in responses
-    for status in ("400", "401", "413", "415", "422"):
+    created = {"$ref": "#/components/schemas/ReportCreated"}
+    # 201 : création ; 200 : renvoi idempotent (story 1.12), mêmes champs.
+    for status in ("201", "200"):
+        assert responses[status]["content"]["application/json"]["schema"] == created, status
+    assert "client_uuid" in responses["200"]["description"]
+    assert "client_uuid_conflict" in responses["409"]["description"]
+    documented = [int(status) for status in responses if status.isdigit()]
+    assert [status for status in documented if status >= 400] == sorted(
+        status for status in documented if status >= 400
+    )
+    for status in ("400", "401", "409", "413", "415", "422"):
         schema = responses[status]["content"]["application/json"]["schema"]
         assert schema == {"$ref": "#/components/schemas/ErrorResponse"}, status

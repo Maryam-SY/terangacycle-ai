@@ -11,14 +11,19 @@ Avant toute lecture du corps, la garde `ReportUploadGuard` (middleware ASGI) ref
 disque pour une requête anonyme ; Caddy borne aussi le corps à 2 Mo (`infra/Caddyfile`).
 
 Route synchrone (`def`, pool de threads) : le service ouvre l'unité de travail synchrone
-(`@transactional`). Le principal est recontrôlé (dépendance), puis `meta` ; la photo est
-lue sur au plus 1 Mo + 1 octet avant d'être confiée à `ingest_photo()`. Les réglages sont
-ceux avec lesquels l'application a été construite (`request.app.state.settings`).
+(`@transactional`). Le principal est recontrôlé (dépendance), puis `meta` ; la photo n'est
+lue (au plus 1 Mo + 1 octet, avant d'être confiée à `ingest_photo()`) que si le service
+crée vraiment un Signalement. Les réglages sont ceux avec lesquels l'application a été
+construite (`request.app.state.settings`).
+
+Renvoi idempotent (story 1.12) : le même auteur qui renvoie le même `meta.client_uuid`
+reçoit 200 avec le Signalement déjà enregistré (mêmes champs qu'en 201), sans que rien ne
+soit écrit ; un autre auteur reçoit 409 `client_uuid_conflict`, l'enveloppe d'erreur seule.
 """
 
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, Response, UploadFile
 from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -47,6 +52,10 @@ def _error(description: str) -> dict[str, Any]:
 ERROR_RESPONSES: dict[int | str, dict[str, Any]] = {
     400: _error("`invalid_device_id` : X-Device-Id absent ou invalide."),
     401: _error("`invalid_token` : en-tête Authorization présent (non vérifiable)."),
+    409: _error(
+        "`client_uuid_conflict` : Identifiant client déjà utilisé par un autre auteur "
+        "(rien du Signalement existant n'est renvoyé)."
+    ),
     413: _error("`photo_too_large` : photo de plus de 1 Mo, ou corps de plus de 2 Mio."),
     415: _error("`unsupported_media_type` : photo ni JPEG, ni PNG, ni WebP."),
     422: _error(
@@ -86,14 +95,29 @@ def _header_error(headers: Headers) -> DomainError | None:
     return None
 
 
+# Contrat complet : 201 (création, par défaut), 200 (renvoi idempotent) et les erreurs.
+RESPONSES: dict[int | str, dict[str, Any]] = {
+    200: {
+        "model": ReportCreated,
+        "description": (
+            "Renvoi idempotent : même auteur, même `meta.client_uuid`. Le Signalement déjà "
+            "enregistré (Statut actuel), sans rien écrire ; le contenu renvoyé est ignoré."
+        ),
+    },
+    **ERROR_RESPONSES,
+}
+
+
 @router.post(
     "/reports",
     status_code=201,
     summary="Envoyer un Signalement",
-    responses=ERROR_RESPONSES,
+    response_description="Signalement créé, avec son Numéro de suivi.",
+    responses=RESPONSES,
 )
 def create_report(
     request: Request,
+    response: Response,
     principal: Annotated[Principal, Depends(security.principal)],
     meta: Annotated[
         str,
@@ -109,5 +133,11 @@ def create_report(
     ],
 ) -> ReportCreated:
     parsed = parse_meta(meta)
-    data = photo.file.read(PHOTO_READ_LIMIT)
-    return service.create_report(principal, parsed, data, request.app.state.settings)
+
+    def read_photo() -> bytes:
+        return photo.file.read(PHOTO_READ_LIMIT)
+
+    outcome = service.create_report(principal, parsed, read_photo, request.app.state.settings)
+    if outcome.replayed:
+        response.status_code = 200
+    return outcome.report

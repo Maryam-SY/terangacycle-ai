@@ -25,6 +25,8 @@ class ErrorCode(StrEnum):
     INVALID_TOKEN = "invalid_token"  # noqa: S105 (code d'erreur, pas un secret)
     CONSENT_REQUIRED = "consent_required"
     OUTSIDE_ACTIVE_ZONE = "outside_active_zone"
+    # Renvoi d'un Signalement (story 1.12) : Identifiant client déjà pris par un autre auteur.
+    CLIENT_UUID_CONFLICT = "client_uuid_conflict"
 
 
 DEFAULT_MESSAGES: dict[ErrorCode, str] = {
@@ -52,6 +54,10 @@ DEFAULT_MESSAGES: dict[ErrorCode, str] = {
     ErrorCode.OUTSIDE_ACTIVE_ZONE: (
         "TerangaCycle n'est pas encore actif ici. Merci de votre aide : vous pourrez signaler "
         "un dépôt dès que vous serez dans la zone couverte."
+    ),
+    # Story 1.12 : même texte que `errors.client_uuid_conflict` de web/src/i18n/fr.json.
+    ErrorCode.CLIENT_UUID_CONFLICT: (
+        "Ce signalement n'a pas pu être enregistré. Recommencez-le comme un nouveau signalement."
     ),
 }
 

@@ -5,11 +5,20 @@
 `validation_error` qui nomme le champ, jamais sa valeur.
 """
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 from uuid import UUID
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import (
+    UUID4,
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    ValidationError,
+    field_validator,
+)
 
 from app.core import clock
 from app.core.enums import HeapSize, ReportStatus, WasteType
@@ -42,7 +51,9 @@ class ReportMeta(BaseModel):
 
     model_config = ConfigDict(extra="forbid", strict=True)
 
-    client_uuid: UUID
+    # Identifiant client : UUID version 4, tiré par un générateur cryptographique sur
+    # l'appareil (`crypto.randomUUID()`), une fois par Signalement (story 1.12).
+    client_uuid: UUID4
     lat: Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
     lng: Annotated[float, Field(ge=-180, le=180, allow_inf_nan=False)]
     accuracy_m: Annotated[float, Field(gt=0, allow_inf_nan=False)]
@@ -78,8 +89,8 @@ class ReportMeta(BaseModel):
 
 
 class ReportCreated(BaseModel):
-    """Réponse 201 : exactement ces champs. Ni `owner_key`, ni empreinte, ni Identifiant
-    d'appareil, ni Organisation responsable."""
+    """Réponse 201, et 200 d'un renvoi (story 1.12) : exactement ces champs. Ni
+    `owner_key`, ni empreinte, ni Identifiant d'appareil, ni Organisation responsable."""
 
     id: UUID
     tracking_number: str
@@ -87,6 +98,15 @@ class ReportCreated(BaseModel):
     # UTC, sérialisé en ISO 8601 avec `Z`.
     received_at: datetime
     is_demo: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ReportOutcome:
+    """Résultat de `POST /v1/reports` : le Signalement (mêmes champs en 201 et en 200) et
+    `replayed`, vrai pour un renvoi idempotent (200, rien n'a été écrit)."""
+
+    report: ReportCreated
+    replayed: bool
 
 
 def parse_meta(raw: str) -> ReportMeta:

@@ -1,4 +1,5 @@
-"""Schéma de la migration 0003_reports sur PostgreSQL et PostGIS réels (story 1.11).
+"""Schéma des migrations 0003_reports (story 1.11) et 0004_reports_client_uuid_unique
+(story 1.12) sur PostgreSQL et PostGIS réels.
 
 Exige la pile démarrée et migrée, `TEST_APP_DATABASE_URL` (rôle teranga_app) et
 `TEST_MIGRATOR_DATABASE_URL` (rôle teranga_migrator). Sans elles, les tests sont ignorés,
@@ -30,10 +31,13 @@ from app.core.enums import (
     WasteType,
 )
 from app.modules.orgs.service import PLATFORM_ORGANIZATION_ID
+from app.modules.reports.repository import CLIENT_UUID_CONSTRAINT
 
 pytestmark = pytest.mark.integration
 
-MIGRATION = Path(__file__).resolve().parents[2] / "migrations" / "versions" / "0003_reports.py"
+VERSIONS = Path(__file__).resolve().parents[2] / "migrations" / "versions"
+MIGRATION = VERSIONS / "0003_reports.py"
+MIGRATION_0004 = VERSIONS / "0004_reports_client_uuid_unique.py"
 TABLES = ("organizations", "devices", "reports", "report_photos", "tracking_counters")
 # Contrainte CHECK → énumération de core/enums.py dont elle reprend les valeurs.
 ENUM_CHECKS = {
@@ -52,7 +56,7 @@ def _engine(var: str) -> Engine:
     url = make_url(raw)
     if url.drivername in ("postgresql", "postgres"):
         url = url.set(drivername="postgresql+psycopg")
-    return create_engine(url, hide_parameters=True)
+    return create_engine(url, hide_parameters=True, connect_args={"connect_timeout": 10})
 
 
 @pytest.fixture(scope="module")
@@ -80,8 +84,8 @@ def rolled_back(app_engine: Engine) -> Iterator[Connection]:
             transaction.rollback()
 
 
-def _migration() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("migration_0003_reports", MIGRATION)
+def _migration(path: Path = MIGRATION, name: str = "migration_0003_reports") -> ModuleType:
+    spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -268,6 +272,136 @@ def test_downgrade_drops_the_tables_and_upgrade_recreates_them(migrator_engine: 
                 PLATFORM_ORGANIZATION_ID,
                 "platform",
                 False,
+            )
+        finally:
+            transaction.rollback()
+
+
+# --- Migration 0004 : unicité de l'Identifiant client par auteur (story 1.12) ----------
+
+
+def _schema_objects(conn: Connection) -> set[tuple[str, str, str]]:
+    """Contraintes et index du schéma `public` : (table, nom, définition)."""
+    constraints = conn.execute(
+        text(
+            "SELECT conrelid::regclass::text, conname, pg_get_constraintdef(oid) "
+            "FROM pg_constraint WHERE connamespace = 'public'::regnamespace"
+        )
+    ).all()
+    indexes = conn.execute(
+        text("SELECT tablename, indexname, indexdef FROM pg_indexes WHERE schemaname = 'public'")
+    ).all()
+    return {tuple(row) for row in (*constraints, *indexes)}
+
+
+def _columns(conn: Connection) -> set[tuple[str, str, str]]:
+    return {
+        tuple(row)
+        for row in conn.execute(
+            text(
+                "SELECT table_name, column_name, data_type FROM information_schema.columns "
+                "WHERE table_schema = 'public'"
+            )
+        )
+    }
+
+
+def test_client_uuid_unique_constraint_and_column_order(app_engine: Engine) -> None:
+    with app_engine.connect() as conn:
+        constraint = conn.execute(
+            text(
+                "SELECT contype, conrelid::regclass::text AS tbl, "
+                "pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = :name"
+            ),
+            {"name": CLIENT_UUID_CONSTRAINT},
+        ).one()
+        index = conn.scalar(
+            text("SELECT indexdef FROM pg_indexes WHERE indexname = :name"),
+            {"name": CLIENT_UUID_CONSTRAINT},
+        )
+    # Colonnes {owner_key, client_uuid}, déclarées `client_uuid` d'abord : la recherche par
+    # seul Identifiant client (409) utilise l'index.
+    assert (constraint.contype, constraint.tbl) == ("u", "reports")
+    assert constraint.definition == "UNIQUE (client_uuid, owner_key)"
+    assert index.endswith("USING btree (client_uuid, owner_key)"), index
+
+
+_INSERT_REPORT = text(
+    """
+    INSERT INTO reports (
+        id, tracking_number, owner_key, client_uuid, organization_id, geog, accuracy_m,
+        heap_size, zone_id, received_at, client_captured_at, training_consent
+    ) VALUES (
+        gen_random_uuid(), :number, :owner, CAST(:client_uuid AS uuid),
+        CAST(:org AS uuid), ST_GeogFromText('POINT(-17.4381 14.6708)'), 10, 'small',
+        'dakar', now(), now(), false
+    )
+    """
+)
+_REPORT_PARAMS = {
+    "owner": "device:" + "a" * 64,
+    "client_uuid": "6f1c2a4e-1b2c-4d3e-8f90-a1b2c3d4e5f6",
+    "org": str(PLATFORM_ORGANIZATION_ID),
+}
+
+
+def test_same_client_uuid_is_refused_for_one_owner_only(rolled_back: Connection) -> None:
+    insert, params = _INSERT_REPORT, _REPORT_PARAMS
+    rolled_back.execute(insert, {**params, "number": "TC-9999-999998"})
+    # Autre auteur, même Identifiant client : accepté par la base (le 409 vient du service).
+    rolled_back.execute(
+        insert, {**params, "number": "TC-9999-999997", "owner": "device:" + "b" * 64}
+    )
+    with pytest.raises(IntegrityError) as exc_info, rolled_back.begin_nested():
+        rolled_back.execute(insert, {**params, "number": "TC-9999-999999"})
+    assert exc_info.value.orig.diag.constraint_name == CLIENT_UUID_CONSTRAINT
+
+
+def test_migration_0004_adds_only_the_constraint(migrator_engine: Engine) -> None:
+    migration = _migration(MIGRATION_0004, "migration_0004_reports_client_uuid_unique")
+    assert migration.CONSTRAINT == CLIENT_UUID_CONSTRAINT
+    with migrator_engine.connect() as conn:
+        transaction = conn.begin()
+        try:
+            conn.execute(text("SET LOCAL lock_timeout = '5s'"))
+            with_constraint = _schema_objects(conn)
+            columns = _columns(conn)
+            with Operations.context(MigrationContext.configure(conn)):
+                migration.downgrade()
+                without = _schema_objects(conn)
+                assert {name for _, name, _ in with_constraint - without} == {
+                    CLIENT_UUID_CONSTRAINT
+                }
+                assert without < with_constraint
+                assert _columns(conn) == columns
+                migration.upgrade()
+            assert _schema_objects(conn) == with_constraint
+            assert _columns(conn) == columns
+        finally:
+            transaction.rollback()
+
+
+def test_migration_0004_refuses_existing_duplicates_with_a_clear_message(
+    migrator_engine: Engine,
+) -> None:
+    migration = _migration(MIGRATION_0004, "migration_0004_reports_client_uuid_unique")
+    with migrator_engine.connect() as conn:
+        transaction = conn.begin()
+        try:
+            conn.execute(text("SET LOCAL lock_timeout = '5s'"))
+            with Operations.context(MigrationContext.configure(conn)):
+                migration.downgrade()
+                # Une paire (client_uuid, owner_key) reçue deux fois, comme avant 1.12.
+                for number in ("TC-9999-999998", "TC-9999-999999"):
+                    conn.execute(_INSERT_REPORT, {**_REPORT_PARAMS, "number": number})
+                with pytest.raises(migration.DuplicateClientUuidError) as exc_info:
+                    migration.upgrade()
+            message = str(exc_info.value)
+            assert "1 paire(s)" in message and "Remède" in message
+            assert _REPORT_PARAMS["client_uuid"] not in message
+            assert not conn.scalar(
+                text("SELECT count(*) FROM pg_constraint WHERE conname = :n"),
+                {"n": CLIENT_UUID_CONSTRAINT},
             )
         finally:
             transaction.rollback()

@@ -101,6 +101,11 @@ def _require_uow() -> UnitOfWork:
     return uow
 
 
+def in_unit_of_work() -> bool:
+    """Vrai si une unité de travail est en cours : un `@transactional` la rejoindrait."""
+    return _current.get() is not None
+
+
 def current_session() -> Session:
     """Session de l'unité de travail en cours (pour les repositories)."""
     return _require_uow().session
