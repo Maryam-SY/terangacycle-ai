@@ -159,6 +159,11 @@ def test_every_code_has_a_default_message() -> None:
         "method_not_allowed",
         "validation_error",
         "internal_error",
+        # Story 1.10 : photo reçue.
+        "photo_too_large",
+        "unsupported_media_type",
+        "photo_too_many_pixels",
+        "photo_unreadable",
     }
 
 

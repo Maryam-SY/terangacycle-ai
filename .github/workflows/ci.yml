@@ -98,6 +98,24 @@ jobs:
             echo "TEST_MIGRATOR_DATABASE_URL=postgresql://teranga_migrator:${migrator_pw}@127.0.0.1:${port}/${db_name}"
           } >> "$GITHUB_ENV"
 
+      - name: Accès S3 de test (Garage publié sur 127.0.0.1)
+        working-directory: .
+        run: |
+          s3_port="$(sed -n 's/^S3_LOCAL_PORT=//p' .env)"
+          s3_port="${s3_port:-3900}"
+          bucket="$(sed -n 's/^S3_BUCKET=//p' .env)"
+          bucket="${bucket:-terangacycle-photos}"
+          access="$(cat .env.secrets/s3_access_key_id)"
+          secret="$(cat .env.secrets/s3_secret_access_key)"
+          echo "::add-mask::${access}"
+          echo "::add-mask::${secret}"
+          {
+            echo "TEST_S3_ENDPOINT=http://127.0.0.1:${s3_port}"
+            echo "TEST_S3_BUCKET=${bucket}"
+            echo "TEST_S3_ACCESS_KEY_ID=${access}"
+            echo "TEST_S3_SECRET_ACCESS_KEY=${secret}"
+          } >> "$GITHUB_ENV"
+
       - name: pytest et couverture
         env:
           # Un test d'intégration ignoré faute de base échoue (tests/conftest.py).

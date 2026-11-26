@@ -180,6 +180,10 @@ services:
         required: true
     secrets:
       - garage_rpc_secret
+    # API S3 publiée sur 127.0.0.1 seulement, pour les tests d'intégration locaux et la
+    # CI ; la lecture publique des photos passe par Caddy (MEDIA_HOST), jamais par ici.
+    ports:
+      - "127.0.0.1:${S3_LOCAL_PORT:-3900}:3900"
     volumes:
       - ./garage/garage.toml:/etc/garage.toml:ro
       - garage-meta:/var/lib/garage/meta

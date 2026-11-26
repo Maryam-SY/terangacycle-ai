@@ -93,7 +93,7 @@ En `ENV=demo` ou `prod`, l'API et le worker refusent de démarrer si un secret d
 
 Les deux scripts se connectent à `127.0.0.1` en HTTPS avec `APP_HOST` et `HTTPS_PORT` (environnement, sinon `.env`).
 
-Si les ports 80, 443 ou 5432 sont déjà pris sur la machine, changer `HTTP_PORT`, `HTTPS_PORT` et `DB_LOCAL_PORT` dans `.env`.
+Si les ports 80, 443, 5432 ou 3900 sont déjà pris sur la machine, changer `HTTP_PORT`, `HTTPS_PORT`, `DB_LOCAL_PORT` et `S3_LOCAL_PORT` dans `.env`.
 
 | Service | Rôle |
 |---|---|
@@ -122,6 +122,11 @@ Tests d'intégration, pile démarrée : mots de passe dans `.env.secrets/`, port
 DB_LOCAL_PORT="$(sed -n 's/^DB_LOCAL_PORT=//p' ../.env)"; DB_LOCAL_PORT="${DB_LOCAL_PORT:-5432}"
 export TEST_APP_DATABASE_URL="postgresql://teranga_app:$(cat ../.env.secrets/db_app_password)@localhost:${DB_LOCAL_PORT}/terangacycle"
 export TEST_MIGRATOR_DATABASE_URL="postgresql://teranga_migrator:$(cat ../.env.secrets/db_migrator_password)@localhost:${DB_LOCAL_PORT}/terangacycle"
+# Stockage (Garage, port S3_LOCAL_PORT du .env, 3900 par défaut)
+S3_LOCAL_PORT="$(sed -n 's/^S3_LOCAL_PORT=//p' ../.env)"; S3_LOCAL_PORT="${S3_LOCAL_PORT:-3900}"
+S3_BUCKET="$(sed -n 's/^S3_BUCKET=//p' ../.env)"; S3_BUCKET="${S3_BUCKET:-terangacycle-photos}"
+export TEST_S3_ENDPOINT="http://127.0.0.1:${S3_LOCAL_PORT}" TEST_S3_BUCKET="${S3_BUCKET}"
+export TEST_S3_ACCESS_KEY_ID="$(cat ../.env.secrets/s3_access_key_id)" TEST_S3_SECRET_ACCESS_KEY="$(cat ../.env.secrets/s3_secret_access_key)"
 uv run pytest tests/integration
 ```
 
@@ -133,6 +138,14 @@ $appPw = (Get-Content ..\.env.secrets\db_app_password -Raw).Trim()
 $migratorPw = (Get-Content ..\.env.secrets\db_migrator_password -Raw).Trim()
 $env:TEST_APP_DATABASE_URL = "postgresql://teranga_app:${appPw}@localhost:${port}/terangacycle"
 $env:TEST_MIGRATOR_DATABASE_URL = "postgresql://teranga_migrator:${migratorPw}@localhost:${port}/terangacycle"
+$s3Port = (Select-String -Path ..\.env -Pattern '^S3_LOCAL_PORT=(.+)$').Matches.Groups[1].Value
+if (-not $s3Port) { $s3Port = '3900' }
+$env:TEST_S3_ENDPOINT = "http://127.0.0.1:${s3Port}"
+$bucket = (Select-String -Path ..\.env -Pattern '^S3_BUCKET=(.+)$').Matches.Groups[1].Value
+if (-not $bucket) { $bucket = 'terangacycle-photos' }
+$env:TEST_S3_BUCKET = $bucket
+$env:TEST_S3_ACCESS_KEY_ID = (Get-Content ..\.env.secrets\s3_access_key_id -Raw).Trim()
+$env:TEST_S3_SECRET_ACCESS_KEY = (Get-Content ..\.env.secrets\s3_secret_access_key -Raw).Trim()
 uv run pytest tests/integration
 ```
 

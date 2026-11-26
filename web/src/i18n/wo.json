@@ -71,6 +71,10 @@
     "not_found": "Nous ne trouvons pas ce que vous cherchez. Vérifiez le lien ou revenez à l'accueil.",
     "method_not_allowed": "Cette action n'est pas possible ici. Revenez à l'accueil puis réessayez.",
     "validation_error": "Certaines informations ne sont pas valides. Vérifiez-les puis réessayez.",
-    "internal_error": "Un problème est survenu de notre côté. Réessayez dans quelques instants."
+    "internal_error": "Un problème est survenu de notre côté. Réessayez dans quelques instants.",
+    "photo_too_large": "Cette photo est trop lourde. Reprenez-la depuis l'application, qui l'allège avant l'envoi.",
+    "unsupported_media_type": "Ce fichier n'est pas une photo acceptée. Reprenez la photo avec l'appareil photo de l'application.",
+    "photo_too_many_pixels": "Cette photo est trop grande. Reprenez-la depuis l'application, qui la réduit avant l'envoi.",
+    "photo_unreadable": "Cette photo n'a pas pu être lue. Reprenez-la."
   }
 }

@@ -57,6 +57,16 @@ class WasteType(StrEnum):
     MIXED = "mixed"
 
 
+class PhotoKind(StrEnum):
+    """Nature d'une photo stockée, premier segment de sa clé S3 (AD-13)."""
+
+    REPORT = "report"
+    REPORT_THUMB = "report_thumb"
+    BEFORE = "before"
+    AFTER = "after"
+    LOT = "lot"
+
+
 class PileSize(StrEnum):
     """Taille de tas."""
 
