@@ -36,8 +36,11 @@ interface Texts {
     zone: { outside: string; firstConnection: string }
     retry: string
     trigger: string
-    photoSoon: string
+    rule: { title: string }
+    photo: { unreadable: string }
+    preview: { alt: string; continue: string; retake: string }
   }
+  details: { title: string }
 }
 
 const fr = JSON.parse(
@@ -45,6 +48,15 @@ const fr = JSON.parse(
 ) as Texts
 
 const CAPTURE_URL = /\/signaler\/capture$/
+// Photo de test (PNG 8×6 rouge) : décodée et ré-encodée en JPEG par la PWA.
+const PHOTO = {
+  name: 'depot.png',
+  mimeType: 'image/png',
+  buffer: Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAGCAIAAABxZ0isAAAAFElEQVR4nGM8oaHBgA0wYRWlkwQAppoBJCiW4EgAAAAASUVORK5CYII=',
+    'base64',
+  ),
+}
 const PERMISSION_DENIED = 1
 const POSITION_UNAVAILABLE = 2
 
@@ -280,10 +292,40 @@ test('position bonne (± 12 m) : « Position détectée, précision ± 12 m », 
   expect(overflow).toBeLessThanOrEqual(0)
   await expectNoSeriousViolations(page)
 
-  // Le déclencheur annonce seulement l'étape suivante : ni appareil photo ni envoi.
+  // Story 1.9 : consigne visible, prise de vue directe par le sélecteur de fichier (pas de
+  // flux getUserMedia), aperçu, puis « Continuer » vers l'écran 3.
+  await expect(page.getByRole('heading', { name: fr.capture.rule.title })).toBeVisible()
+  await expect(page.getByTestId('camera-input')).toHaveAttribute('capture', 'environment')
+  const chooser = page.waitForEvent('filechooser')
   await trigger(page).click()
-  await expect(page.getByText(fr.capture.photoSoon)).toBeVisible()
+  await (await chooser).setFiles(PHOTO)
+  await expect(page.getByRole('img', { name: fr.capture.preview.alt })).toBeVisible()
   expect(await page.evaluate(() => window.__cameraCalls)).toBe(0)
+
+  // « Reprendre la photo » ramène la consigne ; « Continuer » ouvre l'écran 3.
+  await page.getByRole('button', { name: fr.capture.preview.retake }).click()
+  await expect(page.getByRole('heading', { name: fr.capture.rule.title })).toBeVisible()
+  const again = page.waitForEvent('filechooser')
+  await trigger(page).click()
+  await (await again).setFiles(PHOTO)
+  await page.getByRole('button', { name: fr.capture.preview.continue }).click()
+  await expect(page).toHaveURL(/\/signaler\/details$/)
+  await expect(page.getByRole('heading', { name: fr.details.title })).toBeVisible()
+})
+
+test('photo illisible : message, rien n’est gardé, la consigne reste', async ({ page }) => {
+  await openCapture(page)
+  await emit(page, PLATEAU, 12)
+  const chooser = page.waitForEvent('filechooser')
+  await trigger(page).click()
+  await (await chooser).setFiles({
+    name: 'photo.heic',
+    mimeType: 'image/heic',
+    buffer: Buffer.from('pas une image lisible'),
+  })
+  await expect(page.getByText(fr.capture.photo.unreadable)).toBeVisible()
+  await expect(page.getByRole('img', { name: fr.capture.preview.alt })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: fr.capture.rule.title })).toBeVisible()
 })
 
 test('imprécise (± 80 m) : invitation ambre, « Continuer quand même », puis déclencheur actif', async ({

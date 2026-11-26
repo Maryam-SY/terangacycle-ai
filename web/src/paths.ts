@@ -5,4 +5,6 @@ export const PATHS = {
   report: '/signaler',
   consent: '/signaler/consentement',
   capture: '/signaler/capture',
+  /** Écran 3 : détails (taille du tas, type, commentaire) et envoi. */
+  details: '/signaler/details',
 } as const
