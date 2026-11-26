@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-24-2026 09:00
-last_updated: 11-26-2026 12:35
+last_updated: 11-26-2026 12:45
 project: TerangaCycleAI
 project_key: NOKEY
 tracking_system: file-system
@@ -55,8 +55,8 @@ development_status:
   1-17-charger-et-retirer-les-données-de-démonstration-en-une-comma: backlog
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-mode-démonstration-visible-et-interdit-en-production: backlog
+  epic-2: in-progress
+  2-1-mode-démonstration-visible-et-interdit-en-production: review
   2-2-demander-un-code-de-connexion-par-sms: backlog
   2-3-se-connecter-avec-le-code-otp: backlog
   2-4-rester-connecté-30-jours-et-se-déconnecter: backlog

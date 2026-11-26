@@ -50,7 +50,7 @@ interface Texts {
   }
   waste: { plastic: string }
   confirmation: { title: string; home: string; steps: { reported: string } }
-  demo: { label: string }
+  demo: { label: string; banner: string }
   errors: { outside_active_zone: string }
 }
 
@@ -646,5 +646,27 @@ test('écran 3 : hors Zone ou réseau en panne, message et saisie gardée', asyn
     'aria-pressed',
     'true',
   )
+})
+
+// Story 2.1 : bandeau « Mode démonstration » sur tous les écrans, d'après /v1/config.
+test('mode démonstration : bandeau nommé sur l’accueil et la capture, sans fermeture', async ({
+  page,
+}) => {
+  await openCapture(page)
+  const banner = page.getByRole('region', { name: fr.demo.banner })
+  await expect(banner).toBeVisible()
+  await expect(banner.getByRole('button')).toHaveCount(0)
+  await page.goto('/')
+  await expect(page.getByRole('region', { name: fr.demo.banner })).toBeVisible()
+  await expectNoSeriousViolations(page)
+})
+
+test('hors mode démonstration : aucun bandeau', async ({ page }) => {
+  await page.route('**/v1/config', (route: Route) =>
+    route.fulfill({ json: { ...CONFIG, demo_mode: false, env: 'prod' } }),
+  )
+  await page.goto('/')
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await expect(page.getByRole('region', { name: fr.demo.banner })).toHaveCount(0)
 })
 

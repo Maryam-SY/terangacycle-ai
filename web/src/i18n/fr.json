@@ -150,6 +150,7 @@
     "home": "Retour à l'accueil"
   },
   "demo": {
-    "label": "Données de démonstration"
+    "label": "Données de démonstration",
+    "banner": "Mode démonstration : les données affichées ne sont pas réelles."
   }
 }
