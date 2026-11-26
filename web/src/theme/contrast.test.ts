@@ -31,6 +31,22 @@ describe('contraste des jetons', () => {
     expect(failingPairs(pairs, colors).map((failure) => failure.message)).toEqual([])
   })
 
+  it('chaque couleur de Type de déchet est déclarée face à surface et au blanc (non textuel)', () => {
+    const tokens = [...colors.keys()].filter((name) => name.startsWith('--color-waste-'))
+    expect(tokens.map((name) => name.replace('--color-waste-', '')).sort()).toEqual(
+      ['glass', 'metal', 'mixed', 'organic', 'plastic'],
+    )
+    for (const token of tokens) {
+      for (const bg of ['--color-surface', WHITE]) {
+        const declared = pairs.some(
+          (pair) =>
+            pair.fg === token && pair.bg.toUpperCase() === bg.toUpperCase() && pair.kind === 'non-text',
+        )
+        expect(declared, `${token} sur ${bg}`).toBe(true)
+      }
+    }
+  })
+
   it('chaque paire a un nom unique', () => {
     const names = pairs.map((pair) => pair.name)
     expect(new Set(names).size).toBe(names.length)

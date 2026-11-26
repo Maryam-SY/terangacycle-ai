@@ -1,10 +1,12 @@
 # CI de qualité (stories 1.4 et 1.5) : bloquante sur chaque pull request vers main et chaque
 # push sur main.
 #
-#   backend : ruff (lint, format), import-linter, pytest avec couverture ≥ 60 % sur la pile
-#             Docker Compose réelle (tests d'intégration obligatoires : REQUIRE_INTEGRATION=1) ;
-#   web     : oxlint, Vitest, construction, budget de poids de l'accueil, parcours
-#             Playwright (Chromium) avec audit axe ;
+#   backend : ruff (lint, format), import-linter, OpenAPI exportée identique à
+#             web/src/api/openapi.json, pytest avec couverture ≥ 60 % sur la pile Docker
+#             Compose réelle (tests d'intégration obligatoires : REQUIRE_INTEGRATION=1) ;
+#   web     : oxlint, Vitest, types du client API identiques à src/api/schema.d.ts,
+#             construction, budget de poids de l'accueil, parcours Playwright (Chromium)
+#             avec audit axe ;
 #   edge    : image Caddy construite, tests de fumée du bord et de /readyz ;
 #   hygiene : Gitleaks (secrets, adresses Figma), épinglage des images et des actions,
 #             fichiers suivis, .gitignore, LICENSE, exceptions d'audit non expirées ;
@@ -73,6 +75,12 @@ jobs:
 
       - name: Contrats d'import (import-linter)
         run: uv run lint-imports
+
+      # Client API de la PWA (story 1.13) : l'OpenAPI versionnée doit être celle de l'API.
+      - name: OpenAPI exportée à jour (web/src/api/openapi.json)
+        run: |
+          uv run python scripts/export_openapi.py
+          git diff --exit-code ../web/src/api/openapi.json
 
       - name: Secrets factices
         working-directory: .
@@ -154,6 +162,12 @@ jobs:
 
       - name: Tests (Vitest)
         run: npm test
+
+      # Types du client API (story 1.13) : régénérés depuis l'OpenAPI versionnée.
+      - name: Types du client API à jour (src/api/schema.d.ts)
+        run: |
+          npm run api:types
+          git diff --exit-code src/api/schema.d.ts
 
       - name: Construction
         run: npm run build

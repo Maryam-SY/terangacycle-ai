@@ -192,8 +192,8 @@ Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tourne sur ch
 
 | Job | Vérifications |
 |---|---|
-| `backend` | `ruff check`, `ruff format --check`, `lint-imports` (contrats d'import), puis la pile Docker Compose démarrée et `pytest --cov` : tests unitaires, d'architecture et d'intégration, couverture d'au moins 60 % |
-| `web` | `npm run lint` (oxlint), `npm test` (Vitest), `npm run build` (Node 26) |
+| `backend` | `ruff check`, `ruff format --check`, `lint-imports` (contrats d'import), export de l'OpenAPI comparé à `web/src/api/openapi.json`, puis la pile Docker Compose démarrée et `pytest --cov` : tests unitaires, d'architecture et d'intégration, couverture d'au moins 60 % |
+| `web` | `npm run lint` (oxlint), `npm test` (Vitest), types du client API régénérés et comparés à `src/api/schema.d.ts`, `npm run build` (Node 26), budget de poids, Playwright et axe |
 | `edge` | après `backend` et `web` : image Caddy construite, pile démarrée, `smoke_edge.py` puis `smoke_readyz.py` |
 | `hygiene` | Gitleaks 8.30.1 (commits de la PR, tout l'historique sur `main`) avec [`.gitleaks.toml`](.gitleaks.toml) ; `scripts/ci/check_pinning.py` (images par `tag@sha256:`, actions par SHA de commit) ; `scripts/ci/check_repo_hygiene.py` (aucun document interne ni `.env` suivi, motifs de `.gitignore`, `LICENSE`, exceptions d'audit non expirées) |
 | `audit` | `pip-audit` 2.10.1 sur les dépendances d'exécution du backend (`uv export --locked --no-dev`), `npm audit --omit=dev` (gravité `high` ou plus), Trivy 0.76.2 sur les images `api` et `caddy` construites (failles `HIGH` et `CRITICAL` corrigeables, secrets laissés dans les images) |
@@ -214,6 +214,15 @@ Le workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) tourne sur ch
 
 Dans le web, `fetch` est interdit hors de `web/src/api/` et `web/src/offline/` (règle `no-restricted-globals` d'oxlint, `web/.oxlintrc.json`).
 
+**Client API généré.** La PWA appelle l'API par un client généré depuis l'OpenAPI, versionné avec le code : `web/src/api/openapi.json` (exporté par `backend/scripts/export_openapi.py`) et `web/src/api/schema.d.ts` (types `openapi-typescript`). Après tout changement d'une route, d'un schéma ou d'un code d'erreur, régénérer les deux fichiers puis les committer :
+
+```bash
+cd backend && uv run python scripts/export_openapi.py && cd ..
+cd web && npm run api:types && cd ..
+```
+
+La CI refuse toute différence : le job `backend` relance l'export, le job `web` la génération des types (`git diff --exit-code`).
+
 **Tests d'intégration obligatoires.** Avec `REQUIRE_INTEGRATION=1` (posé par la CI), un test marqué `integration` qui serait ignoré faute de `TEST_APP_DATABASE_URL`, `TEST_MIGRATOR_DATABASE_URL` ou des variables `TEST_S3_*` (Garage) échoue. Sans la variable, il est ignoré comme avant.
 
 **Reproduire la CI en local**, depuis la racine du dépôt :
@@ -224,11 +233,12 @@ cd backend
 uv sync --locked   # échoue si uv.lock n'est plus à jour de pyproject.toml
 uv run ruff check . && uv run ruff format --check . && uv run lint-imports
 uv run ruff check --config pyproject.toml ../scripts/ci && uv run ruff format --config pyproject.toml --check ../scripts/ci
+uv run python scripts/export_openapi.py && git diff --exit-code ../web/src/api/openapi.json
 REQUIRE_INTEGRATION=1 uv run pytest --cov
 cd ..
 
 # web (dans web/, Node 26)
-cd web && npm ci && npm run lint && npm test && npm run build && cd ..
+cd web && npm ci && npm run lint && npm test && npm run api:types && git diff --exit-code src/api/schema.d.ts && npm run build && cd ..
 
 # edge : comme la CI (qui appelle python3 ; sous Windows, `python`)
 python3 infra/gen-dev-secrets.py

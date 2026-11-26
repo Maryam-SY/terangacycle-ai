@@ -83,8 +83,63 @@
     "title": "Votre signalement",
     "photoAlt": "Photo du dépôt à signaler",
     "position": "Position enregistrée, précision ± {{accuracy}} m",
-    "soon": "Merci ! La taille du tas, le type de déchet et l'envoi arrivent à l'étape suivante de l'application.",
-    "back": "Reprendre une photo"
+    "back": "Reprendre une photo",
+    "comment": {
+      "label": "Commentaire (facultatif)",
+      "hint": "Par exemple : au bord de la route, près de l'école.",
+      "counter": "{{length}}/{{max}}",
+      "counterLabel": "{{length}} caractères sur {{max}}"
+    },
+    "send": "Envoyer",
+    "sending": "Envoi en cours…",
+    "retry": "Réessayer",
+    "missing": {
+      "photo": "La photo manque : reprenez une photo pour envoyer le signalement.",
+      "position": "La position du dépôt manque : reprenez une photo pour envoyer le signalement.",
+      "heapSize": "Choisissez la taille du tas pour pouvoir envoyer le signalement."
+    },
+    "announce": {
+      "ready": "Signalement prêt à être envoyé.",
+      "sending": "Envoi du signalement en cours.",
+      "error": "Le signalement n'est pas encore envoyé : lisez le message."
+    },
+    "networkError": "Envoi impossible pour l'instant. Votre saisie est gardée, réessayez.",
+    "backToCapture": "Revenir à la capture",
+    "retake": "Reprendre la photo"
+  },
+  "heapSize": {
+    "legend": "Taille du tas",
+    "small": "Petit",
+    "smallHint": "Quelques sacs",
+    "medium": "Moyen",
+    "mediumHint": "Une charrette",
+    "large": "Grand",
+    "largeHint": "Un camion"
+  },
+  "wasteType": {
+    "legend": "Type de déchet (facultatif)",
+    "hint": "Touchez de nouveau le type choisi pour le retirer.",
+    "plastic": "Plastique",
+    "metal": "Métal",
+    "glass": "Verre",
+    "organic": "Organique",
+    "mixed": "Mixte"
+  },
+  "confirmation": {
+    "title": "Merci pour votre signalement !",
+    "body": "Il est bien arrivé. Gardez ce numéro pour suivre son traitement.",
+    "trackingLabel": "Numéro de suivi",
+    "demo": "Données de démonstration",
+    "demoHint": "Ce signalement est enregistré sur une instance de démonstration : il ne sera pas traité par une commune.",
+    "home": "Retour à l'accueil"
+  },
+  "timeline": {
+    "title": "Suivi de votre signalement",
+    "reported": "Signalé",
+    "validated": "Validé par la modération",
+    "assigned": "Assigné à un collecteur",
+    "collected": "Collecté, preuve photo",
+    "current": "Étape actuelle"
   },
   "notFound": {
     "title": "Cette page est introuvable",
