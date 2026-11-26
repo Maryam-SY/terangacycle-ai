@@ -5,6 +5,7 @@
 `validation_error` qui nomme le champ, jamais sa valeur.
 """
 
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 from uuid import UUID
@@ -78,8 +79,8 @@ class ReportMeta(BaseModel):
 
 
 class ReportCreated(BaseModel):
-    """Réponse 201 : exactement ces champs. Ni `owner_key`, ni empreinte, ni Identifiant
-    d'appareil, ni Organisation responsable."""
+    """Réponse 201, et 200 d'un renvoi (story 1.12) : exactement ces champs. Ni
+    `owner_key`, ni empreinte, ni Identifiant d'appareil, ni Organisation responsable."""
 
     id: UUID
     tracking_number: str
@@ -87,6 +88,15 @@ class ReportCreated(BaseModel):
     # UTC, sérialisé en ISO 8601 avec `Z`.
     received_at: datetime
     is_demo: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ReportOutcome:
+    """Résultat de `POST /v1/reports` : le Signalement (mêmes champs en 201 et en 200) et
+    `replayed`, vrai pour un renvoi idempotent (200, rien n'a été écrit)."""
+
+    report: ReportCreated
+    replayed: bool
 
 
 def parse_meta(raw: str) -> ReportMeta:

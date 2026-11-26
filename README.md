@@ -83,7 +83,7 @@ Sur `APP_HOST`, Caddy sert la PWA, et relaie vers l'API `/v1/*`, `/healthz` et `
 | `/healthz` | Vivacité : `{"status": "ok"}`, sans aucune dépendance |
 | `/readyz` | `{"status": "ready"}` si la base, Valkey, le bucket et le battement du worker (moins de 60 s) répondent, sinon 503 `{"status": "not_ready"}` |
 | `/v1/config` | Configuration publique : `demo_mode`, `env`, `model_version` |
-| `POST /v1/reports` | Signalement anonyme (`X-Device-Id`, `multipart/form-data` : `meta` en JSON et `photo`) : 201 avec `id`, `tracking_number` (`TC-AAAA-NNNNNN`), `status`, `received_at`, `is_demo` |
+| `POST /v1/reports` | Signalement anonyme (`X-Device-Id`, `multipart/form-data` : `meta` en JSON et `photo`) : 201 avec `id`, `tracking_number` (`TC-AAAA-NNNNNN`), `status`, `received_at`, `is_demo` ; 200 avec les mêmes champs pour un renvoi du même `meta.client_uuid` |
 | `/metrics`, `/v1/ai/*` | Jamais relayées par Caddy (404) ; `/metrics` au format Prometheus sur le réseau Compose seulement (`http://api:8000/metrics`) |
 
 **`POST /v1/reports`** (story 1.11). En-tête `X-Device-Id` : 32 octets aléatoires en base64url, 43 caractères ; aucun `Authorization`. Corps `multipart/form-data` de 2 Mo au plus (Caddy et l'API) :
@@ -105,6 +105,15 @@ Erreurs (enveloppe `{"error": {"code", "message", "request_id"}}` ; une requête
 | 503 | `storage_unavailable` | stockage des photos indisponible |
 
 L'Organisation responsable (commune ou opérateur dont la Zone couvre la Position, sinon l'Organisation plateforme) n'est jamais renvoyée.
+
+**Renvoi sans doublon** (story 1.12). `meta.client_uuid` (Identifiant client, généré une fois par Signalement sur le téléphone) rend la route idempotente par auteur ; aucune clé `Idempotency-Key` n'est demandée. Après les contrôles des en-têtes et de `meta`, le Signalement est cherché par son Identifiant client :
+
+| Statut | Cas | Réponse |
+|---|---|---|
+| 200 | même auteur (même `X-Device-Id`), même `client_uuid` | le Signalement déjà enregistré : mêmes champs qu'en 201, valeurs de la première réception et Statut actuel. Rien n'est écrit (ni ligne, ni photo, ni Numéro consommé) et le contenu renvoyé (photo, Position, commentaire…) est ignoré, même s'il diffère |
+| 409 | `client_uuid_conflict` : autre auteur, même `client_uuid` | l'enveloppe d'erreur seule, rien du Signalement existant |
+
+Le client peut donc renvoyer sans risque un envoi dont il n'a pas reçu la réponse (coupure réseau) : il obtient le Numéro de suivi attribué à la première réception. L'unicité `(client_uuid, owner_key)` est garantie par la base (migration `0004`) : des envois parallèles du même Signalement donnent un seul 201 et des 200, une seule ligne et une seule photo.
 
 La documentation OpenAPI (`/docs`, `/redoc`, `/openapi.json`, absente quand `ENV=prod`) n'est plus relayée par Caddy : ces adresses servent la PWA. Elle reste servie par l'API sur le réseau Compose (`http://api:8000/docs`).
 

@@ -1,11 +1,25 @@
-"""Service du module reports : création d'un Signalement (story 1.11).
+"""Service du module reports : création d'un Signalement (story 1.11) et renvoi
+idempotent (story 1.12).
 
-`create_report()` contrôle, dans l'ordre, pour qu'un refus n'écrive jamais rien :
-consentement aux conditions (422 `consent_required`), Position dans la Zone active
-(422 `outside_active_zone`), photo (`core.storage.ingest_photo`, 413, 415 ou 422) ; puis
-il écrit, dans l'unité de travail en cours : appareil (`auth.service.touch_device`),
-Numéro de suivi, Signalement et photo. Une exception après le stockage annule tout et
-supprime l'objet (`after_rollback`, story 1.10).
+`create_report()` cherche d'abord le Signalement par son Identifiant client (story 1.12) :
+- même auteur (`owner_key`) : l'existant est renvoyé tel qu'enregistré (200), sans lire
+  ni stocker la photo, sans toucher au compteur ni rien écrire ; le contenu renvoyé n'est
+  jamais comparé ni appliqué ;
+- autre auteur : 409 `client_uuid_conflict`, sans rien du Signalement d'origine.
+
+Sinon, il contrôle, dans l'ordre, pour qu'un refus n'écrive jamais rien : consentement aux
+conditions (422 `consent_required`), Position dans la Zone active (422
+`outside_active_zone`), photo (`core.storage.ingest_photo`, 413, 415 ou 422) ; puis il
+écrit, dans l'unité de travail en cours : appareil (`auth.service.touch_device`, Principal
+`device` seulement), Numéro de suivi, Signalement et photo. Une exception après le
+stockage annule tout et supprime l'objet (`after_rollback`, story 1.10).
+
+Envois parallèles du même Signalement : tous peuvent passer la recherche, un seul insère.
+Les autres violent l'unicité `(client_uuid, owner_key)` (migration 0004) : leur unité de
+travail est annulée en entier (ni ligne, ni Numéro consommé, photo supprimée), puis
+l'existant est relu dans une nouvelle unité et renvoyé (200). Seule la violation de cette
+contrainte est traitée ainsi, et seulement quand `create_report()` a ouvert sa propre
+unité : un appelant qui l'a rejointe reçoit l'erreur, son unité étant perdue.
 
 Calculés par le serveur (AD-6) : `received_at`, lu une fois (`core.clock`, UTC), qui donne
 l'année du Numéro et l'année et le mois de la clé de la photo ; Zones qui couvrent la
@@ -14,17 +28,20 @@ la liste choisit l'Organisation responsable (`orgs.service.responsible_org`) ; d
 Position imprécise et `is_demo` (`core.demo.flag`), d'après les réglages de l'application ;
 Statut `pending_review`.
 
-Journaux : l'`id` et le Numéro de suivi seulement, jamais une Position, un Identifiant
-d'appareil, une empreinte ni `owner_key`.
+Journaux : l'`id` et le Numéro de suivi seulement (plus `replayed=true` pour un renvoi),
+jamais une Position, un Identifiant d'appareil, une empreinte ni `owner_key` ; un conflit
+ne journalise aucun identifiant du Signalement d'origine.
 """
 
+import functools
+from collections.abc import Callable
 from datetime import UTC
 from pathlib import PurePosixPath
 from uuid import UUID, uuid4
 
 from app.core import clock, demo, geo, storage
 from app.core.config import Settings
-from app.core.db import after_commit, current_session, transactional
+from app.core.db import after_commit, current_session, in_unit_of_work, transactional
 from app.core.enums import PhotoKind, ReportStatus
 from app.core.errors import DomainError, ErrorCode
 from app.core.logging import get_logger
@@ -33,9 +50,13 @@ from app.modules.auth import service as auth_service
 from app.modules.orgs import service as orgs_service
 from app.modules.reports import repository
 from app.modules.reports.rules import format_tracking_number, is_imprecise
-from app.modules.reports.schemas import ReportCreated, ReportMeta
+from app.modules.reports.schemas import ReportCreated, ReportMeta, ReportOutcome
 
 log = get_logger(__name__)
+
+# Lecture des octets de la photo, appelée seulement quand un Signalement est créé.
+PhotoReader = Callable[[], bytes]
+CreateReport = Callable[[Principal, ReportMeta, PhotoReader, Settings], ReportOutcome]
 
 
 def _photo_id(object_key: str) -> UUID:
@@ -47,14 +68,79 @@ def _log_created(report_id: UUID, tracking_number: str) -> None:
     log.info("report_created", report_id=str(report_id), tracking_number=tracking_number)
 
 
+def _log_replayed(report_id: UUID, tracking_number: str) -> None:
+    log.info(
+        "report_replayed", report_id=str(report_id), tracking_number=tracking_number, replayed=True
+    )
+
+
+def _existing_outcome(principal: Principal, client_uuid: UUID) -> ReportOutcome | None:
+    """Renvoi de l'auteur (200), 409 `client_uuid_conflict` si l'Identifiant client est à
+    un autre auteur, ou `None` s'il est libre. N'écrit rien."""
+    own = repository.find_own_report(principal.owner_key, client_uuid)
+    if own is None:
+        if repository.client_uuid_taken(client_uuid):
+            log.info("report_client_uuid_conflict")
+            raise DomainError(ErrorCode.CLIENT_UUID_CONFLICT, 409)
+        return None
+    after_commit(_log_replayed, own.id, own.tracking_number)
+    return ReportOutcome(
+        report=ReportCreated(
+            id=own.id,
+            tracking_number=own.tracking_number,
+            status=ReportStatus(own.status),
+            received_at=own.received_at.astimezone(UTC),
+            is_demo=own.is_demo,
+        ),
+        replayed=True,
+    )
+
+
+@transactional
+def _reread_after_race(principal: Principal, client_uuid: UUID) -> ReportOutcome | None:
+    """Relecture, dans une nouvelle unité de travail, après une insertion perdue."""
+    return _existing_outcome(principal, client_uuid)
+
+
+def _settle_parallel_sends(create: CreateReport) -> CreateReport:
+    """Autour de l'unité de la création : un envoi parallèle perdu (violation de
+    `uq_reports_client_uuid_owner_key`, unité annulée) est résolu par une relecture."""
+
+    @functools.wraps(create)
+    def settle(
+        principal: Principal, meta: ReportMeta, read_photo: PhotoReader, settings: Settings
+    ) -> ReportOutcome:
+        joined = in_unit_of_work()
+        try:
+            return create(principal, meta, read_photo, settings)
+        except repository.ClientUuidTakenError:
+            if joined:
+                # L'unité de l'appelant est perdue : impossible d'y relire.
+                raise
+            outcome = _reread_after_race(principal, meta.client_uuid)
+            if outcome is None:
+                raise
+            return outcome
+
+    return settle
+
+
+@_settle_parallel_sends
 @transactional
 def create_report(
-    principal: Principal, meta: ReportMeta, photo: bytes, settings: Settings
-) -> ReportCreated:
-    """Enregistre un Signalement anonyme et lui attribue son Numéro de suivi.
+    principal: Principal, meta: ReportMeta, read_photo: PhotoReader, settings: Settings
+) -> ReportOutcome:
+    """Enregistre un Signalement et lui attribue son Numéro de suivi (`replayed` faux,
+    201), ou renvoie celui que le même auteur a déjà envoyé avec le même Identifiant
+    client (`replayed` vrai, 200).
 
+    `read_photo` : lecture des octets de la photo, appelée seulement pour une création.
     `settings` : les réglages avec lesquels l'application a été construite.
     """
+    existing = _existing_outcome(principal, meta.client_uuid)
+    if existing is not None:
+        return existing
+
     received_at = clock.now().astimezone(UTC)
     consent = meta.consent
     if consent is None or consent.terms is not True:
@@ -68,17 +154,20 @@ def create_report(
     if not zones:
         raise DomainError(ErrorCode.OUTSIDE_ACTIVE_ZONE, 422)
 
-    stored = storage.ingest_photo(PhotoKind.REPORT, photo, at=received_at)
+    stored = storage.ingest_photo(PhotoKind.REPORT, read_photo(), at=received_at)
 
     organization_id = orgs_service.responsible_org(zones)
-    auth_service.touch_device(
-        principal.device_hash, training_consent=consent.training, seen_at=received_at
-    )
+    if principal.device_hash is not None:
+        auth_service.touch_device(
+            principal.device_hash, training_consent=consent.training, seen_at=received_at
+        )
     # Compteur en dernier : sa ligne reste verrouillée jusqu'au commit.
     sequence = repository.next_tracking_sequence(received_at.year)
     tracking_number = format_tracking_number(received_at.year, sequence)
     report_id = uuid4()
     is_demo = demo.flag(settings)
+    # Envoi parallèle du même Signalement déjà enregistré : `ClientUuidTakenError`, l'unité
+    # est annulée (compteur compris) et l'objet supprimé (`_settle_parallel_sends`).
     repository.insert_report(
         repository.NewReport(
             id=report_id,
@@ -113,10 +202,13 @@ def create_report(
         )
     )
     after_commit(_log_created, report_id, tracking_number)
-    return ReportCreated(
-        id=report_id,
-        tracking_number=tracking_number,
-        status=ReportStatus.PENDING_REVIEW,
-        received_at=received_at,
-        is_demo=is_demo,
+    return ReportOutcome(
+        report=ReportCreated(
+            id=report_id,
+            tracking_number=tracking_number,
+            status=ReportStatus.PENDING_REVIEW,
+            received_at=received_at,
+            is_demo=is_demo,
+        ),
+        replayed=False,
     )

@@ -165,3 +165,31 @@ def test_pepper_of_32_bytes_is_the_hmac_key() -> None:
     # Fin de ligne d'un fichier de secret : ignorée.
     padded = Settings.model_construct(device_id_pepper=SecretStr(TEST_PEPPER + "\n"))
     assert security.device_id_key(padded) == base64.b64decode(TEST_PEPPER)
+
+
+# --- Principal générique (story 1.12) --------------------------------------------------
+
+
+def test_user_principal_has_an_owner_key_and_no_device_hash() -> None:
+    user_id = "6f1c2a4e-1b2c-4d3e-8f90-a1b2c3d4e5f6"
+    principal = security.Principal(kind="user", owner_key=f"user:{user_id}")
+    assert principal.kind == "user"
+    assert principal.owner_key == f"user:{user_id}"
+    assert principal.device_hash is None
+    assert user_id not in repr(principal)
+
+
+@pytest.mark.parametrize(
+    ("kind", "owner_key"),
+    [
+        ("user", "device:" + "a" * 64),
+        ("device", "user:Qz9"),
+        ("device", "device:"),
+        ("user", "Qz9"),
+    ],
+    ids=["user-cle-appareil", "appareil-cle-user", "identifiant-vide", "sans-prefixe"],
+)
+def test_owner_key_must_match_the_kind_without_echoing_it(kind: str, owner_key: str) -> None:
+    with pytest.raises(ValueError) as exc_info:
+        security.Principal(kind=kind, owner_key=owner_key)  # type: ignore[arg-type]
+    assert owner_key not in str(exc_info.value)

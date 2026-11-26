@@ -1,4 +1,5 @@
-"""`POST /v1/reports` sur PostgreSQL, PostGIS et Garage réels (story 1.11), sans mock.
+"""`POST /v1/reports` sur PostgreSQL, PostGIS et Garage réels (stories 1.11 et 1.12),
+sans mock.
 
 Exige la pile démarrée et migrée et les variables de `test_storage_garage.py` :
 `TEST_APP_DATABASE_URL` et `TEST_S3_ENDPOINT`, `TEST_S3_ACCESS_KEY_ID`,
@@ -35,11 +36,14 @@ from sqlalchemy.orm import Session
 
 from app.core import clock, db, geo, storage
 from app.core.config import get_settings, load_settings
-from app.core.errors import ErrorCode
+from app.core.errors import DomainError, ErrorCode
 from app.core.errors.codes import DEFAULT_MESSAGES
+from app.core.security import Principal
 from app.main import create_app
 from app.modules.orgs.service import PLATFORM_ORGANIZATION_ID
 from app.modules.reports import repository as reports_repository
+from app.modules.reports import service as reports_service
+from app.modules.reports.schemas import parse_meta
 from tests import photos
 from tests.asgi import Response
 from tests.reports import (
@@ -91,6 +95,8 @@ class Stack:
     bucket: str
     device_ids: list[str] = field(default_factory=list)
     org_ids: list[UUID] = field(default_factory=list)
+    # Auteurs autres que les appareils (Principal `user` construit par un test).
+    owner_keys: list[str] = field(default_factory=list)
 
     # --- Requêtes --------------------------------------------------------------------
 
@@ -199,6 +205,7 @@ class Stack:
 
     def cleanup(self, existing_years: set[int]) -> None:
         owner_keys = [f"device:{_hash(device_id)}" for device_id in self.device_ids]
+        owner_keys += self.owner_keys
         with self.engine.begin() as conn:
             keys = conn.scalars(
                 text(
@@ -733,3 +740,293 @@ def test_is_demo_follows_demo_mode(stack: Stack, demo_mode: bool) -> None:
     body = stack.created(stack.post())
     assert body["is_demo"] is demo_mode
     assert stack.report(body["id"]).is_demo is demo_mode
+
+
+# --- Renvoi sans doublon ni fuite (story 1.12) ----------------------------------------------
+
+
+class ConnectionCut(BaseException):  # noqa: N818 (coupure simulée, pas une erreur de l'API)
+    """Coupure après le commit : hors de `Exception`, elle n'est pas absorbée par les effets
+    `after_commit`, et la réponse 201 ne part jamais."""
+
+
+def _replayed(response: Response) -> dict[str, Any]:
+    assert response.status == 200, response.text
+    body = response.json()
+    assert set(body) == RESPONSE_FIELDS
+    return body
+
+
+def _rows_of(stack: Stack, client_uuid: str) -> list[Any]:
+    with stack.engine.connect() as conn:
+        return conn.execute(
+            text("SELECT * FROM reports WHERE client_uuid = :u ORDER BY received_at"),
+            {"u": client_uuid},
+        ).all()
+
+
+def _log_lines(out: str, event: str) -> list[dict[str, Any]]:
+    return [json.loads(line) for line in out.splitlines() if f'"event": "{event}"' in line]
+
+
+def _contains(exc: BaseException, kind: type[BaseException]) -> bool:
+    if isinstance(exc, BaseExceptionGroup):
+        return exc.subgroup(kind) is not None
+    return isinstance(exc, kind)
+
+
+def test_resend_returns_the_existing_report_and_writes_nothing(
+    stack: Stack, capsys: pytest.CaptureFixture[str]
+) -> None:
+    device_id = stack.device()
+    meta = report_meta()
+    first = stack.created(stack.post(meta, device_id=device_id))
+    before = stack.footprint()
+    row_before = stack.report(first["id"])
+    device_before = stack.device_row(device_id)
+    capsys.readouterr()
+
+    again = _replayed(stack.post(meta, device_id=device_id))
+
+    assert again == first
+    assert stack.footprint() == before  # ni ligne, ni objet, ni appareil, compteur inchangé
+    assert stack.report(first["id"]) == row_before
+    assert stack.device_row(device_id) == device_before
+    out = capsys.readouterr().out
+    (line,) = _log_lines(out, "report_replayed")
+    assert set(line) - {"event", "level", "timestamp", "request_id"} == {
+        "report_id",
+        "tracking_number",
+        "replayed",
+    }
+    assert (line["report_id"], line["tracking_number"], line["replayed"]) == (
+        first["id"],
+        first["tracking_number"],
+        True,
+    )
+    assert not _log_lines(out, "report_created")
+    for leaked in (device_id, _hash(device_id), meta["client_uuid"]):
+        assert leaked not in out
+
+
+def test_modified_resend_changes_nothing_and_returns_the_current_status(stack: Stack) -> None:
+    device_id = stack.device()
+    meta = report_meta()
+    first = stack.created(stack.post(meta, device_id=device_id))
+    before = stack.footprint()
+    row_before = stack.report(first["id"])
+    photos_before = stack.photos_of(first["id"])
+
+    modified = report_meta(
+        client_uuid=meta["client_uuid"],
+        lat=PLATEAU[0] + 0.01,
+        lng=PLATEAU[1] - 0.01,
+        accuracy_m=80,
+        heap_size="large",
+        comment="Un tout autre commentaire",
+        waste_type="metal",
+        consent={"terms": True, "training": True},
+    )
+    other_photo = photos.encoded("PNG", (40, 30))
+    assert _replayed(stack.post(modified, other_photo, device_id=device_id)) == first
+    assert stack.footprint() == before
+    assert stack.report(first["id"]) == row_before
+    assert stack.photos_of(first["id"]) == photos_before
+
+    # Statut actuel, valeurs de la première réception pour le reste.
+    with stack.engine.begin() as conn:
+        conn.execute(text("UPDATE reports SET status = 'validated' WHERE id = :id"), first)
+    replay = _replayed(stack.post(modified, other_photo, device_id=device_id))
+    assert replay == {**first, "status": "validated"}
+
+
+def test_ten_resends_in_a_row_keep_one_report(stack: Stack) -> None:
+    device_id = stack.device()
+    meta = report_meta()
+    counter_before = stack.counter(FIXED_NOW.year) or 0
+    responses = [stack.post(meta, device_id=device_id) for _ in range(10)]
+    assert [response.status for response in responses] == [201] + [200] * 9
+    assert len({response.json()["tracking_number"] for response in responses}) == 1
+    (row,) = _rows_of(stack, meta["client_uuid"])
+    assert len(stack.photos_of(str(row.id))) == 1
+    assert len(stack.objects()) == 1
+    assert stack.counter(FIXED_NOW.year) == counter_before + 1
+
+
+def test_ten_parallel_sends_give_one_201_and_nine_200(stack: Stack) -> None:
+    device_id = stack.device()
+    meta = report_meta()
+    count = 10
+    counter_before = stack.counter(FIXED_NOW.year) or 0
+    barrier = threading.Barrier(count)
+
+    def send(_: int) -> Response:
+        barrier.wait(timeout=30)
+        return stack.post(meta, device_id=device_id)
+
+    with ThreadPoolExecutor(max_workers=count) as pool:
+        responses = list(pool.map(send, range(count)))
+
+    statuses = sorted(response.status for response in responses)
+    assert statuses == [200] * 9 + [201], [response.text for response in responses]
+    bodies = [response.json() for response in responses]
+    assert all(set(body) == RESPONSE_FIELDS for body in bodies)
+    assert len({(body["id"], body["tracking_number"]) for body in bodies}) == 1
+    (row,) = _rows_of(stack, meta["client_uuid"])
+    assert row.tracking_number == bodies[0]["tracking_number"]
+    assert len(stack.photos_of(str(row.id))) == 1
+    # Un seul objet : ceux des insertions perdues sont supprimés (after_rollback).
+    assert len(stack.objects()) == 1
+    # Un seul Numéro consommé : le compteur des insertions perdues est annulé avec elles.
+    assert stack.counter(FIXED_NOW.year) == counter_before + 1
+
+
+def test_lost_insert_race_is_rolled_back_then_settled_by_a_reread(
+    stack: Stack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Course rendue certaine : la recherche préalable manque l'existant une fois ; l'insertion
+    viole l'unicité, l'unité entière est annulée, puis l'existant est relu (200)."""
+    device_id = stack.device()
+    meta = report_meta()
+    first = stack.created(stack.post(meta, device_id=device_id))
+    before = stack.footprint()
+    stored_keys: list[str] = []
+    original_ingest = storage.ingest_photo
+    original_lookup = reports_service._existing_outcome
+    misses = iter([True])
+
+    def spying_ingest(*args: Any, **kwargs: Any) -> storage.StoredPhoto:
+        stored = original_ingest(*args, **kwargs)
+        stored_keys.append(stored.object_key)
+        return stored
+
+    def missing_once(*args: Any) -> Any:
+        return None if next(misses, False) else original_lookup(*args)
+
+    monkeypatch.setattr(storage, "ingest_photo", spying_ingest)
+    monkeypatch.setattr(reports_service, "_existing_outcome", missing_once)
+
+    assert _replayed(stack.post(meta, device_id=device_id)) == first
+    assert len(stored_keys) == 1
+    assert stored_keys[0] not in stack.objects()
+    assert stack.footprint() == before  # compteur compris
+
+
+def test_other_constraint_violation_stays_an_error(
+    stack: Stack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Seule l'unicité `(client_uuid, owner_key)` est un renvoi : un Numéro déjà pris
+    (autre contrainte d'unicité) reste une erreur, sans ligne ni objet."""
+    taken = stack.created(stack.post())["tracking_number"]
+    before = stack.footprint()
+    monkeypatch.setattr(reports_service, "format_tracking_number", lambda *_: taken)
+    _error(stack.post(), 500, ErrorCode.INTERNAL_ERROR)
+    assert stack.footprint() == before
+
+
+def test_other_device_with_the_same_client_uuid_gets_409_and_nothing(
+    stack: Stack, capsys: pytest.CaptureFixture[str]
+) -> None:
+    meta = report_meta()
+    first = stack.created(stack.post(meta))
+    row_before = stack.report(first["id"])
+    before = stack.footprint()
+    capsys.readouterr()
+
+    response = stack.post(report_meta(client_uuid=meta["client_uuid"]), device_id=stack.device())
+
+    message = _error(response, 409, ErrorCode.CLIENT_UUID_CONFLICT)
+    assert message == DEFAULT_MESSAGES[ErrorCode.CLIENT_UUID_CONFLICT]
+    assert set(response.json()["error"]) == {"code", "message", "request_id"}
+    for leaked in (
+        first["id"],
+        first["tracking_number"],
+        first["status"],
+        str(PLATEAU[0]),
+        str(PLATEAU[1]),
+    ):
+        assert leaked not in response.text
+    assert stack.report(first["id"]) == row_before
+    assert stack.footprint() == before  # l'appareil B n'est même pas enregistré
+    out = capsys.readouterr().out
+    assert first["id"] not in out
+    assert first["tracking_number"] not in out
+    assert not _log_lines(out, "report_created")
+    assert not _log_lines(out, "report_replayed")
+
+
+def test_user_principal_follows_the_same_rules(stack: Stack) -> None:
+    """`reports.service.create_report()` avec un Principal `user` construit ici."""
+    settings = stack.app.state.settings
+    user = Principal(kind="user", owner_key=f"user:{uuid4()}")
+    stack.owner_keys.append(user.owner_key)
+    device_meta = report_meta()
+    stack.created(stack.post(device_meta))
+    before = stack.footprint()
+
+    with pytest.raises(DomainError) as exc_info:
+        reports_service.create_report(
+            user, parse_meta(json.dumps(device_meta)), sample_photo, settings
+        )
+    assert (exc_info.value.code, exc_info.value.http_status) == (
+        ErrorCode.CLIENT_UUID_CONFLICT,
+        409,
+    )
+    assert stack.footprint() == before
+
+    own = parse_meta(json.dumps(report_meta()))
+    created = reports_service.create_report(user, own, sample_photo, settings)
+    assert created.replayed is False
+    assert stack.report(str(created.report.id)).owner_key == user.owner_key
+    after_creation = stack.footprint()
+    assert after_creation["devices"] == before["devices"]  # aucun appareil pour un `user`
+
+    def photo_never_read() -> bytes:
+        raise AssertionError("photo lue pour un renvoi")
+
+    again = reports_service.create_report(user, own, photo_never_read, settings)
+    assert again.replayed is True
+    assert again.report == created.report
+    assert stack.footprint() == after_creation
+
+
+def test_joined_unit_of_work_gets_the_race_error(
+    stack: Stack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Appelé dans une unité déjà ouverte, le service ne relit pas dans l'unité perdue."""
+    user = Principal(kind="user", owner_key=f"user:{uuid4()}")
+    stack.owner_keys.append(user.owner_key)
+    meta = parse_meta(json.dumps(report_meta()))
+    settings = stack.app.state.settings
+    reports_service.create_report(user, meta, sample_photo, settings)
+    before = stack.footprint()
+    monkeypatch.setattr(reports_service, "_existing_outcome", lambda *_: None)
+    with pytest.raises(reports_repository.ClientUuidTakenError), db.unit_of_work():
+        reports_service.create_report(user, meta, sample_photo, settings)
+    assert stack.footprint() == before
+
+
+def test_lost_201_then_resend_gets_the_first_tracking_number(
+    stack: Stack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    device_id = stack.device()
+    meta = report_meta()
+
+    def cut(*_: Any) -> None:
+        raise ConnectionCut
+
+    # Effet `after_commit` de la création : il lève après le commit, la réponse est perdue.
+    with monkeypatch.context() as patch:
+        patch.setattr(reports_service, "_log_created", cut)
+        with pytest.raises(BaseException) as exc_info:  # noqa: PT011 (coupure simulée)
+            stack.post(meta, device_id=device_id)
+    assert _contains(exc_info.value, ConnectionCut), exc_info.value
+    (row,) = _rows_of(stack, meta["client_uuid"])
+    before = stack.footprint()
+    monkeypatch.setattr(clock, "now", lambda: datetime(2032, 5, 10, 9, 45, tzinfo=UTC))
+
+    replay = _replayed(stack.post(meta, device_id=device_id))
+    assert replay["id"] == str(row.id)
+    assert replay["tracking_number"] == row.tracking_number
+    assert replay["received_at"] == "2032-05-10T08:30:00Z"  # première réception
+    assert stack.footprint() == before

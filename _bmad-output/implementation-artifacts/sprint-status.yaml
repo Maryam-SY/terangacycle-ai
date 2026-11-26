@@ -48,8 +48,8 @@ development_status:
   1-8-vérifier-la-position-et-la-zone-active-avant-la-photo: done
   1-9-photographier-le-dépôt-en-version-légère-et-sans-métadonnées: done
   1-10-stocker-une-photo-sans-métadonnées-dans-le-bucket-privé: done
-  1-11-recevoir-un-signalement-anonyme-et-attribuer-son-numéro-de-s: in-progress
-  1-12-renvoyer-un-signalement-sans-doublon-ni-fuite: backlog
+  1-11-recevoir-un-signalement-anonyme-et-attribuer-son-numéro-de-s: done
+  1-12-renvoyer-un-signalement-sans-doublon-ni-fuite: in-progress
   1-13-compléter-envoyer-et-voir-la-confirmation: backlog
   1-14-repérer-les-doublons-probables-à-la-réception: backlog
   1-15-limiter-les-abus-de-signalement: backlog

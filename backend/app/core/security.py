@@ -1,7 +1,9 @@
 """Principal unique de l'API (AD-9, story 1.11).
 
-Seul ce module lit les en-têtes d'identité. Avant l'Epic 2, le seul principal est
-l'appareil du Citoyen anonyme :
+Seul ce module lit les en-têtes d'identité. Le Principal est générique (story 1.12) :
+`kind` (`device` ou `user`) et `owner_key` (`device:<empreinte>` ou `user:<id>`), la clé
+d'auteur des Signalements. Avant l'Epic 2, la route ne produit que des Principaux
+`device`, ceux de l'appareil du Citoyen anonyme :
 
 - `X-Device-Id` : 32 octets aléatoires en base64url sans remplissage (43 caractères),
   générés par la PWA ; absent, répété ou d'une autre forme → 400 `invalid_device_id` ;
@@ -39,8 +41,9 @@ DEVICE_ID_PATTERN = re.compile(r"[A-Za-z0-9_-]{43}")
 # DEVICE_ID_PEPPER : 32 octets aléatoires en base64 (inventaire d'AD-26).
 DEVICE_ID_PEPPER_MIN_BYTES = 32
 
-# `user` arrivera avec les comptes (Epic 2).
-PrincipalKind = Literal["device"]
+# `user` : comptes de l'Epic 2 ; aucune route n'en produit encore, mais les services
+# suivent déjà les mêmes règles pour un Principal `user` (story 1.12).
+PrincipalKind = Literal["device", "user"]
 
 
 class InvalidPepperError(RuntimeError):
@@ -49,11 +52,24 @@ class InvalidPepperError(RuntimeError):
 
 @dataclass(frozen=True, slots=True)
 class Principal:
-    """Auteur d'une requête. `device_hash` et `owner_key` restent hors du `repr`."""
+    """Auteur d'une requête : `kind` et `owner_key` (`<kind>:<identifiant>`).
+
+    `owner_key`, et l'empreinte d'appareil qu'elle contient, restent hors du `repr`.
+    """
 
     kind: PrincipalKind
-    device_hash: str = field(repr=False)
     owner_key: str = field(repr=False)
+
+    def __post_init__(self) -> None:
+        prefix, _, identifier = self.owner_key.partition(":")
+        if prefix != self.kind or not identifier:
+            # Message sans la valeur : `owner_key` n'est jamais journalisée.
+            raise ValueError(f"owner_key : préfixe « {self.kind} » et identifiant attendus")
+
+    @property
+    def device_hash(self) -> str | None:
+        """Empreinte de l'appareil pour un Principal `device`, sinon `None`."""
+        return self.owner_key.removeprefix("device:") if self.kind == "device" else None
 
 
 def device_id_key(settings: Settings) -> bytes:
@@ -91,8 +107,7 @@ def device_hash(device_id: str, key: bytes) -> str:
 
 
 def device_principal(device_id: str, key: bytes) -> Principal:
-    hashed = device_hash(device_id, key)
-    return Principal(kind="device", device_hash=hashed, owner_key=f"device:{hashed}")
+    return Principal(kind="device", owner_key=f"device:{device_hash(device_id, key)}")
 
 
 def check_identity_headers(headers: Headers) -> str:

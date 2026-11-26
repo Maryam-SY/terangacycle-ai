@@ -234,6 +234,7 @@ def test_every_code_has_a_default_message() -> None:
         "invalid_token",
         "consent_required",
         "outside_active_zone",
+        "client_uuid_conflict",
     }
 
 
@@ -250,9 +251,10 @@ def test_outside_active_zone_message_is_the_story_text() -> None:
         ErrorCode.INVALID_TOKEN,
         ErrorCode.CONSENT_REQUIRED,
         ErrorCode.OUTSIDE_ACTIVE_ZONE,
+        ErrorCode.CLIENT_UUID_CONFLICT,
     ],
 )
-def test_story_1_11_messages_match_the_french_catalog(code: ErrorCode) -> None:
+def test_story_messages_match_the_french_catalog(code: ErrorCode) -> None:
     fr = Path(__file__).resolve().parents[3] / "web" / "src" / "i18n" / "fr.json"
     catalog = json.loads(fr.read_text(encoding="utf-8"))
     assert DEFAULT_MESSAGES[code] == catalog["errors"][code.value]
