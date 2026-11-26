@@ -60,10 +60,15 @@ class ReportStatus(StrEnum):
 
 
 class PhotoKind(StrEnum):
-    """Nature d'une photo stockée : premier segment de sa clé dans le bucket (AD-13)."""
+    """Nature d'une photo stockée : premier segment de sa clé dans le bucket (AD-13).
+
+    `report_thumb` : miniature d'une photo de Signalement (story 1.18), dérivée par le
+    worker, jamais reçue d'un client (`ingest_photo` la refuse).
+    """
 
     REPORT = "report"
     PROOF = "proof"
+    REPORT_THUMB = "report_thumb"
 
 
 class MissionStatus(StrEnum):

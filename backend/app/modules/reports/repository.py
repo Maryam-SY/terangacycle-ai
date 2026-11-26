@@ -66,6 +66,24 @@ _INSERT_PHOTO = text(
 )
 
 
+# Photo verrouillée jusqu'à la fin de l'unité de travail (miniature, story 1.18) : deux
+# exécutions de la même tâche se suivent au lieu de se croiser.
+_LOCK_PHOTO = text("SELECT object_key, thumb_key FROM report_photos WHERE id = :id FOR UPDATE")
+
+# Clé de la miniature, écrite une seule fois.
+_SET_THUMB_KEY = text(
+    "UPDATE report_photos SET thumb_key = :thumb_key WHERE id = :id AND thumb_key IS NULL"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class LockedPhoto:
+    """Photo de Signalement verrouillée : clé de l'objet et clé de sa miniature."""
+
+    object_key: str
+    thumb_key: str | None
+
+
 @dataclass(frozen=True, slots=True)
 class NewReport:
     id: UUID
@@ -164,3 +182,16 @@ def insert_report(report: NewReport) -> None:
 
 def insert_photo(photo: NewPhoto) -> None:
     current_session().execute(_INSERT_PHOTO, asdict(photo))
+
+
+def lock_photo(photo_id: UUID) -> LockedPhoto | None:
+    """Photo `photo_id` verrouillée (`FOR UPDATE`) jusqu'à la fin de l'unité de travail, ou
+    `None` si elle n'existe plus (Signalement retiré)."""
+    row = current_session().execute(_LOCK_PHOTO, {"id": photo_id}).one_or_none()
+    return None if row is None else LockedPhoto(**row._asdict())
+
+
+def set_thumb_key(photo_id: UUID, thumb_key: str) -> bool:
+    """Enregistre la clé de la miniature si aucune ne l'est encore ; vrai si écrite."""
+    result = current_session().execute(_SET_THUMB_KEY, {"id": photo_id, "thumb_key": thumb_key})
+    return result.rowcount == 1

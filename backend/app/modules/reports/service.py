@@ -1,5 +1,9 @@
-"""Service du module reports : création d'un Signalement (story 1.11) et renvoi
-idempotent (story 1.12).
+"""Service du module reports : création d'un Signalement (story 1.11), renvoi
+idempotent (story 1.12) et miniature de sa photo (story 1.18).
+
+Miniature : la création met en file la tâche arq `thumb:<photo_id>` par `core.jobs`, après
+le commit seulement (jamais après une annulation, jamais pour un renvoi idempotent, qui
+n'écrit rien). Le worker appelle `make_thumbnail(photo_id)`.
 
 `create_report()` cherche d'abord le Signalement par son Identifiant client (story 1.12) :
 - même auteur (`owner_key`) : l'existant est renvoyé tel qu'enregistré (200), sans lire
@@ -45,7 +49,7 @@ from datetime import UTC
 from pathlib import PurePosixPath
 from uuid import UUID, uuid4
 
-from app.core import clock, demo, geo, storage
+from app.core import clock, demo, geo, jobs, storage
 from app.core.config import Settings
 from app.core.db import after_commit, current_session, in_unit_of_work, transactional
 from app.core.enums import PhotoKind, ReportStatus
@@ -63,6 +67,14 @@ log = get_logger(__name__)
 # Lecture des octets de la photo, appelée seulement quand un Signalement est créé.
 PhotoReader = Callable[[], bytes]
 CreateReport = Callable[[Principal, ReportMeta, PhotoReader, Settings], ReportOutcome]
+
+# Tâche arq de la miniature d'une photo (story 1.18), d'identifiant `thumb:<photo_id>`.
+THUMB_JOB = "thumb"
+
+
+def _thumb_job_id(photo_id: UUID) -> str:
+    """Identifiant de la tâche de miniature : `thumb:<photo_id>` (`report_photos.id`)."""
+    return f"{THUMB_JOB}:{photo_id}"
 
 
 def _photo_id(object_key: str) -> UUID:
@@ -200,9 +212,10 @@ def create_report(
             is_demo=is_demo,
         )
     )
+    photo_id = _photo_id(stored.object_key)
     repository.insert_photo(
         repository.NewPhoto(
-            id=_photo_id(stored.object_key),
+            id=photo_id,
             report_id=report_id,
             object_key=stored.object_key,
             sha256=stored.sha256,
@@ -212,6 +225,9 @@ def create_report(
         )
     )
     after_commit(_log_created, report_id, tracking_number)
+    # Miniature (story 1.18) : mise en file après le commit seulement, jamais après une
+    # annulation ; un échec de la mise en file ne change ni le commit ni la réponse.
+    jobs.enqueue_after_commit(THUMB_JOB, str(photo_id), job_id=_thumb_job_id(photo_id))
     return ReportOutcome(
         report=ReportCreated(
             id=report_id,
@@ -222,3 +238,39 @@ def create_report(
         ),
         replayed=False,
     )
+
+
+@transactional
+def make_thumbnail(photo_id: UUID) -> str | None:
+    """Produit la miniature de la photo `photo_id` et enregistre sa clé (tâche `thumb`,
+    story 1.18) ; renvoie la clé, ou `None` si rien n'a pu être fait.
+
+    Sous le verrou de la ligne (`FOR UPDATE`), l'état est relu : photo absente (Signalement
+    retiré) ou miniature déjà enregistrée, la tâche s'arrête sans rien écrire. Sinon la
+    miniature est stockée (clé déterministe, `core.storage.make_thumbnail`), puis sa clé
+    est écrite si aucune ne l'est encore. Rejouer la tâche, même en parallèle, ne crée donc
+    jamais de second objet.
+
+    Photo source absente ou illisible : journal `thumb_source_missing` et arrêt (un nouvel
+    essai n'y changerait rien). Stockage indisponible : `DomainError` 503
+    `storage_unavailable`, l'unité est annulée et le worker réessaie.
+    """
+    photo = repository.lock_photo(photo_id)
+    if photo is None:
+        log.info("thumb_photo_gone", photo_id=str(photo_id))
+        return None
+    if photo.thumb_key is not None:
+        log.info("thumb_already_recorded", photo_id=str(photo_id), thumb_key=photo.thumb_key)
+        return photo.thumb_key
+    try:
+        thumb_key = storage.make_thumbnail(photo.object_key)
+    except storage.ThumbnailSourceError:
+        log.warning("thumb_source_missing", photo_id=str(photo_id), object_key=photo.object_key)
+        return None
+    repository.set_thumb_key(photo_id, thumb_key)
+    after_commit(_log_thumb_recorded, photo_id, thumb_key)
+    return thumb_key
+
+
+def _log_thumb_recorded(photo_id: UUID, thumb_key: str) -> None:
+    log.info("thumb_recorded", photo_id=str(photo_id), thumb_key=thumb_key)

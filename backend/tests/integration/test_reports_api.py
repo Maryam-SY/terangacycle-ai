@@ -3,12 +3,14 @@ sans mock.
 
 Exige la pile démarrée et migrée et les variables de `test_storage_garage.py` :
 `TEST_APP_DATABASE_URL` et `TEST_S3_ENDPOINT`, `TEST_S3_ACCESS_KEY_ID`,
-`TEST_S3_SECRET_ACCESS_KEY` (`TEST_S3_BUCKET`, `TEST_S3_REGION` facultatifs). Sans elles,
-les tests sont ignorés, sauf avec `REQUIRE_INTEGRATION=1` (CI) : ils échouent.
+`TEST_S3_SECRET_ACCESS_KEY` (`TEST_S3_BUCKET`, `TEST_S3_REGION` facultatifs), plus
+`TEST_VALKEY_URL` : chaque création met en file la tâche de miniature (story 1.18). Sans
+elles, les tests sont ignorés, sauf avec `REQUIRE_INTEGRATION=1` (CI) : ils échouent.
 
 Chaque ligne de la matrice de la story est vérifiée par relecture de la base et du bucket.
 L'horloge est fixée en mai 2032 (objets sous `report/2032/05/`) ; les Signalements,
-appareils, Organisations, objets et compteurs créés par un test sont supprimés à la fin.
+appareils, Organisations, objets et compteurs créés par un test sont supprimés à la fin, y
+compris les miniatures que le worker de la pile a produites (`report_thumb/2032/05/`).
 """
 
 import base64
@@ -63,6 +65,8 @@ pytestmark = pytest.mark.integration
 DEFAULT_BUCKET = "terangacycle-photos"
 FIXED_NOW = datetime(2032, 5, 10, 8, 30, tzinfo=UTC)
 OBJECT_PREFIX = "report/2032/05/"
+# Miniatures produites par le worker de la pile pour les Signalements des tests.
+THUMB_PREFIX = "report_thumb/2032/05/"
 # Années dont un test crée le compteur ; supprimé en fin de test s'il n'existait pas.
 TEST_YEARS = (2026, 2027, 2032)
 UUID4 = r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}"
@@ -158,11 +162,11 @@ class Stack:
                 text("SELECT * FROM devices WHERE device_hash = :h"), {"h": _hash(device_id)}
             ).one_or_none()
 
-    def objects(self) -> list[str]:
+    def objects(self, prefix: str = OBJECT_PREFIX) -> list[str]:
         paginator = self.s3.get_paginator("list_objects_v2")
         return [
             item["Key"]
-            for page in paginator.paginate(Bucket=self.bucket, Prefix=OBJECT_PREFIX)
+            for page in paginator.paginate(Bucket=self.bucket, Prefix=prefix)
             for item in page.get("Contents", [])
         ]
 
@@ -243,7 +247,10 @@ class Stack:
                     ),
                     {"y": year, "prefix": f"TC-{year}-%"},
                 )
-        for key in {*keys, *self.objects()}:
+        # Après la suppression des lignes : une miniature en cours d'écriture est déjà
+        # stockée (verrou de la ligne), une tâche à venir ne trouvera plus de ligne.
+        thumbs = {storage.thumb_key_for(key) for key in keys}
+        for key in {*keys, *thumbs, *self.objects(), *self.objects(THUMB_PREFIX)}:
             try:
                 self.s3.delete_object(Bucket=self.bucket, Key=key)
             except Exception as exc:
@@ -257,6 +264,7 @@ def stack(monkeypatch: pytest.MonkeyPatch) -> Iterator[Stack]:
     secret_key = _env("TEST_S3_SECRET_ACCESS_KEY")
     bucket = os.environ.get("TEST_S3_BUCKET", "").strip() or DEFAULT_BUCKET
     region = os.environ.get("TEST_S3_REGION", "").strip() or "garage"
+    valkey_url = _env("TEST_VALKEY_URL")
     database_url = make_url(_env("TEST_APP_DATABASE_URL"))
     if database_url.drivername in ("postgresql", "postgres"):
         database_url = database_url.set(drivername="postgresql+psycopg")
@@ -271,6 +279,7 @@ def stack(monkeypatch: pytest.MonkeyPatch) -> Iterator[Stack]:
         "S3_SECRET_ACCESS_KEY": secret_key,
         "S3_BUCKET": bucket,
         "S3_REGION": region,
+        "VALKEY_URL": valkey_url,
         "DEVICE_ID_PEPPER": TEST_PEPPER,
     }.items():
         monkeypatch.setenv(name, value)
@@ -380,7 +389,8 @@ def test_nominal_report_is_stored_completely(
     assert photo_row.id == UUID(match.group(1))  # AD-13 : uuid de la clé = ligne photo
     assert photo_row.sha256 == hashlib.sha256(photo).hexdigest()
     assert (photo_row.width, photo_row.height) == (64, 48)
-    assert photo_row.thumb_key is None
+    # Miniature (story 1.18) : pas encore faite, ou déjà faite par le worker de la pile.
+    assert photo_row.thumb_key in (None, storage.thumb_key_for(photo_row.object_key))
     stored = stack.s3.get_object(Bucket=stack.bucket, Key=photo_row.object_key)
     with Image.open(io.BytesIO(stored["Body"].read())) as image:
         assert image.format == "JPEG" and image.size == (64, 48)
